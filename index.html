@@ -223,7 +223,18 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
   .player>.ctrls{gap:6px}
   .btn{padding:7px 12px;font-size:13px}
   .btn.play-main{min-width:0;padding:7px 14px;font-size:13px}
-  .meta{max-width:110px}
+  /* Barra de herramientas en dos filas: [pestañas · Salir] [buscador · playlist de origen] */
+  .tools{gap:8px;margin-top:10px}
+  .seg{order:0;padding:2px}
+  .seg button{padding:6px 10px;font-size:12.5px}
+  .seg small{display:none}
+  .who{order:1;margin-left:auto}
+  #who{display:none}
+  .search{order:2;flex:1 1 150px;min-width:0;padding-left:12px} /* sin min-width:0 el input impone ~210px y el selector cae a otra fila */
+  .search input{padding:8px 0;font-size:14px}
+  select{order:3;flex:0 1 46%;min-width:0;font-size:13px;padding:7px 10px;text-overflow:ellipsis}
+  .meta{max-width:96px}
+  .tag.mine{display:none} /* el ✓ ya indica que está en alguna playlist */
   .play{grid-template-columns:62px minmax(0,1fr) auto;gap:10px}
   .th{width:62px}
   .pa-grid{grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:16px 12px}

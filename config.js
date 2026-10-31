@@ -8,5 +8,5 @@ window.APP_CONFIG = {
     messagingSenderId: "842679262746",
     appId: "1:842679262746:web:8706b9349d5b278d447ba3"
   },
-  youtubeKey: ""
+  youtubeKey: "AIzaSyAtqOQha796BD67uCb9Vim1Ym7gKUGMJIU"
 };

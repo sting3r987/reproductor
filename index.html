@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex">
+<title>Reproductor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Reproductor de playlists: video y controles arriba, cola de canciones debajo. Recibe la playlist en el enlace (#n=…&i=…&d=…) y no guarda nada. */
+:root{
+  --bg:#F1F3F6; --surface:#FFFFFF; --surface-2:#E8EBF0; --line:#D6DBE3;
+  --ink:#16202B; --ink-2:#4B5665; --ink-3:#7C8795;
+  --accent:#B8324F; --accent-ink:#FFFFFF; --accent-bg:#F7E1E6;
+  --focus:#2F6FE4; --radius:10px;
+  --display:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121820; --surface:#1A222C; --surface-2:#232D39; --line:#2F3A47;
+    --ink:#EEF2F6; --ink-2:#B4BEC9; --ink-3:#7F8B98;
+    --accent:#E8607C; --accent-ink:#15070B; --accent-bg:#3A1A22;
+    --focus:#6FA0FF; color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+.wrap{max-width:1040px;margin:0 auto}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:16px 12px;border-bottom:1px solid var(--line)}
+.player{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:18px;align-items:center}
+.video{aspect-ratio:16/9;max-width:100%;background:var(--surface-2);border-radius:var(--radius);overflow:hidden;position:relative}
+.video #yt{position:absolute;inset:0;width:100%;height:100%}
+.now{min-width:0;display:flex;flex-direction:column;gap:6px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(22px,3.4vw,34px);line-height:1.08;letter-spacing:-.02em;margin:0;text-wrap:balance;overflow-wrap:anywhere}
+.by{color:var(--ink-2);margin:0;overflow-wrap:anywhere}
+.ctrls{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;font:inherit;font-size:14px;font-weight:600;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);min-width:110px;justify-content:center}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn:focus-visible,.row:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.yt-link{font-size:12px;color:var(--ink-3)}
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:0 12px;margin-top:14px;max-width:420px}
+.search input{flex:1;border:0;background:transparent;color:var(--ink);font:inherit;padding:9px 0;min-width:0;outline:none}
+.search svg{flex:none;color:var(--ink-3)}
+.list{display:flex;flex-direction:column;margin-top:8px}
+.row{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;align-items:center;padding:10px 8px;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;width:100%}
+.row:hover{background:var(--surface)}
+.row.on{background:var(--accent-bg)}
+.row.on .n{color:var(--accent);font-weight:700}
+.n{color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:13px;text-align:right}
+.t{min-width:0}
+.t b{display:block;font-weight:600;overflow-wrap:anywhere}
+.t span{display:block;color:var(--ink-2);font-size:13px;overflow-wrap:anywhere}
+.empty{border:1px dashed var(--line);border-radius:12px;padding:28px 18px;text-align:center;color:var(--ink-2);margin-top:24px}
+.empty b{display:block;font-family:var(--display);font-size:20px;color:var(--ink);margin-bottom:6px}
+.note{color:var(--ink-3);font-size:13px;margin:14px 0 0}
+@media (max-width:640px){.player{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="empty" id="none" hidden><b>No hay playlist para reproducir</b>Abre esta página con el botón ▶ de una playlist en “Nuestras playlists”.</div>
+<div id="app" hidden>
+<header class="top">
+  <div class="player">
+    <div class="video"><div id="yt"></div></div>
+    <div class="now">
+      <p class="eyebrow" id="pos"></p>
+      <h1 id="nt"></h1>
+      <p class="by" id="na"></p>
+      <div class="ctrls">
+        <button class="btn" id="prev" type="button" aria-label="Anterior">⏮</button>
+        <button class="btn primary" id="play" type="button">▶ Reproducir</button>
+        <button class="btn" id="next" type="button" aria-label="Siguiente">⏭</button>
+        <button class="btn" id="shuf" type="button" aria-pressed="false">Aleatorio</button>
+        <button class="btn" id="rep" type="button" aria-pressed="false">Repetir lista</button>
+      </div>
+      <a class="yt-link" id="ytl" href="#" target="_blank" rel="noopener">Abrir en YouTube</a>
+    </div>
+  </div>
+  <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Buscar en esta playlist" autocomplete="off"></label>
+</header>
+<div class="list" id="list" role="list"></div>
+<p class="note">Si un video no deja reproducirse fuera de YouTube, el reproductor pasa solo a la siguiente canción.</p>
+</div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+// Enlace: #n=<nombre>&i=<inicio>&d=<base64url de líneas "videoId\ttítulo\tartista">
+function parse(){
+  const h = location.hash.slice(1), out = {};
+  for (const part of h.split("&")){ const k = part.indexOf("="); if (k > 0) out[part.slice(0, k)] = part.slice(k + 1); }
+  let songs = [];
+  try {
+    const b = atob((out.d || "").replace(/-/g, "+").replace(/_/g, "/"));
+    const txt = new TextDecoder().decode(Uint8Array.from(b, c => c.charCodeAt(0)));
+    songs = txt.split("\n").map(l => l.split("\t")).filter(p => /^[\w-]{11}$/.test(p[0])).map(([y, t, a]) => ({y, t: t || "Canción", a: a || ""}));
+  } catch (e) { songs = []; }
+  let name = "Playlist"; try { name = decodeURIComponent(out.n || "") || name; } catch (e) {}
+  return {name, songs, start: Math.max(0, Math.min(songs.length - 1, parseInt(out.i, 10) || 0)), shuffle: out.s === "1"};
+}
+const P = parse();
+let cur = -1, player = null, ready = false, playing = false, pending = null, shuffle = P.shuffle, repeat = true, order = [];
+if (!P.songs.length){ $("none").hidden = false; }
+else {
+  $("app").hidden = false;
+  document.title = P.name + " · Reproductor";
+  $("shuf").setAttribute("aria-pressed", shuffle); $("rep").setAttribute("aria-pressed", repeat);
+  render();
+  makeOrder(P.start);
+  show(P.start);
+}
+function makeOrder(first){
+  order = P.songs.map((_, i) => i);
+  if (shuffle){
+    for (let i = order.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    if (first != null){ order.splice(order.indexOf(first), 1); order.unshift(first); }
+  }
+}
+function render(){
+  const q = $("q").value.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const frag = document.createDocumentFragment();
+  P.songs.forEach((x, i) => {
+    if (q && !(x.t + " " + x.a).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").includes(q)) return;
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "row" + (i === cur ? " on" : ""); b.dataset.i = i; b.setAttribute("role", "listitem");
+    b.innerHTML = '<span class="n"></span><span class="t"><b></b><span></span></span>';
+    b.querySelector(".n").textContent = i + 1; b.querySelector("b").textContent = x.t; b.querySelector(".t span").textContent = x.a;
+    frag.appendChild(b);
+  });
+  $("list").replaceChildren(frag);
+}
+function show(i){
+  cur = i; const x = P.songs[i];
+  $("nt").textContent = x.t; $("na").textContent = x.a;
+  $("pos").textContent = P.name + " · " + (i + 1) + " de " + P.songs.length;
+  $("ytl").href = "https://www.youtube.com/watch?v=" + x.y;
+  document.querySelectorAll(".row.on").forEach(r => r.classList.remove("on"));
+  const row = $("list").querySelector(`[data-i="${i}"]`); if (row){ row.classList.add("on"); row.scrollIntoView({block: "nearest"}); }
+}
+function load(i, auto){
+  show(i);
+  if (!ready){ pending = i; return; }
+  player.loadVideoById(P.songs[i].y);
+}
+function step(d){
+  const k = order.indexOf(cur), n = k + d;
+  if (n >= order.length){ if (!repeat) return; if (shuffle) makeOrder(); return load(order[0]); }
+  if (n < 0) return load(order[order.length - 1]);
+  load(order[n]);
+}
+$("list").addEventListener("click", e => { const r = e.target.closest(".row"); if (r) load(+r.dataset.i); });
+$("next").onclick = () => step(1);
+$("prev").onclick = () => step(-1);
+$("play").onclick = () => { if (!ready) return; playing ? player.pauseVideo() : player.playVideo(); };
+$("shuf").onclick = () => { shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle); makeOrder(cur); };
+$("rep").onclick = () => { repeat = !repeat; $("rep").setAttribute("aria-pressed", repeat); };
+$("q").addEventListener("input", render);
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === " " && e.target.tagName !== "BUTTON"){ e.preventDefault(); $("play").click(); }
+  if (e.key === "ArrowRight") step(1); if (e.key === "ArrowLeft") step(-1);
+});
+window.addEventListener("hashchange", () => location.reload());
+window.onYouTubeIframeAPIReady = () => {
+  if (!P.songs.length) return;
+  player = new YT.Player("yt", { width: "100%", height: "100%", videoId: P.songs[cur].y, playerVars: { playsinline: 1, rel: 0 },
+    events: {
+      onReady(){ ready = true; if (pending != null) player.cueVideoById(P.songs[pending].y); pending = null; },
+      onStateChange(e){ playing = e.data === YT.PlayerState.PLAYING; $("play").textContent = playing ? "⏸ Pausa" : "▶ Reproducir"; if (e.data === YT.PlayerState.ENDED) step(1); },
+      onError(){ setTimeout(() => step(1), 800); }
+    }});
+};
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>

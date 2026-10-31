@@ -117,10 +117,15 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
 .add{flex:none;width:42px;height:42px;align-self:center;margin-right:4px;border:0;border-radius:99px;background:transparent;color:var(--ink-3);font:inherit;font-size:20px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
 .add:hover{color:var(--accent);background:var(--accent-bg)}
 .add.in{color:var(--have)}
-.mvs{display:flex;flex-direction:column;align-self:center;gap:2px;margin-right:2px;padding:2px;border-radius:8px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line)}
-.mv{width:34px;height:22px;border:0;border-radius:6px;background:transparent;color:var(--ink);font:inherit;font-size:13px;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;transition:background .12s,color .12s}
-.mv:hover{background:var(--accent);color:#fff}
-.mv:disabled{opacity:.2;cursor:default;background:transparent;color:var(--ink)}
+.grip{flex:none;width:36px;align-self:stretch;margin:4px 0;display:grid;place-items:center;border:0;border-radius:var(--r-sm);background:transparent;color:var(--ink-3);cursor:grab;touch-action:none;transition:color .12s,background .12s}
+.grip svg{width:12px;height:18px;fill:currentColor}
+.grip:hover,.grip:focus-visible{color:var(--accent);background:var(--accent-bg)}
+.row.dragging{position:relative;z-index:5;background:var(--surface);box-shadow:var(--shadow);outline:1px solid var(--line-2)}
+.row.dragging,.row.dragging .grip{cursor:grabbing}
+body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
+body.dragging .row:not(.dragging){transition:transform .16s ease}
+body.dragging .row:hover{background:transparent}
+.hint{color:var(--ink-3);font-size:12px}
 .more{margin:16px auto 0;display:flex}
 .note{color:var(--ink-3);font-size:13px;margin:16px 0 0;max-width:70ch}
 /* Playlists */
@@ -382,9 +387,9 @@ function toggleSong(p, x){
   write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
 }
 function patch(p, f){ Object.assign(p, f); write(p.id, () => updateDoc(doc(plCol, p.id), f)); }
-function moveSong(p, i, d){ // sube (d=-1) o baja (d=1) la canción i dentro de la playlist
-  const j = i + d; if (i < 0 || j < 0 || i >= p.songs.length || j >= p.songs.length) return;
-  [p.songs[i], p.songs[j]] = [p.songs[j], p.songs[i]];
+function moveSongTo(p, from, to){ // mueve la canción `from` al puesto `to` dentro de la playlist
+  if (!p || from === to || from < 0 || to < 0 || from >= p.songs.length || to >= p.songs.length) return;
+  const [s] = p.songs.splice(from, 1); p.songs.splice(to, 0, s);
   const songs = p.songs.slice();
   write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
 }
@@ -443,7 +448,7 @@ function songRow(x, i){
   if (mode === "all") meta += mine.map(p => `<span class="tag mine">${esc(p.name)}</span>`).join("");
   const on = cur >= 0 && queue[cur] && queue[cur].k === x.k && queueLabel === listLabel();
   const mv = mode === "pl" && !sortBy && current.length > 1
-    ? `<span class="mvs"><button type="button" class="mv" data-up="${i}"${i === 0 ? " disabled" : ""} title="Subir" aria-label="Subir">▲</button><button type="button" class="mv" data-dn="${i}"${i === current.length - 1 ? " disabled" : ""} title="Bajar" aria-label="Bajar">▼</button></span>` : "";
+    ? `<button type="button" class="grip" data-grip="${i}" title="Arrastra para cambiar el orden (o usa ↑ ↓)" aria-label="Arrastra para cambiar el orden"><svg viewBox="0 0 12 18" aria-hidden="true"><circle cx="3" cy="3" r="1.7"/><circle cx="9" cy="3" r="1.7"/><circle cx="3" cy="9" r="1.7"/><circle cx="9" cy="9" r="1.7"/><circle cx="3" cy="15" r="1.7"/><circle cx="9" cy="15" r="1.7"/></svg></button>` : "";
   const btn = mode === "pl"
     ? mv + `<button type="button" class="add" data-rm="${i}" title="Quitar de esta playlist" aria-label="Quitar de esta playlist">×</button>`
     : `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`;
@@ -461,13 +466,70 @@ function renderList(){
 }
 $("list").addEventListener("click", e => {
   const add = e.target.closest("[data-add]"), rm = e.target.closest("[data-rm]"), pl = e.target.closest(".play");
-  const up = e.target.closest("[data-up]"), dn = e.target.closest("[data-dn]");
-  if (up || dn){ moveSong(openPl(), +(up || dn).dataset[up ? "up" : "dn"], up ? -1 : 1); return refresh(); }
+  if (e.target.closest("[data-grip]")) return;
   if (add) return openSheet(current[+add.dataset.add]);
   if (rm){ toggleSong(openPl(), current[+rm.dataset.rm]); return refresh(); }
   if (pl){ const x = current[+pl.dataset.i]; if (x.y) playFrom(+pl.dataset.i); else ytSearch(x.a.split(",")[0] + " " + x.t); }
 });
 $("more").onclick = () => { shown += PAGE * 2; renderList(); };
+
+/* ---------- Arrastrar para reordenar (dentro de una playlist) ---------- */
+let drag = null;
+function dragUpdate(){
+  const d = drag; if (!d || !d.moved) return;
+  const dy = d.y - d.y0 + (scrollY - d.s0);
+  d.row.style.transform = `translateY(${dy}px)`;
+  const to = Math.max(0, Math.min(d.rows.length - 1, d.from + Math.round(dy / d.h)));
+  if (to === d.to) return;
+  d.to = to;
+  d.rows.forEach((r, i) => {
+    if (r === d.row) return;
+    let s = 0;
+    if (d.from < to && i > d.from && i <= to) s = -d.h;
+    else if (d.from > to && i >= to && i < d.from) s = d.h;
+    r.style.transform = s ? `translateY(${s}px)` : "";
+  });
+}
+function dragTick(){ // desplaza la página cuando se arrastra cerca del borde
+  const d = drag; if (!d || !d.moved) return;
+  const m = 72; let v = 0;
+  if (d.y < m) v = -Math.ceil((m - d.y) / 6); else if (d.y > innerHeight - m) v = Math.ceil((d.y - innerHeight + m) / 6);
+  if (v){ scrollBy(0, v); dragUpdate(); }
+  requestAnimationFrame(dragTick);
+}
+function dragEnd(){
+  const d = drag; if (!d) return; drag = null;
+  d.rows.forEach(r => { r.style.transform = ""; });
+  d.row.classList.remove("dragging"); document.body.classList.remove("dragging");
+  if (d.moved && d.to !== d.from){ moveSongTo(openPl(), d.from, d.to); refresh(); }
+}
+$("list").addEventListener("pointerdown", e => {
+  const g = e.target.closest("[data-grip]"); if (!g || e.button) return;
+  const row = g.closest(".row"), rows = [...$("list").children], from = rows.indexOf(row);
+  const h = rows.length > 1 ? Math.abs(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top) : row.offsetHeight;
+  drag = {g, row, rows, from, to: from, y0: e.clientY, y: e.clientY, s0: scrollY, h, moved: false};
+  g.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+$("list").addEventListener("pointermove", e => {
+  const d = drag; if (!d) return;
+  d.y = e.clientY;
+  if (!d.moved){
+    if (Math.abs(d.y - d.y0) < 4) return;
+    d.moved = true; d.row.classList.add("dragging"); document.body.classList.add("dragging");
+    requestAnimationFrame(dragTick);
+  }
+  dragUpdate();
+});
+$("list").addEventListener("pointerup", dragEnd);
+$("list").addEventListener("pointercancel", dragEnd);
+$("list").addEventListener("keydown", e => { // ↑ ↓ con el teclado sobre el asa
+  const g = e.target.closest("[data-grip]"); if (!g) return;
+  const d = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0; if (!d) return;
+  e.preventDefault();
+  const i = +g.dataset.grip; moveSongTo(openPl(), i, i + d); refresh();
+  $("list").querySelector(`[data-grip="${i + d}"]`)?.focus();
+});
 
 /* ---------- Reproductor ---------- */
 function playFrom(i, list, label){
@@ -539,7 +601,7 @@ function renderPls(){
   if (op){
     const has = vids(op).length;
     box.innerHTML = `<div class="plhead">${coverHTML(op)}<div class="info"><h2>${esc(op.name)}</h2>
-      <p class="msg" style="margin:0">${count(op)}</p>
+      <p class="msg" style="margin:0">${count(op)}${op.songs.length > 1 ? ' <span class="hint">· arrastra ⠿ para cambiar el orden</span>' : ""}</p>
       <div class="ctrls"><button class="btn sm" type="button" data-act="back">← Playlists</button>
       ${has ? `<button class="btn sm primary" type="button" data-act="playall">▶ Reproducir</button><button class="btn sm" type="button" data-act="playshuf">Aleatorio</button>` : ""}
       <button class="btn sm" type="button" data-act="rename">Renombrar</button>

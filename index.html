@@ -117,6 +117,12 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
 .add{flex:none;width:42px;height:42px;align-self:center;margin-right:4px;border:0;border-radius:99px;background:transparent;color:var(--ink-3);font:inherit;font-size:20px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
 .add:hover{color:var(--accent);background:var(--accent-bg)}
 .add.in{color:var(--have)}
+.mvs{display:flex;flex-direction:column;align-self:center;gap:1px;opacity:.4;transition:opacity .12s}
+.row:hover .mvs,.mvs:focus-within{opacity:1}
+@media (hover:none){.mvs{opacity:1}}
+.mv{width:28px;height:19px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font:inherit;font-size:9px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.mv:hover{background:var(--surface-2);color:var(--accent)}
+.mv:disabled{opacity:.25;cursor:default;background:transparent;color:var(--ink-2)}
 .more{margin:16px auto 0;display:flex}
 .note{color:var(--ink-3);font-size:13px;margin:16px 0 0;max-width:70ch}
 /* Playlists */
@@ -230,9 +236,9 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
   .seg small{display:none}
   .who{order:1;margin-left:auto}
   #who{display:none}
-  .search{order:2;flex:1 1 150px;min-width:0;padding-left:12px} /* sin min-width:0 el input impone ~210px y el selector cae a otra fila */
+  .search{order:2;flex:1 1 100%;min-width:0;padding-left:12px}
   .search input{padding:8px 0;font-size:14px}
-  select{order:3;flex:0 1 46%;min-width:0;font-size:13px;padding:7px 10px;text-overflow:ellipsis}
+  select{order:3;flex:1 1 40%;min-width:0;font-size:13px;padding:7px 10px;text-overflow:ellipsis} /* los dos selectores comparten fila */
   .meta{max-width:96px}
   .tag.mine{display:none} /* el ✓ ya indica que está en alguna playlist */
   .play{grid-template-columns:62px minmax(0,1fr) auto;gap:10px}
@@ -281,6 +287,7 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
     </div>
     <form class="search" id="sf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Buscar canción o artista" autocomplete="off"><button class="btn sm" id="go" type="submit" hidden>Buscar</button></form>
     <select id="srcpl" aria-label="Playlist de origen"></select>
+    <select id="sort" aria-label="Orden"><option value="">Orden original</option><option value="t">Nombre A–Z</option><option value="a">Artista A–Z</option></select>
     <span class="who"><span id="who"></span><button type="button" id="logout">Salir</button></span>
   </div>
   <p class="msg" id="msg" hidden></p>
@@ -290,7 +297,7 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
 <section id="imp" hidden></section>
 <div class="list" id="list" role="list"></div>
 <button class="btn more" id="more" type="button" hidden>Mostrar más</button>
-<p class="note" id="note">Toca una canción para escucharla; sigue con las demás de la lista. Con ＋ la guardas en una playlist. Las marcadas "dudosa" pueden ser otra versión; las "sin video" abren una búsqueda.</p>
+<p class="note" id="note">Toca una canción para escucharla; sigue con las demás de la lista. Con ＋ la guardas en una playlist. Las marcadas "dudosa" pueden ser otra versión; las "sin video" abren una búsqueda. Dentro de una playlist, con ▲▼ cambias el orden.</p>
 </div>
 </div>
 
@@ -323,6 +330,7 @@ const PAGE = 150;
 let CAT = {all: [], pls: []}, mis = [], loaded = false, catLoaded = false;
 let tab = "all", openId = null, shown = PAGE, current = [];
 let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confirmDel = null, menuOpen = null, sheetSong = null;
+let sortBy = ["t", "a"].includes(store.get("np-sort")) ? store.get("np-sort") : "";
 let yres = [], ytQuery = "";
 let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = false, pendingId = null;
 
@@ -376,6 +384,12 @@ function toggleSong(p, x){
   write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
 }
 function patch(p, f){ Object.assign(p, f); write(p.id, () => updateDoc(doc(plCol, p.id), f)); }
+function moveSong(p, i, d){ // sube (d=-1) o baja (d=1) la canción i dentro de la playlist
+  const j = i + d; if (i < 0 || j < 0 || i >= p.songs.length || j >= p.songs.length) return;
+  [p.songs[i], p.songs[j]] = [p.songs[j], p.songs[i]];
+  const songs = p.songs.slice();
+  write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
+}
 function removePl(p){ mis.splice(mis.indexOf(p), 1); write(p.id, () => deleteDoc(doc(plCol, p.id))); }
 
 /* ---------- Importar (primera vez) ---------- */
@@ -415,11 +429,12 @@ function listLabel(){
   const pl = $("srcpl").value;
   return pl === "__nuevas" ? "Agregadas desde YouTube" : pl || "Todas";
 }
+const sorted = l => !sortBy ? l : l.slice().sort((x, y) => norm(x[sortBy]).localeCompare(norm(y[sortBy]), "es") || norm(x.t).localeCompare(norm(y.t), "es"));
 function songsShown(){
-  if (tab === "pls") return openPl() ? openPl().songs : [];
+  if (tab === "pls") return openPl() ? sorted(openPl().songs) : [];
   if (tab === "yt") return yres;
   const q = norm($("q").value.trim()), pl = $("srcpl").value;
-  return allSongs().filter(x => (!pl || (pl === "__nuevas" ? x.nueva : (x.pl || []).includes(pl))) && (!q || norm(x.t + " " + x.a).includes(q)));
+  return sorted(allSongs().filter(x => (!pl || (pl === "__nuevas" ? x.nueva : (x.pl || []).includes(pl))) && (!q || norm(x.t + " " + x.a).includes(q))));
 }
 function songRow(x, i){
   const mine = inMis(x.k), mode = tab === "pls" ? "pl" : "all";
@@ -429,8 +444,10 @@ function songRow(x, i){
   if (!x.y) meta += '<span class="tag no">sin video · buscar</span>';
   if (mode === "all") meta += mine.map(p => `<span class="tag mine">${esc(p.name)}</span>`).join("");
   const on = cur >= 0 && queue[cur] && queue[cur].k === x.k && queueLabel === listLabel();
+  const mv = mode === "pl" && !sortBy && current.length > 1
+    ? `<span class="mvs"><button type="button" class="mv" data-up="${i}"${i === 0 ? " disabled" : ""} title="Subir" aria-label="Subir">▲</button><button type="button" class="mv" data-dn="${i}"${i === current.length - 1 ? " disabled" : ""} title="Bajar" aria-label="Bajar">▼</button></span>` : "";
   const btn = mode === "pl"
-    ? `<button type="button" class="add" data-rm="${i}" title="Quitar de esta playlist" aria-label="Quitar de esta playlist">×</button>`
+    ? mv + `<button type="button" class="add" data-rm="${i}" title="Quitar de esta playlist" aria-label="Quitar de esta playlist">×</button>`
     : `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`;
   return `<div class="row${x.y ? "" : " dis"}${on ? " on" : ""}" role="listitem"><button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
@@ -442,9 +459,12 @@ function renderList(){
   $("more").hidden = !showList || current.length <= shown;
   $("more").textContent = "Mostrar más (" + (current.length - shown) + " restantes)";
   $("note").hidden = tab !== "all";
+  $("sort").hidden = !(tab === "all" || (tab === "pls" && openPl()));
 }
 $("list").addEventListener("click", e => {
   const add = e.target.closest("[data-add]"), rm = e.target.closest("[data-rm]"), pl = e.target.closest(".play");
+  const up = e.target.closest("[data-up]"), dn = e.target.closest("[data-dn]");
+  if (up || dn){ moveSong(openPl(), +(up || dn).dataset[up ? "up" : "dn"], up ? -1 : 1); return refresh(); }
   if (add) return openSheet(current[+add.dataset.add]);
   if (rm){ toggleSong(openPl(), current[+rm.dataset.rm]); return refresh(); }
   if (pl){ const x = current[+pl.dataset.i]; if (x.y) playFrom(+pl.dataset.i); else ytSearch(x.a.split(",")[0] + " " + x.t); }
@@ -692,6 +712,8 @@ function refresh(){
 for (const t of ["all","pls","yt"]) $("tab-"+t).onclick = () => { if (t !== tab) $("q").value = t === "yt" ? ytQuery : ""; if (t === "pls") openId = null; setTab(t); if (t === "yt") $("q").focus(); };
 $("q").addEventListener("input", () => { if (tab === "all"){ shown = PAGE; renderList(); } });
 $("srcpl").addEventListener("change", () => { shown = PAGE; renderList(); });
+$("sort").value = sortBy;
+$("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set("np-sort", sortBy); shown = PAGE; renderList(); });
 $("sf").addEventListener("submit", e => { e.preventDefault(); if (tab === "yt") ytSearch($("q").value); });
 setTab("all");
 </script>

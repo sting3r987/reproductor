@@ -125,6 +125,8 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
 body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 body.dragging .row:not(.dragging){transition:transform .16s ease}
 body.dragging .row:hover{background:transparent}
+.row{-webkit-touch-callout:none}
+@media (hover:none){.grip{width:44px;color:var(--ink-2)}}
 .hint{color:var(--ink-3);font-size:12px}
 .more{margin:16px auto 0;display:flex}
 .note{color:var(--ink-3);font-size:13px;margin:16px 0 0;max-width:70ch}
@@ -466,7 +468,7 @@ function renderList(){
 }
 $("list").addEventListener("click", e => {
   const add = e.target.closest("[data-add]"), rm = e.target.closest("[data-rm]"), pl = e.target.closest(".play");
-  if (e.target.closest("[data-grip]")) return;
+  if (suppressClick || e.target.closest("[data-grip]")) return;
   if (add) return openSheet(current[+add.dataset.add]);
   if (rm){ toggleSong(openPl(), current[+rm.dataset.rm]); return refresh(); }
   if (pl){ const x = current[+pl.dataset.i]; if (x.y) playFrom(+pl.dataset.i); else ytSearch(x.a.split(",")[0] + " " + x.t); }
@@ -497,32 +499,55 @@ function dragTick(){ // desplaza la página cuando se arrastra cerca del borde
   if (v){ scrollBy(0, v); dragUpdate(); }
   requestAnimationFrame(dragTick);
 }
+let suppressClick = false, hold = null;
+function dragLift(d){ // la canción "se levanta" y empieza a moverse
+  d.moved = true; d.row.classList.add("dragging"); document.body.classList.add("dragging");
+  try { navigator.vibrate?.(12); } catch {}
+  requestAnimationFrame(dragTick);
+}
 function dragEnd(){
+  clearTimeout(hold); hold = null;
   const d = drag; if (!d) return; drag = null;
   d.rows.forEach(r => { r.style.transform = ""; });
   d.row.classList.remove("dragging"); document.body.classList.remove("dragging");
+  if (d.moved){ suppressClick = true; setTimeout(() => { suppressClick = false; }, 400); }
   if (d.moved && d.to !== d.from){ moveSongTo(openPl(), d.from, d.to); refresh(); }
 }
-$("list").addEventListener("pointerdown", e => {
-  const g = e.target.closest("[data-grip]"); if (!g || e.button) return;
-  const row = g.closest(".row"), rows = [...$("list").children], from = rows.indexOf(row);
+function dragStart(e, el, row){
+  const rows = [...$("list").children], from = rows.indexOf(row);
   const h = rows.length > 1 ? Math.abs(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top) : row.offsetHeight;
-  drag = {g, row, rows, from, to: from, y0: e.clientY, y: e.clientY, s0: scrollY, h, moved: false};
-  g.setPointerCapture(e.pointerId);
-  e.preventDefault();
+  drag = {row, rows, from, to: from, y0: e.clientY, y: e.clientY, s0: scrollY, h, moved: false};
+  try { el.setPointerCapture(e.pointerId); } catch {}
+}
+$("list").addEventListener("pointerdown", e => {
+  if (e.button) return;
+  const g = e.target.closest("[data-grip]"), row = e.target.closest(".row");
+  if (g){ dragStart(e, g, row); e.preventDefault(); return; }
+  // En pantalla táctil: mantener pulsada cualquier canción de la playlist también la levanta
+  if (e.pointerType === "touch" && row && row.querySelector("[data-grip]")){
+    clearTimeout(hold);
+    const y0 = e.clientY, el = e.target.closest(".play") || row;
+    hold = setTimeout(() => { hold = null; dragStart(e, el, row); dragLift(drag); dragUpdate(); }, 450);
+    row.dataset.holdY = y0;
+  }
 });
 $("list").addEventListener("pointermove", e => {
+  if (hold){ // si el dedo se mueve antes de tiempo, es un scroll normal
+    const row = e.target.closest(".row");
+    if (!row || Math.abs(e.clientY - +row.dataset.holdY) > 8){ clearTimeout(hold); hold = null; }
+  }
   const d = drag; if (!d) return;
   d.y = e.clientY;
   if (!d.moved){
     if (Math.abs(d.y - d.y0) < 4) return;
-    d.moved = true; d.row.classList.add("dragging"); document.body.classList.add("dragging");
-    requestAnimationFrame(dragTick);
+    dragLift(d);
   }
   dragUpdate();
 });
 $("list").addEventListener("pointerup", dragEnd);
 $("list").addEventListener("pointercancel", dragEnd);
+$("list").addEventListener("touchmove", e => { if (drag && drag.moved) e.preventDefault(); }, {passive: false});
+$("list").addEventListener("contextmenu", e => { if (drag || hold) e.preventDefault(); });
 $("list").addEventListener("keydown", e => { // ↑ ↓ con el teclado sobre el asa
   const g = e.target.closest("[data-grip]"); if (!g) return;
   const d = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0; if (!d) return;
@@ -601,7 +626,7 @@ function renderPls(){
   if (op){
     const has = vids(op).length;
     box.innerHTML = `<div class="plhead">${coverHTML(op)}<div class="info"><h2>${esc(op.name)}</h2>
-      <p class="msg" style="margin:0">${count(op)}${op.songs.length > 1 ? ' <span class="hint">· arrastra ⠿ para cambiar el orden</span>' : ""}</p>
+      <p class="msg" style="margin:0">${count(op)}${op.songs.length > 1 ? ' <span class="hint">· arrastra ⠿ (o mantén pulsada una canción) para cambiar el orden</span>' : ""}</p>
       <div class="ctrls"><button class="btn sm" type="button" data-act="back">← Playlists</button>
       ${has ? `<button class="btn sm primary" type="button" data-act="playall">▶ Reproducir</button><button class="btn sm" type="button" data-act="playshuf">Aleatorio</button>` : ""}
       <button class="btn sm" type="button" data-act="rename">Renombrar</button>

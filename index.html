@@ -339,7 +339,7 @@ let tab = "all", openId = null, shown = PAGE, current = [];
 let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confirmDel = null, menuOpen = null, sheetSong = null;
 let sortBy = ["t", "a"].includes(store.get("np-sort")) ? store.get("np-sort") : "";
 let yres = [], ytQuery = "";
-let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = false, pendingId = null;
+let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = false;
 
 /* ---------- Firebase ---------- */
 if (!CFG.firebase){ $("gate-msg").textContent = "Falta configurar Firebase (config.js)."; $("login").hidden = true; throw new Error("sin config"); }
@@ -559,21 +559,55 @@ $("list").addEventListener("keydown", e => { // ↑ ↓ con el teclado sobre el 
 });
 
 /* ---------- Reproductor ---------- */
+// El reproductor de YouTube lleva él mismo la cola (modo playlist): así pasa solo a la siguiente aunque la página
+// esté en segundo plano o la pantalla bloqueada, igual que lo hace youtube.com. La página solo le entrega tramos.
+const WIN = 150; // canciones que se le entregan al reproductor de una vez
+let win = [], winAt = 0, pendingWin = null;
 function playFrom(i, list, label){
-  queue = (list || current).slice(); queueLabel = label || listLabel();
-  if (shuffle && list){ i = Math.floor(Math.random() * queue.length); }
-  load(i);
+  const full = list || current, pick = full[i];
+  queue = full.filter(x => x.y); queueLabel = label || listLabel();
+  if (!queue.length) return;
+  let qi = Math.max(0, queue.indexOf(pick));
+  if (shuffle && list) qi = Math.floor(Math.random() * queue.length);
+  loadWindow(qi);
 }
-function load(i){
-  if (i < 0 || i >= queue.length) return;
-  cur = i; const x = queue[i];
-  if (!x.y) return step(1);
+function order(from){ // orden de reproducción a partir de la canción `from` (índices de queue)
+  if (!shuffle) return queue.map((_, n) => (from + n) % queue.length);
+  const rest = queue.map((_, n) => n).filter(n => n !== from);
+  for (let n = rest.length - 1; n > 0; n--){ const r = Math.floor(Math.random() * (n + 1)); [rest[n], rest[r]] = [rest[r], rest[n]]; }
+  return [from, ...rest];
+}
+function loadWindow(from){
+  win = order(from).slice(0, WIN); winAt = 0;
+  showNow(win[0]);
+  const ids = win.map(n => queue[n].y);
+  if (ready) player.loadPlaylist(ids, 0); else pendingWin = ids;
+}
+function showNow(i){
+  const x = queue[i]; if (!x) return;
+  cur = i;
   $("nt").textContent = x.t; $("na").textContent = x.a;
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;
   $("ph").hidden = true; $("addcur").hidden = false; $("alt").hidden = false;
   $("bg").href = bgLink(); $("bg").hidden = false;
-  if (ready) player.loadVideoById(x.y); else pendingId = x.y;
   renderList();
+}
+function syncNow(){ // qué canción está sonando según el reproductor
+  const k = player.getPlaylistIndex?.();
+  if (Number.isInteger(k) && k >= 0 && k < win.length) winAt = k;
+  const id = player.getVideoData?.()?.video_id;
+  let i = win[winAt];
+  if (id && queue[i]?.y !== id){ const j = queue.findIndex(x => x.y === id); if (j >= 0) i = j; }
+  if (i !== undefined && i !== cur) showNow(i);
+}
+function tramoLen(){ return Math.min(win.length, (player.getPlaylist?.() || win).length); }
+function step(d){
+  if (!queue.length) return playFrom(0, current, listLabel());
+  if (!ready) return;
+  const k = winAt + d;
+  if (k >= 0 && k < tramoLen()) return d > 0 ? player.nextVideo() : player.previousVideo();
+  // se acabó el tramo entregado: entrega el siguiente a partir de donde toca
+  loadWindow(d > 0 ? (win[win.length - 1] + 1) % queue.length : (win[0] - 1 + queue.length) % queue.length);
 }
 // Enlace a YouTube con lo que sigue en la cola (desde la canción actual, máx. 50): ahí Brave sí sigue sonando con la pantalla bloqueada.
 function bgLink(){
@@ -588,14 +622,6 @@ $("bg").addEventListener("click", () => {
 // Si el navegador pausa el video justo al bloquear la pantalla o cambiar de app, intenta seguir (funciona si el navegador lo permite).
 let hiddenAt = 0;
 document.addEventListener("visibilitychange", () => { if (document.hidden) hiddenAt = Date.now(); });
-function step(d){
-  if (!queue.length){ queue = current.slice(); queueLabel = listLabel(); }
-  let i = cur;
-  for (let n = 0; n < queue.length; n++){
-    i = shuffle ? Math.floor(Math.random() * queue.length) : (i + d + queue.length) % queue.length;
-    if (queue[i].y) return load(i);
-  }
-}
 $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);
 $("play").onclick = () => { if (cur < 0) return step(1); if (!ready) return; playing ? player.pauseVideo() : player.playVideo(); };
@@ -612,14 +638,15 @@ function initYT(){
   if (player) return;
   player = new YT.Player("yt", { width: "100%", height: "100%", playerVars: { playsinline: 1, rel: 0 },
     events: {
-      onReady(){ ready = true; if (pendingId) player.loadVideoById(pendingId); },
+      onReady(){ ready = true; if (pendingWin){ player.loadPlaylist(pendingWin, 0); pendingWin = null; } },
       onStateChange(e){
         const wasPlaying = playing;
         playing = e.data === YT.PlayerState.PLAYING; document.body.classList.toggle("playing", playing); $("play").textContent = playing ? "⏸ Pausa" : "▶ Reproducir";
-        if (e.data === YT.PlayerState.ENDED) step(1);
+        if (e.data !== YT.PlayerState.ENDED) syncNow();
+        else if (winAt >= tramoLen() - 1) step(1); // terminó el último del tramo: el reproductor no sigue solo
         if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000) setTimeout(() => { if (document.hidden && !playing) player.playVideo(); }, 400);
       },
-      onError(){ setTimeout(() => step(1), 800); } // video bloqueado para insertar: pasa al siguiente
+      onError(){ setTimeout(() => { const s = player.getPlayerState(); if (s !== YT.PlayerState.PLAYING && s !== YT.PlayerState.BUFFERING) step(1); }, 800); } // video bloqueado para insertar: pasa al siguiente
     }});
 }
 if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = initYT;

@@ -60,7 +60,16 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .now h1{font-family:var(--display);font-weight:800;font-size:clamp(22px,3.2vw,34px);line-height:1.06;letter-spacing:-.025em;margin:0;text-wrap:balance;overflow-wrap:anywhere}
 .now .by{color:var(--ink-2);margin:0;overflow-wrap:anywhere}
 .ctrls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-@media (hover:hover) and (pointer:fine){#bg{display:none}} /* solo tiene sentido en el celular */
+@media (hover:hover) and (pointer:fine){#bg,#big{display:none}} /* solo tienen sentido en el celular */
+/* Modo cine: la tarjeta del reproductor a pantalla completa (apaisada en el celular) con nuestros controles debajo del video */
+.np:fullscreen{border:0;border-radius:0;padding:0;background:#000;display:grid;place-items:center;overflow:auto}
+.np:fullscreen .player{width:100%;max-width:1100px;grid-template-columns:minmax(0,1fr);grid-template-areas:"video" "now" "ctrls";gap:6px 0;align-items:start;padding:8px max(16px,env(safe-area-inset-left,0px)) 8px max(16px,env(safe-area-inset-right,0px))}
+.np:fullscreen .video{height:calc(100vh - 128px);width:min(100%,calc((100vh - 128px) * 16 / 9));aspect-ratio:auto;margin:0 auto;border-radius:6px}
+.np:fullscreen .now{align-items:center;text-align:center}
+.np:fullscreen .now h1{font-size:17px;color:#fff}
+.np:fullscreen .now .by,.np:fullscreen .eyebrow{color:#C4C2CE;font-size:12px}
+.np:fullscreen .player>.ctrls{justify-content:center;margin-top:2px}
+.np:fullscreen #addcur,.np:fullscreen #alt,.np:fullscreen #bg,.np:fullscreen #big{display:none}
 .player>.ctrls{grid-area:ctrls;margin-top:8px}
 .btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;font:inherit;font-size:14px;font-weight:600;padding:8px 15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap;box-shadow:var(--shadow-sm);transition:background .15s,border-color .15s,transform .1s,filter .15s}
 .btn:hover{background:var(--surface-2);border-color:var(--line-2)}
@@ -226,6 +235,11 @@ body.dragging .row:hover{background:transparent}
   .np{padding:10px}
   .player{grid-template-columns:124px minmax(0,1fr);grid-template-areas:"video now" "ctrls ctrls";gap:4px 12px;align-items:start}
   .video{border-radius:8px}
+  /* Video grande: a todo el ancho, con título y controles debajo */
+  body.big .player{grid-template-columns:minmax(0,1fr);grid-template-areas:"video" "now" "ctrls";gap:8px 0}
+  body.big .video{border-radius:10px}
+  body.big .video .ph{font-size:13px;gap:10px}
+  body.big .player>.ctrls{margin-top:2px}
   .video .ph{gap:0;font-size:0}
   .video .ph::before{width:34px;height:34px;font-size:13px;box-shadow:0 0 0 6px var(--accent-glow)}
   .now{gap:2px}
@@ -284,6 +298,8 @@ body.dragging .row:hover{background:transparent}
       <button class="btn" id="addcur" type="button" hidden>＋ A playlist</button>
       <button class="btn" id="alt" type="button" hidden>Otras versiones</button>
       <a class="btn" id="bg" target="_blank" rel="noopener" hidden title="Abre lo que sigue en YouTube para seguir escuchando con la pantalla bloqueada">🔒 Con pantalla bloqueada</a>
+      <button class="btn" id="big" type="button" aria-pressed="false" title="Video grande a todo el ancho">⤢ Grande</button>
+      <button class="btn" id="cine" type="button" title="Pantalla completa apaisada con los controles debajo">🎬 Cine</button>
     </div>
   </div></div>
   <div class="tools">
@@ -848,6 +864,23 @@ $("q").addEventListener("input", () => { if (tab === "all"){ shown = PAGE; rende
 $("srcpl").addEventListener("change", () => { shown = PAGE; renderList(); });
 $("sort").value = sortBy;
 $("shuf").setAttribute("aria-pressed", shuffle);
+// Video grande (celular): a todo el ancho, con título y controles debajo. Se recuerda.
+const setBig = on => { document.body.classList.toggle("big", on); $("big").setAttribute("aria-pressed", on); };
+setBig(store.get("np-big") === "1");
+$("big").onclick = () => { const on = !document.body.classList.contains("big"); setBig(on); store.set("np-big", on ? "1" : "0"); };
+// Modo cine: la tarjeta del reproductor a pantalla completa y, en el celular, girada a horizontal; nuestros controles quedan debajo.
+$("cine").onclick = async () => {
+  if (document.fullscreenElement) return document.exitFullscreen();
+  const np = document.querySelector(".np");
+  try { await np.requestFullscreen({navigationUI: "hide"}); } catch { return flash("Este navegador no permite la pantalla completa aquí."); }
+  try { await screen.orientation.lock("landscape"); } catch {}
+};
+document.addEventListener("fullscreenchange", () => {
+  const fs = !!document.fullscreenElement;
+  document.body.classList.toggle("cine", fs);
+  $("cine").textContent = fs ? "✕ Salir" : "🎬 Cine";
+  if (!fs){ try { screen.orientation.unlock(); } catch {} }
+});
 $("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set("np-sort", sortBy); shown = PAGE; renderList(); });
 $("sf").addEventListener("submit", e => { e.preventDefault(); if (tab === "yt") ytSearch($("q").value); });
 setTab("all");

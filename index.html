@@ -127,6 +127,10 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
 .add{flex:none;width:42px;height:42px;align-self:center;margin-right:4px;border:0;border-radius:99px;background:transparent;color:var(--ink-3);font:inherit;font-size:20px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
 .add:hover{color:var(--accent);background:var(--accent-bg)}
 .add.in{color:var(--have)}
+.rep{flex:none;align-self:center;margin-right:2px;white-space:nowrap}
+.altchip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding:10px 14px;border-radius:var(--r-md);background:var(--accent-bg);color:var(--ink);font-size:13px}
+.altchip b{color:var(--accent)}
+@media (max-width:640px){.rep{padding:6px 9px;font-size:12px}}
 .grip{flex:none;width:36px;align-self:stretch;margin:4px 0;display:grid;place-items:center;border:0;border-radius:var(--r-sm);background:transparent;color:var(--ink-3);cursor:grab;touch-action:none;transition:color .12s,background .12s}
 .grip svg{width:12px;height:18px;fill:currentColor}
 .grip:hover,.grip:focus-visible{color:var(--accent);background:var(--accent-bg)}
@@ -320,7 +324,7 @@ body.dragging .row:hover{background:transparent}
 <section id="imp" hidden></section>
 <div class="list" id="list" role="list"></div>
 <button class="btn more" id="more" type="button" hidden>Mostrar más</button>
-<p class="note" id="note">Toca una canción para escucharla; sigue con las demás de la lista. Con ＋ la guardas en una playlist. Las marcadas "dudosa" pueden ser otra versión; las "sin video" abren una búsqueda. Dentro de una playlist, con ▲▼ cambias el orden.</p>
+<p class="note" id="note">Toca una canción para escucharla; sigue con las demás de la lista. Con ＋ la guardas en una playlist. Las marcadas "dudosa" pueden ser otra versión; las "sin video" abren una búsqueda. Con "Otras versiones" buscas otro video para la que suena y lo cambias con ⇄ Reemplazar. Dentro de una playlist, arrastra ⠿ para cambiar el orden.</p>
 </div>
 </div>
 
@@ -354,7 +358,7 @@ let CAT = {all: [], pls: []}, mis = [], loaded = false, catLoaded = false;
 let tab = "all", openId = null, shown = PAGE, current = [];
 let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confirmDel = null, menuOpen = null, sheetSong = null;
 let sortBy = ["t", "a"].includes(store.get("np-sort")) ? store.get("np-sort") : "";
-let yres = [], ytQuery = "";
+let yres = [], ytQuery = "", altFor = null; // altFor: canción a la que se le busca otra versión (para "Reemplazar")
 let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = store.get("np-shuffle") === "1";
 
 /* ---------- Firebase ---------- */
@@ -471,7 +475,8 @@ function songRow(x, i){
     ? `<button type="button" class="grip" data-grip="${i}" title="Arrastra para cambiar el orden (o usa ↑ ↓)" aria-label="Arrastra para cambiar el orden"><svg viewBox="0 0 12 18" aria-hidden="true"><circle cx="3" cy="3" r="1.7"/><circle cx="9" cy="3" r="1.7"/><circle cx="3" cy="9" r="1.7"/><circle cx="9" cy="9" r="1.7"/><circle cx="3" cy="15" r="1.7"/><circle cx="9" cy="15" r="1.7"/></svg></button>` : "";
   const btn = mode === "pl"
     ? mv + `<button type="button" class="add" data-rm="${i}" title="Quitar de esta playlist" aria-label="Quitar de esta playlist">×</button>`
-    : `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`;
+    : (tab === "yt" && altFor && altFor.y !== x.y ? `<button type="button" class="btn sm rep" data-rep="${i}" title="Usar este video para «${esc(altFor.t)}»">⇄ Reemplazar</button>` : "")
+      + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`;
   return `<div class="row${x.y ? "" : " dis"}${on ? " on" : ""}" role="listitem"><button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
 function renderList(){
@@ -487,9 +492,11 @@ function renderList(){
 $("list").addEventListener("click", e => {
   const add = e.target.closest("[data-add]"), rm = e.target.closest("[data-rm]"), pl = e.target.closest(".play");
   if (suppressClick || e.target.closest("[data-grip]")) return;
+  const rep = e.target.closest("[data-rep]");
+  if (rep) return replaceVideo(current[+rep.dataset.rep]);
   if (add) return openSheet(current[+add.dataset.add]);
   if (rm){ toggleSong(openPl(), current[+rm.dataset.rm]); return refresh(); }
-  if (pl){ const x = current[+pl.dataset.i]; if (x.y) playFrom(+pl.dataset.i); else ytSearch(x.a.split(",")[0] + " " + x.t); }
+  if (pl){ const x = current[+pl.dataset.i]; if (x.y) playFrom(+pl.dataset.i); else { altFor = x; ytSearch(x.a.split(",")[0] + " " + x.t); } }
 });
 $("more").onclick = () => { shown += PAGE * 2; renderList(); };
 
@@ -643,7 +650,7 @@ $("shuf").onclick = () => {
   if (cur >= 0){ orderIdx = order(cur); at = 0; } // rearma lo que sigue a partir de la canción actual
 };
 $("addcur").onclick = () => { if (queue[cur]) openSheet(queue[cur]); };
-$("alt").onclick = () => { const x = queue[cur]; if (x) ytSearch(x.a.split(",")[0] + " " + x.t); };
+$("alt").onclick = () => { const x = queue[cur]; if (x){ altFor = x; ytSearch(x.a.split(",")[0] + " " + x.t); } };
 document.addEventListener("keydown", e => {
   if (["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName) || !$("sheet").hidden) return;
   if (e.key === " " && e.target.tagName !== "BUTTON"){ e.preventDefault(); $("play").click(); }
@@ -782,7 +789,7 @@ async function ytSearch(q){
     const d = await r.json();
     if (!r.ok) throw new Error(d.error?.errors?.[0]?.reason || r.status);
     yres = (d.items || []).filter(it => it.id?.videoId).map(it => ({t: decodeHtml(it.snippet.title), a: decodeHtml(it.snippet.channelTitle), y: it.id.videoId, k: "yt:" + it.id.videoId}));
-    flash(yres.length ? yres.length + " opciones para “" + q + "”. Toca una para escucharla o ＋ para guardarla." : "No hubo resultados para “" + q + "”. Prueba con otras palabras.");
+    flash(yres.length ? yres.length + " opciones para “" + q + "”. Toca una para escucharla" + (altFor ? ", ⇄ Reemplazar para que «" + altFor.t + "» use ese video" : " o ＋ para guardarla") + "." : "No hubo resultados para “" + q + "”. Prueba con otras palabras.");
   } catch (e) {
     flash(String(e.message).includes("quota") ? "Se acabaron las búsquedas de hoy en YouTube. Mañana se renuevan; mientras tanto puedes pegar un enlace." : "No se pudo buscar en YouTube (" + e.message + ").");
   }
@@ -793,7 +800,8 @@ function renderYt(){
   box.hidden = tab !== "yt";
   if (tab !== "yt") return;
   const q = $("q").value.trim();
-  box.innerHTML = CFG.youtubeKey ? "" : `<div class="steps">
+  const chip = altFor ? `<div class="altchip"><span>Buscando otra versión de <b>${esc(altFor.t)}</b> · ${esc(altFor.a)}</span><button type="button" class="btn sm" data-act="altoff">Dejar de reemplazar</button></div>` : "";
+  box.innerHTML = chip + (CFG.youtubeKey ? "" : `<div class="steps">
     <div class="step"><h3>1 · Búscala en YouTube</h3><p>Escribe arriba y toca Buscar para abrir los resultados. Elige el video y copia su enlace.</p>
       <a class="btn sm primary" style="align-self:flex-start" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">Abrir resultados ↗</a></div>
     <div class="step"><h3>2 · Pega el enlace</h3>
@@ -802,7 +810,25 @@ function renderYt(){
         <div class="field"><label for="yf-t">Canción</label><input id="yf-t" autocomplete="off" value="${esc(q)}"></div>
         <div class="field"><label for="yf-a">Artista</label><input id="yf-a" autocomplete="off"></div>
         <p class="err" id="yf-err" hidden></p>
-        <button class="btn primary" type="submit" style="align-self:flex-start">Escuchar y guardar</button></form></div></div>`;
+        <button class="btn primary" type="submit" style="align-self:flex-start">Escuchar y guardar</button></form></div></div>`);
+}
+$("ytbox").addEventListener("click", e => { if (e.target.closest('[data-act="altoff"]')){ altFor = null; flash(""); refresh(); } });
+// Reemplazar: la canción `altFor` pasa a usar el video de `x` (en el catálogo y en todas las playlists donde esté)
+function replaceVideo(x){
+  const s = altFor; if (!s || !x?.y) return;
+  const prev = s.y; s.y = x.y;
+  const c = CAT.all.find(it => it.k === s.k);
+  if (c){ c.y = x.y; delete c.e; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
+  for (const p of mis){
+    const hit = p.songs.filter(it => it.k === s.k); if (!hit.length) continue;
+    hit.forEach(it => { it.y = x.y; }); const songs = p.songs.slice();
+    write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
+  }
+  queue.forEach(it => { if (it.k === s.k) it.y = x.y; });
+  altFor = null;
+  flash("Listo: «" + s.t + "» ahora usa este video" + (prev ? " en vez del anterior" : "") + ". Se guardó para los dos.");
+  if (ready && queue[cur]?.k === s.k) start(x.y); // si justo sonaba esa canción, sigue ya con el video nuevo
+  refresh();
 }
 $("ytbox").addEventListener("submit", e => {
   if (e.target.id !== "yf") return;

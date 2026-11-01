@@ -577,11 +577,11 @@ function order(from){ // orden de reproducción a partir de la canción `from` (
   for (let n = rest.length - 1; n > 0; n--){ const r = Math.floor(Math.random() * (n + 1)); [rest[n], rest[r]] = [rest[r], rest[n]]; }
   return [from, ...rest];
 }
-function loadWindow(from){
+function loadWindow(from, at = 0){
   win = order(from).slice(0, WIN); winAt = 0;
   showNow(win[0]);
   const ids = win.map(n => queue[n].y);
-  if (ready) player.loadPlaylist(ids, 0); else pendingWin = ids;
+  if (ready) player.loadPlaylist(ids, 0, at); else pendingWin = ids;
 }
 function showNow(i){
   const x = queue[i]; if (!x) return;
@@ -625,7 +625,10 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) hidde
 $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);
 $("play").onclick = () => { if (cur < 0) return step(1); if (!ready) return; playing ? player.pauseVideo() : player.playVideo(); };
-$("shuf").onclick = () => { shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle); };
+$("shuf").onclick = () => {
+  shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle);
+  if (cur >= 0 && ready) loadWindow(cur, player.getCurrentTime?.() || 0); // rearma la cola desde la canción actual sin cortarla
+};
 $("addcur").onclick = () => { if (queue[cur]) openSheet(queue[cur]); };
 $("alt").onclick = () => { const x = queue[cur]; if (x) ytSearch(x.a.split(",")[0] + " " + x.t); };
 document.addEventListener("keydown", e => {

@@ -130,6 +130,7 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
 .rep{flex:none;align-self:center;margin-right:2px;white-space:nowrap}
 .altchip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding:10px 14px;border-radius:var(--r-md);background:var(--accent-bg);color:var(--ink);font-size:13px}
 .altchip b{color:var(--accent)}
+#dbg{margin:10px 0 0;padding:10px 12px;max-height:220px;overflow:auto;border-radius:var(--r-md);background:var(--surface-2);color:var(--ink-2);font:11.5px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 @media (max-width:640px){.rep{padding:6px 9px;font-size:12px}}
 .grip{flex:none;width:36px;align-self:stretch;margin:4px 0;display:grid;place-items:center;border:0;border-radius:var(--r-sm);background:transparent;color:var(--ink-3);cursor:grab;touch-action:none;transition:color .12s,background .12s}
 .grip svg{width:12px;height:18px;fill:currentColor}
@@ -318,6 +319,7 @@ body.dragging .row:hover{background:transparent}
     <span class="who"><span id="who"></span><button type="button" id="logout">Salir</button></span>
   </div>
   <p class="msg" id="msg" hidden></p>
+  <pre id="dbg" hidden></pre>
 </header>
 <section id="pls" hidden></section>
 <section id="ytbox" hidden></section>
@@ -585,6 +587,34 @@ $("list").addEventListener("keydown", e => { // ↑ ↓ con el teclado sobre el 
 // La página lleva la cola y le pasa al reproductor una canción cada vez. (En modo playlist de YouTube el reproductor
 // se pausa solo al pasar la página a segundo plano en el celular; en modo canción suelta sigue sonando.)
 let orderIdx = [], at = 0, pendingId = null, kick = 0, started = false;
+// Registro de diagnóstico: se ve añadiendo ?debug a la dirección (y guarda lo último para poder leerlo tras recargar).
+const LOG = (store.get("np-log") || "").split("\n").filter(Boolean);
+const dbg = $("dbg"); dbg.hidden = !location.search.includes("debug"); dbg.textContent = LOG.join("\n");
+function log(m){
+  LOG.push(new Date().toTimeString().slice(0, 8) + (document.hidden ? " [oculta] " : " ") + m); if (LOG.length > 80) LOG.shift();
+  store.set("np-log", LOG.join("\n")); dbg.textContent = LOG.join("\n");
+}
+// Audio silencioso en bucle en nuestra página: mantiene la pestaña "sonando" para que el navegador no la congele
+// en segundo plano y para que los controles de la pantalla de bloqueo sean los nuestros (Media Session).
+const silent = (() => {
+  const rate = 8000, secs = 2, n = rate * secs, b = new Uint8Array(44 + n), v = new DataView(b.buffer);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) b[o + i] = s.charCodeAt(i); };
+  str(0, "RIFF"); v.setUint32(4, 36 + n, true); str(8, "WAVE"); str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); str(36, "data"); v.setUint32(40, n, true); b.fill(128, 44);
+  const a = new Audio(URL.createObjectURL(new Blob([b], {type: "audio/wav"}))); a.loop = true; a.volume = 0.01; return a;
+})();
+function keepAlive(){ if (silent.paused) silent.play().then(() => log("audio de fondo activo")).catch(e => log("audio de fondo no: " + e.name)); }
+function setMedia(x){
+  if (!("mediaSession" in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({title: x.t, artist: x.a, album: queueLabel, artwork: x.y ? [{src: "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg"}] : []});
+    const ms = navigator.mediaSession;
+    ms.setActionHandler("play", () => { log("lock: play"); keepAlive(); player?.playVideo(); });
+    ms.setActionHandler("pause", () => { log("lock: pausa"); started = true; clearInterval(kick); player?.pauseVideo(); });
+    ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
+    ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
+  } catch (e) { log("mediaSession: " + e.message); }
+}
 function playFrom(i, list, label){
   const full = list || current, pick = full[i];
   queue = full.filter(x => x.y); queueLabel = label || listLabel();
@@ -607,6 +637,8 @@ function load(i){
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;
   $("ph").hidden = true; $("addcur").hidden = false; $("alt").hidden = false;
   $("bg").href = bgLink(); $("bg").hidden = false;
+  log("canción " + (i + 1) + ": " + x.t);
+  keepAlive(); setMedia(x);
   if (ready) start(x.y); else pendingId = x.y;
   renderList();
 }
@@ -616,9 +648,9 @@ function start(id){
   // En segundo plano YouTube a veces carga la canción pero no la arranca: insiste hasta que suene (solo mientras no haya empezado).
   clearInterval(kick); let tries = 0;
   kick = setInterval(() => {
-    if (started || ++tries > 30) return clearInterval(kick);
+    if (started || ++tries > 30){ if (!started) log("no arrancó tras 30 s"); return clearInterval(kick); }
     const s = player.getPlayerState();
-    if (s === YT.PlayerState.CUED || s === YT.PlayerState.UNSTARTED || s === YT.PlayerState.PAUSED) player.playVideo();
+    if (s === YT.PlayerState.CUED || s === YT.PlayerState.UNSTARTED || s === YT.PlayerState.PAUSED){ player.playVideo(); if (tries % 5 === 1) log("insisto (estado " + s + ")"); }
   }, 1000);
 }
 function step(d){
@@ -638,12 +670,12 @@ $("bg").addEventListener("click", () => {
 });
 // Si el navegador pausa el video justo al bloquear la pantalla o cambiar de app, intenta seguir (funciona si el navegador lo permite).
 let hiddenAt = 0;
-document.addEventListener("visibilitychange", () => { if (document.hidden) hiddenAt = Date.now(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden) hiddenAt = Date.now(); log(document.hidden ? "página oculta" : "página visible"); });
 $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);
 $("play").onclick = () => {
   if (cur < 0) return step(1); if (!ready) return;
-  if (playing){ started = true; clearInterval(kick); player.pauseVideo(); } else player.playVideo();
+  if (playing){ started = true; clearInterval(kick); player.pauseVideo(); } else { keepAlive(); player.playVideo(); }
 };
 $("shuf").onclick = () => {
   shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle); store.set("np-shuffle", shuffle ? "1" : "0");
@@ -666,6 +698,8 @@ function initYT(){
         const wasPlaying = playing;
         playing = e.data === YT.PlayerState.PLAYING; document.body.classList.toggle("playing", playing); $("play").textContent = playing ? "⏸ Pausa" : "▶ Reproducir";
         if (playing) started = true;
+        log("estado " + ({"-1": "sin empezar", 0: "terminó", 1: "sonando", 2: "pausa", 3: "cargando", 5: "lista"}[e.data] ?? e.data));
+        if ("mediaSession" in navigator) navigator.mediaSession.playbackState = playing ? "playing" : "paused";
         if (e.data === YT.PlayerState.ENDED) step(1);
         if (e.data === YT.PlayerState.CUED && !started) player.playVideo(); // cargó pero no arrancó (pasa en segundo plano)
         if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000) setTimeout(() => { if (document.hidden && !playing) player.playVideo(); }, 400);

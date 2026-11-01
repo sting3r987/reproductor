@@ -339,7 +339,7 @@ let tab = "all", openId = null, shown = PAGE, current = [];
 let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confirmDel = null, menuOpen = null, sheetSong = null;
 let sortBy = ["t", "a"].includes(store.get("np-sort")) ? store.get("np-sort") : "";
 let yres = [], ytQuery = "";
-let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = false;
+let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = store.get("np-shuffle") === "1";
 
 /* ---------- Firebase ---------- */
 if (!CFG.firebase){ $("gate-msg").textContent = "Falta configurar Firebase (config.js)."; $("login").hidden = true; throw new Error("sin config"); }
@@ -626,7 +626,7 @@ $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);
 $("play").onclick = () => { if (cur < 0) return step(1); if (!ready) return; playing ? player.pauseVideo() : player.playVideo(); };
 $("shuf").onclick = () => {
-  shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle);
+  shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle); store.set("np-shuffle", shuffle ? "1" : "0");
   if (cur >= 0 && ready) loadWindow(cur, player.getCurrentTime?.() || 0); // rearma la cola desde la canción actual sin cortarla
 };
 $("addcur").onclick = () => { if (queue[cur]) openSheet(queue[cur]); };
@@ -849,6 +849,7 @@ for (const t of ["all","pls","yt"]) $("tab-"+t).onclick = () => { if (t !== tab)
 $("q").addEventListener("input", () => { if (tab === "all"){ shown = PAGE; renderList(); } });
 $("srcpl").addEventListener("change", () => { shown = PAGE; renderList(); });
 $("sort").value = sortBy;
+$("shuf").setAttribute("aria-pressed", shuffle);
 $("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set("np-sort", sortBy); shown = PAGE; renderList(); });
 $("sf").addEventListener("submit", e => { e.preventDefault(); if (tab === "yt") ytSearch($("q").value); });
 setTab("all");

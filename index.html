@@ -734,7 +734,7 @@ function renderPls(){
     box.innerHTML = `<div class="plhead">${coverHTML(op)}<div class="info"><h2>${esc(op.name)}</h2>
       <p class="msg" style="margin:0">${count(op)}${op.songs.length > 1 ? ' <span class="hint">· arrastra ⠿ (o mantén pulsada una canción) para cambiar el orden</span>' : ""}</p>
       <div class="ctrls"><button class="btn sm" type="button" data-act="back">← Playlists</button>
-      ${has ? `<button class="btn sm primary" type="button" data-act="playall">▶ Reproducir</button><button class="btn sm" type="button" data-act="playshuf">Aleatorio</button>` : ""}
+      ${has ? `<button class="btn sm primary" type="button" data-act="playall">▶ Reproducir playlist</button>` : ""}
       <button class="btn sm" type="button" data-act="rename">Renombrar</button>
       <button class="btn sm" type="button" data-act="hidecur">${op.oculta ? "Mostrar" : "Ocultar"}</button>
       <button class="btn sm ${confirmDel === op.id ? "ask" : "danger"}" type="button" data-act="del">${confirmDel === op.id ? "¿Seguro? Borrar" : "Borrar"}</button></div>
@@ -783,10 +783,8 @@ $("pls").addEventListener("click", e => {
     return refresh();
   }
   confirmDel = null; menuOpen = null;
-  if (act === "playp" || act === "playall" || act === "playshuf"){
-    const was = shuffle; if (act === "playshuf"){ shuffle = true; $("shuf").setAttribute("aria-pressed", true); }
+  if (act === "playp" || act === "playall"){
     playFrom(0, p.songs, p.name);
-    if (act !== "playshuf") shuffle = was;
     return;
   }
   if (act === "hide" || act === "hidecur"){

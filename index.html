@@ -61,22 +61,18 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .now .by{color:var(--ink-2);margin:0;overflow-wrap:anywhere}
 .ctrls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 @media (hover:hover) and (pointer:fine){#bg,#big{display:none}} /* solo tienen sentido en el celular */
-/* Modo cine: la tarjeta del reproductor a pantalla completa (apaisada en el celular) con nuestros controles debajo del video */
-.np:fullscreen{border:0;border-radius:0;padding:0;background:#000;display:grid;place-items:center;overflow:auto}
-.np:fullscreen .player{width:100%;max-width:1100px;grid-template-columns:minmax(0,1fr);grid-template-areas:"video" "now" "ctrls";gap:6px 0;align-items:start;padding:8px max(16px,env(safe-area-inset-left,0px)) 8px max(16px,env(safe-area-inset-right,0px))}
-.np:fullscreen .video{height:calc(100vh - 128px);width:min(100%,calc((100vh - 128px) * 16 / 9));aspect-ratio:auto;margin:0 auto;border-radius:6px}
-.np:fullscreen .now{align-items:center;text-align:center}
-.np:fullscreen .now h1{font-size:17px;color:#fff}
-.np:fullscreen .now .by,.np:fullscreen .eyebrow{color:#C4C2CE;font-size:12px}
-.np:fullscreen .player>.ctrls{justify-content:center;margin-top:2px}
-.np:fullscreen #addcur,.np:fullscreen #alt,.np:fullscreen #bg,.np:fullscreen #big{display:none}
 .player>.ctrls{grid-area:ctrls;margin-top:8px}
+/* Transporte: ⏮ ▶ ⏭ grandes y de la misma altura; el resto de botones, compactos */
+.transport{display:inline-flex;align-items:center;gap:8px}
+.btn.go{height:46px;font-size:15px;padding:0 18px;justify-content:center}
+.btn.go.play-main{min-width:150px}
+.btn.go.skip{width:54px;padding:0;font-size:22px;line-height:1}
+.player>.ctrls .btn:not(.go){padding:5px 11px;font-size:12.5px;box-shadow:none}
 .btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;font:inherit;font-size:14px;font-weight:600;padding:8px 15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap;box-shadow:var(--shadow-sm);transition:background .15s,border-color .15s,transform .1s,filter .15s}
 .btn:hover{background:var(--surface-2);border-color:var(--line-2)}
 .btn:active{transform:translateY(1px)}
 .btn.primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:0 8px 20px -8px var(--accent),var(--shadow-sm)}
 .btn.primary:hover{background:var(--accent);filter:brightness(1.07)}
-.btn.play-main{min-width:132px;justify-content:center;font-size:15px;padding:9px 18px}
 .btn[aria-pressed="true"],.btn[aria-pressed="true"]:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .btn.sm{padding:5px 12px;font-size:13px}
 .btn.danger{color:var(--accent);border-color:var(--accent-bg);background:var(--accent-bg)}
@@ -253,7 +249,12 @@ body.dragging .row:hover{background:transparent}
   .eyebrow{font-size:10.5px}
   .player>.ctrls{gap:6px}
   .btn{padding:7px 12px;font-size:13px}
-  .btn.play-main{min-width:0;padding:7px 14px;font-size:13px}
+  /* En el celular el transporte ocupa toda una fila: ⏮ ▶ ⏭ grandes, debajo los botones pequeños */
+  .transport{width:100%;gap:8px}
+  .btn.go{height:44px;font-size:14.5px}
+  .btn.go.play-main{min-width:0;flex:1 1 auto;padding:0 14px}
+  .btn.go.skip{width:56px;flex:0 0 56px;font-size:21px}
+  .player>.ctrls .btn:not(.go){padding:4px 10px;font-size:12px}
   /* Barra de herramientas en dos filas: [pestañas · Salir] [buscador · playlist de origen] */
   .tools{gap:8px;margin-top:10px}
   .seg{order:0;padding:2px}
@@ -296,15 +297,16 @@ body.dragging .row:hover{background:transparent}
       <p class="by" id="na">Suena aquí mismo y pasa sola a la siguiente.</p>
     </div>
     <div class="ctrls">
-      <button class="btn" id="prev" type="button" aria-label="Anterior">⏮</button>
-      <button class="btn primary play-main" id="play" type="button">▶ Reproducir</button>
-      <button class="btn" id="next" type="button" aria-label="Siguiente">⏭</button>
+      <span class="transport">
+        <button class="btn go skip" id="prev" type="button" aria-label="Anterior" title="Anterior">⏮</button>
+        <button class="btn go primary play-main" id="play" type="button">▶ Reproducir</button>
+        <button class="btn go skip" id="next" type="button" aria-label="Siguiente" title="Siguiente">⏭</button>
+      </span>
       <button class="btn" id="shuf" type="button" aria-pressed="false">Aleatorio</button>
       <button class="btn" id="addcur" type="button" hidden>＋ A playlist</button>
       <button class="btn" id="alt" type="button" hidden>Otras versiones</button>
       <a class="btn" id="bg" target="_blank" rel="noopener" hidden title="Abre lo que sigue en YouTube para seguir escuchando con la pantalla bloqueada">🔒 Con pantalla bloqueada</a>
       <button class="btn" id="big" type="button" aria-pressed="false" title="Video grande a todo el ancho">⤢ Grande</button>
-      <button class="btn" id="cine" type="button" title="Pantalla completa apaisada con los controles debajo">🎬 Cine</button>
     </div>
   </div></div>
   <div class="tools">
@@ -928,19 +930,6 @@ $("shuf").setAttribute("aria-pressed", shuffle);
 const setBig = on => { document.body.classList.toggle("big", on); $("big").setAttribute("aria-pressed", on); };
 setBig(store.get("np-big") === "1");
 $("big").onclick = () => { const on = !document.body.classList.contains("big"); setBig(on); store.set("np-big", on ? "1" : "0"); };
-// Modo cine: la tarjeta del reproductor a pantalla completa y, en el celular, girada a horizontal; nuestros controles quedan debajo.
-$("cine").onclick = async () => {
-  if (document.fullscreenElement) return document.exitFullscreen();
-  const np = document.querySelector(".np");
-  try { await np.requestFullscreen({navigationUI: "hide"}); } catch { return flash("Este navegador no permite la pantalla completa aquí."); }
-  try { await screen.orientation.lock("landscape"); } catch {}
-};
-document.addEventListener("fullscreenchange", () => {
-  const fs = !!document.fullscreenElement;
-  document.body.classList.toggle("cine", fs);
-  $("cine").textContent = fs ? "✕ Salir" : "🎬 Cine";
-  if (!fs){ try { screen.orientation.unlock(); } catch {} }
-});
 $("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set("np-sort", sortBy); shown = PAGE; renderList(); });
 $("sf").addEventListener("submit", e => { e.preventDefault(); if (tab === "yt") ytSearch($("q").value); });
 setTab("all");

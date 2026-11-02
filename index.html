@@ -63,10 +63,9 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 @media (hover:hover) and (pointer:fine){#bg,#big{display:none}} /* solo tienen sentido en el celular */
 .player>.ctrls{grid-area:ctrls;margin-top:8px}
 /* Transporte: ⏮ ▶ ⏭ grandes y de la misma altura; el resto de botones, compactos */
-.transport{display:inline-flex;align-items:center;gap:8px}
-.btn.go{height:46px;font-size:15px;padding:0 18px;justify-content:center}
-.btn.go.play-main{min-width:150px}
-.btn.go.skip{width:54px;padding:0;font-size:22px;line-height:1}
+.transport{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-width:420px}
+.btn.go{height:46px;font-size:15px;padding:0 12px;justify-content:center;min-width:0}
+.btn.go.skip{font-size:22px;line-height:1}
 .player>.ctrls .btn:not(.go){padding:5px 11px;font-size:12.5px;box-shadow:none}
 .btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;font:inherit;font-size:14px;font-weight:600;padding:8px 15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap;box-shadow:var(--shadow-sm);transition:background .15s,border-color .15s,transform .1s,filter .15s}
 .btn:hover{background:var(--surface-2);border-color:var(--line-2)}
@@ -250,10 +249,9 @@ body.dragging .row:hover{background:transparent}
   .player>.ctrls{gap:6px}
   .btn{padding:7px 12px;font-size:13px}
   /* En el celular el transporte ocupa toda una fila: ⏮ ▶ ⏭ grandes, debajo los botones pequeños */
-  .transport{width:100%;gap:8px}
-  .btn.go{height:44px;font-size:14.5px}
-  .btn.go.play-main{min-width:0;flex:1 1 auto;padding:0 14px}
-  .btn.go.skip{width:56px;flex:0 0 56px;font-size:21px}
+  .transport{width:100%;min-width:0;gap:8px}
+  .btn.go{height:44px;font-size:14.5px;padding:0 8px}
+  .btn.go.skip{font-size:21px}
   .player>.ctrls .btn:not(.go){padding:4px 10px;font-size:12px}
   /* Barra de herramientas en dos filas: [pestañas · Salir] [buscador · playlist de origen] */
   .tools{gap:8px;margin-top:10px}

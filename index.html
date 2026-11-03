@@ -773,7 +773,23 @@ function order(from){ // orden de reproducción a partir de la canción `from` (
   if (!shuffle) return queue.map((_, n) => (from + n) % queue.length);
   const rest = queue.map((_, n) => n).filter(n => n !== from);
   for (let n = rest.length - 1; n > 0; n--){ const r = Math.floor(Math.random() * (n + 1)); [rest[n], rest[r]] = [rest[r], rest[n]]; }
-  return [from, ...rest];
+  return spread(from, rest);
+}
+// Separa canciones parecidas en el orden aleatorio: ni el mismo artista en las 4 siguientes ni otra versión de la misma
+// canción (remix, en vivo, acústico…) en las 25 siguientes. Si no queda otra opción, relaja la regla.
+const artistKey = x => clean(String(x.a || "").split(",")[0]);
+const titleKey = x => clean(x.t).replace(/\b(remix|version|edit|mix|en vivo|live|acustic[oa]|acoustic|unplugged|extended|radio|club|instrumental|karaoke|cover|slowed|sped up)\b/g, " ").replace(/\s+/g, " ").trim();
+function spread(from, pool){
+  const ak = queue.map(artistKey), tk = queue.map(titleKey), out = [from];
+  const clash = (n, back, same) => { for (let i = Math.max(0, out.length - back); i < out.length; i++) if (same(n, out[i])) return true; return false; };
+  const byArtist = (a, b) => ak[a] && ak[a] === ak[b], byTitle = (a, b) => tk[a] && tk[a] === tk[b];
+  while (pool.length){
+    let p = pool.findIndex(n => !clash(n, 25, byTitle) && !clash(n, 4, byArtist));
+    if (p < 0) p = pool.findIndex(n => !clash(n, 1, byTitle) && !clash(n, 1, byArtist));
+    if (p < 0) p = 0;
+    out.push(pool.splice(p, 1)[0]);
+  }
+  return out;
 }
 function load(i){
   const x = queue[i]; if (!x) return;

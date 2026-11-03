@@ -119,6 +119,14 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
 .tag.no{color:var(--ink-3);background:var(--surface-2)}
 .tag.yt{color:var(--pl);background:var(--pl-bg)}
 .tag.mine{color:var(--have);background:var(--have-bg)}
+.tag.file{color:var(--accent);background:var(--accent-bg)}
+.video #art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.files{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.frow{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px}
+.frow .t{flex:1;min-width:0}
+.frow b,.frow span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.frow span{color:var(--ink-3);font-size:12.5px}
+.frow span.ok{color:var(--have)}
 .row.dis .t{opacity:.6}
 .add{flex:none;width:42px;height:42px;align-self:center;margin-right:4px;border:0;border-radius:99px;background:transparent;color:var(--ink-3);font:inherit;font-size:20px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
 .add:hover{color:var(--accent);background:var(--accent-bg)}
@@ -289,7 +297,7 @@ body.dragging .row:hover{background:transparent}
 <div id="app" hidden>
 <header class="top">
   <div class="np"><div class="player">
-    <div class="video"><div id="yt"></div><div class="ph" id="ph"><span>Toca una canción para empezar</span></div></div>
+    <div class="video"><div id="yt"></div><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden></div>
     <div class="now">
       <p class="eyebrow" id="pos">Nuestras playlists</p>
       <h1 id="nt">Elige una canción</h1>
@@ -312,6 +320,7 @@ body.dragging .row:hover{background:transparent}
       <button type="button" id="tab-all" aria-pressed="true">Todas<small id="call"></small></button>
       <button type="button" id="tab-pls" aria-pressed="false">Playlists<small id="cpls"></small></button>
       <button type="button" id="tab-yt" aria-pressed="false">Buscar en YouTube</button>
+      <button type="button" id="tab-files" aria-pressed="false">Archivos<small id="cfiles"></small></button>
     </div>
     <form class="search" id="sf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Buscar canción o artista" autocomplete="off"><button class="btn sm" id="go" type="submit" hidden>Buscar</button></form>
     <select id="srcpl" aria-label="Playlist de origen"></select>
@@ -323,6 +332,7 @@ body.dragging .row:hover{background:transparent}
 </header>
 <section id="pls" hidden></section>
 <section id="ytbox" hidden></section>
+<section id="filebox" hidden></section>
 <section id="imp" hidden></section>
 <div class="list" id="list" role="list"></div>
 <button class="btn more" id="more" type="button" hidden>Mostrar más</button>
@@ -383,7 +393,7 @@ onAuthStateChanged(auth, u => {
     catLoaded = true;
     const v = s.exists() ? s.data() : null;
     CAT = v ? {all: v.all || [], pls: v.pls || []} : {all: [], pls: []};
-    fillSrc(); refresh();
+    fillSrc(); refresh(); rematch();
   }, denied));
   unsub.push(onSnapshot(plCol, s => {
     loaded = true;
@@ -449,28 +459,30 @@ function allSongs(){
   const base = new Set(CAT.all.map(x => x.k)), seen = new Set(), extra = [];
   for (const p of mis) for (const s of p.songs)
     if (!base.has(s.k) && !seen.has(s.k)){ seen.add(s.k); extra.push({...s, pl: [], nueva: true}); }
-  return CAT.all.concat(extra);
+  return CAT.all.concat(extra, fileSongs());
 }
 const openPl = () => mis.find(p => p.id === openId) || null;
 function listLabel(){
   if (tab === "pls") return openPl()?.name || "";
   if (tab === "yt") return "Búsqueda: " + ytQuery;
   const pl = $("srcpl").value;
-  return pl === "__nuevas" ? "Agregadas desde YouTube" : pl || "Todas";
+  return pl === "__nuevas" ? "Agregadas desde YouTube" : pl === "__archivo" ? "Con archivo de audio" : pl || "Todas";
 }
 const sorted = l => !sortBy ? l : l.slice().sort((x, y) => norm(x[sortBy]).localeCompare(norm(y[sortBy]), "es") || norm(x.t).localeCompare(norm(y.t), "es"));
 function songsShown(){
   if (tab === "pls") return openPl() ? sorted(openPl().songs) : [];
   if (tab === "yt") return yres;
   const q = norm($("q").value.trim()), pl = $("srcpl").value;
-  return sorted(allSongs().filter(x => (!pl || (pl === "__nuevas" ? x.nueva : (x.pl || []).includes(pl))) && (!q || norm(x.t + " " + x.a).includes(q))));
+  return sorted(allSongs().filter(x => (!pl || (pl === "__nuevas" ? x.nueva : pl === "__archivo" ? !!fileFor(x) : (x.pl || []).includes(pl))) && (!q || norm(x.t + " " + x.a).includes(q))));
 }
 function songRow(x, i){
   const mine = inMis(x.k), mode = tab === "pls" ? "pl" : "all";
   let meta = "";
   if (x.nueva && mode === "all" && tab !== "yt") meta += '<span class="tag yt">de YouTube</span>';
   if (x.e === "dudoso") meta += '<span class="tag dud">dudosa</span>';
-  if (!x.y) meta += '<span class="tag no">sin video · buscar</span>';
+  const file = fileFor(x);
+  if (file) meta += '<span class="tag file">♪ audio</span>';
+  else if (!x.y) meta += '<span class="tag no">sin video · buscar</span>';
   if (mode === "all") meta += mine.map(p => `<span class="tag mine">${esc(p.name)}</span>`).join("");
   const on = cur >= 0 && queue[cur] && queue[cur].k === x.k && queueLabel === listLabel();
   const mv = mode === "pl" && !sortBy && current.length > 1
@@ -479,7 +491,7 @@ function songRow(x, i){
     ? mv + `<button type="button" class="add" data-rm="${i}" title="Quitar de esta playlist" aria-label="Quitar de esta playlist">×</button>`
     : (tab === "yt" && altFor && altFor.y !== x.y ? `<button type="button" class="btn sm rep" data-rep="${i}" title="Usar este video para «${esc(altFor.t)}»">⇄ Reemplazar</button>` : "")
       + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`;
-  return `<div class="row${x.y ? "" : " dis"}${on ? " on" : ""}" role="listitem"><button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
+  return `<div class="row${x.y || file ? "" : " dis"}${on ? " on" : ""}" role="listitem"><button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
 function renderList(){
   current = songsShown();
@@ -498,7 +510,7 @@ $("list").addEventListener("click", e => {
   if (rep) return replaceVideo(current[+rep.dataset.rep]);
   if (add) return openSheet(current[+add.dataset.add]);
   if (rm){ toggleSong(openPl(), current[+rm.dataset.rm]); return refresh(); }
-  if (pl){ const x = current[+pl.dataset.i]; if (x.y) playFrom(+pl.dataset.i); else { altFor = x; ytSearch(x.a.split(",")[0] + " " + x.t); } }
+  if (pl){ const x = current[+pl.dataset.i]; if (x.y || fileFor(x)) playFrom(+pl.dataset.i); else { altFor = x; ytSearch(x.a.split(",")[0] + " " + x.t); } }
 });
 $("more").onclick = () => { shown += PAGE * 2; renderList(); };
 
@@ -583,10 +595,112 @@ $("list").addEventListener("keydown", e => { // ↑ ↓ con el teclado sobre el 
   $("list").querySelector(`[data-grip="${i + d}"]`)?.focus();
 });
 
+/* ---------- Archivos de audio en este dispositivo ---------- */
+// YouTube pausa sus videos al bloquear la pantalla. Un archivo de audio propio suena como en Spotify: en segundo plano,
+// con la pantalla bloqueada y con ⏮ ⏯ ⏭ en la pantalla de bloqueo. Se guardan solo en este dispositivo (IndexedDB).
+let FILES = [], fileByK = new Map(), confirmWipe = false;
+const AUDIO_EXT = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)$/i;
+const idb = new Promise((ok, ko) => {
+  const r = indexedDB.open("np-audio", 1);
+  r.onupgradeneeded = () => r.result.createObjectStore("files", {keyPath: "id"});
+  r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error);
+});
+async function tx(mode, fn){
+  const d = await idb;
+  return new Promise((ok, ko) => { const t = d.transaction("files", mode), r = fn(t.objectStore("files")); t.oncomplete = () => ok(r?.result); t.onerror = () => ko(t.error); t.onabort = () => ko(t.error); });
+}
+const clean = s => norm(String(s || "")).replace(/\.[a-z0-9]{2,4}$/, "").replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
+  .replace(/\b(official|oficial|video|videoclip|audio|lyrics?|letra|hd|hq|remaster(ed)?|ft|feat)\b/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+// Une un archivo con una canción de la lista si el nombre trae el título (y mejor si también el artista).
+function matchSong(name){
+  const f = " " + clean(name) + " ";
+  let best = null, score = 0;
+  for (const x of CAT.all.concat(...mis.map(p => p.songs))){
+    const t = clean(x.t); if (t.length < 2 || !f.includes(" " + t + " ")) continue;
+    const a = clean(String(x.a || "").split(",")[0]);
+    const sc = t.length + (a && f.includes(" " + a + " ") ? 100 : 0);
+    if (sc > score){ score = sc; best = x; }
+  }
+  return best && (score >= 100 || clean(best.t).length >= 8) ? best : null;
+}
+function guess(name){ // "Artista - Título.mp3"
+  const base = name.replace(/\.[^.]+$/, "").replace(/_/g, " "), parts = base.split(/\s+[-–—]\s+/);
+  return parts.length > 1 ? {a: parts[0].trim(), t: parts.slice(1).join(" - ").trim()} : {a: "Archivo de audio", t: base.trim()};
+}
+function relink(){ fileByK = new Map(FILES.filter(f => f.k).map(f => [f.k, f])); }
+const fileFor = x => !x ? null : String(x.k).startsWith("f:") ? FILES.find(f => "f:" + f.id === x.k) || null : fileByK.get(x.k) || null;
+const fileSongs = () => FILES.filter(f => !f.k).map(f => ({t: f.t, a: f.a, k: "f:" + f.id, y: null, pl: [], archivo: true}));
+async function loadFiles(){
+  try { FILES = (await tx("readonly", st => st.getAll())) || []; } catch (e) { log("archivos: " + e.message); FILES = []; }
+  FILES.sort((a, b) => a.name.localeCompare(b.name, "es")); relink(); refresh();
+}
+// Cuando llega el catálogo, intenta unir los archivos que todavía no tenían canción.
+async function rematch(){
+  const fix = FILES.filter(f => !f.k).map(f => [f, matchSong(f.name)]).filter(([, m]) => m);
+  if (!fix.length) return;
+  for (const [f, m] of fix){ f.k = m.k; f.t = m.t; f.a = m.a; }
+  try { await tx("readwrite", st => { for (const [f] of fix) st.put(f); }); } catch {}
+  relink(); refresh();
+}
+async function addFiles(list){
+  const files = [...list].filter(f => f.type.startsWith("audio/") || AUDIO_EXT.test(f.name));
+  if (!files.length) return flash("Esos archivos no son de audio. Elige archivos MP3, M4A u otros de música.");
+  try { await navigator.storage?.persist?.(); } catch {} // que el navegador no los borre para liberar espacio
+  const have = new Set(FILES.map(f => f.name + "|" + f.blob.size));
+  const recs = [];
+  for (const file of files){
+    if (have.has(file.name + "|" + file.size)) continue;
+    const m = matchSong(file.name), g = guess(file.name);
+    recs.push({id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), name: file.name, blob: file, k: m?.k || null, t: m?.t || g.t, a: m?.a || g.a});
+  }
+  if (!recs.length) return flash("Esos archivos ya estaban agregados.");
+  flash("Guardando " + recs.length + " archivo" + (recs.length > 1 ? "s" : "") + "…");
+  try { await tx("readwrite", st => { for (const r of recs) st.put(r); }); }
+  catch (e) { return flash(e?.name === "QuotaExceededError" ? "No hay espacio suficiente en el teléfono para esos archivos." : "No se pudieron guardar los archivos (" + (e?.name || e) + ")."); }
+  await loadFiles();
+  const linked = recs.filter(r => r.k).length;
+  flash("Listo: " + recs.length + " archivo" + (recs.length > 1 ? "s" : "") + " agregado" + (recs.length > 1 ? "s" : "") + (linked ? ", " + linked + " unido" + (linked > 1 ? "s" : "") + " a canciones de tu lista" : "") + ". Ya suenan con la pantalla bloqueada.");
+}
+async function removeFiles(ids){
+  try { await tx("readwrite", st => { for (const id of ids) st.delete(id); }); } catch {}
+  await loadFiles();
+}
+function renderFiles(){
+  const box = $("filebox");
+  box.hidden = tab !== "files";
+  if (tab !== "files") return;
+  const linked = FILES.filter(f => f.k).length;
+  box.innerHTML = `<div class="steps"><div class="step"><h3>Música que sigue sonando con la pantalla bloqueada</h3>
+      <p>YouTube se pausa al bloquear la pantalla o cambiar de app. Las canciones con <b>archivo de audio</b> suenan desde este dispositivo como en Spotify: en segundo plano, con la pantalla bloqueada y con ⏮ ⏯ ⏭ en la pantalla de bloqueo.</p>
+      <p>Elige archivos de música (MP3, M4A…). Si el nombre trae el artista y la canción, por ejemplo <i>Marc Anthony - Vivir mi vida.mp3</i>, se une sola a esa canción de tu lista. Los archivos se quedan solo en este dispositivo.</p>
+      <label class="btn primary" style="align-self:flex-start;cursor:pointer">＋ Agregar archivos de audio<input type="file" id="f-in" accept="audio/*,.mp3,.m4a,.aac,.ogg,.opus,.wav,.flac" multiple hidden></label>
+    </div></div>
+    ${FILES.length ? `<div class="ctrls" style="margin-top:14px">
+        <button class="btn sm primary" type="button" data-act="fplay">▶ Reproducir las ${FILES.length}</button>
+        <button class="btn sm ${confirmWipe ? "ask" : "danger"}" type="button" data-act="fwipe">${confirmWipe ? "¿Seguro? Quitar todos" : "Quitar todos"}</button></div>
+      <p class="msg">${FILES.length} archivo${FILES.length > 1 ? "s" : ""} · ${linked} unido${linked === 1 ? "" : "s"} a canciones de tu lista</p>
+      <div class="files">${FILES.map(f => `<div class="frow"><div class="t"><b>${esc(f.name)}</b>
+        <span class="${f.k ? "ok" : ""}">${f.k ? "✓ " + esc(f.t + " · " + f.a) : "Sin canción en tu lista: aparece como canción aparte"}</span></div>
+        <button type="button" class="add" data-fdel="${f.id}" title="Quitar este archivo" aria-label="Quitar ${esc(f.name)}">×</button></div>`).join("")}</div>`
+    : `<div class="empty"><b>Todavía no hay archivos</b>Toca “Agregar archivos de audio” y elige tu música.</div>`}`;
+}
+$("filebox").addEventListener("change", e => { if (e.target.id === "f-in"){ addFiles(e.target.files); e.target.value = ""; } });
+$("filebox").addEventListener("click", e => {
+  const del = e.target.closest("[data-fdel]"), act = e.target.closest("[data-act]")?.dataset.act;
+  if (del) return removeFiles([del.dataset.fdel]);
+  if (act === "fplay"){ const l = FILES.map(f => f.k ? {...(allSongs().find(x => x.k === f.k) || {t: f.t, a: f.a, y: null}), k: f.k} : {t: f.t, a: f.a, k: "f:" + f.id, y: null}); return playFrom(0, l, "Archivos de audio"); }
+  if (act === "fwipe"){ if (confirmWipe){ confirmWipe = false; removeFiles(FILES.map(f => f.id)); flash("Quitaste todos los archivos de este dispositivo."); } else { confirmWipe = true; renderFiles(); } }
+});
+
 /* ---------- Reproductor ---------- */
 // La página lleva la cola y le pasa al reproductor una canción cada vez. (En modo playlist de YouTube el reproductor
 // se pausa solo al pasar la página a segundo plano en el celular; en modo canción suelta sigue sonando.)
 let orderIdx = [], at = 0, pendingId = null, kick = 0, started = false;
+let mode = "yt"; // "yt" = video de YouTube, "file" = archivo de audio del dispositivo
+// Un solo elemento de audio para todas las canciones con archivo: así el navegador deja pasar a la siguiente
+// con la pantalla bloqueada (es el mismo reproductor que ya tenía permiso para sonar).
+const au = new Audio(); au.preload = "auto";
+let auUrl = null;
 // Registro de diagnóstico: se ve añadiendo ?debug a la dirección (y guarda lo último para poder leerlo tras recargar).
 const LOG = (store.get("np-log") || "").split("\n").filter(Boolean);
 const dbg = $("dbg"); dbg.hidden = !location.search.includes("debug"); dbg.textContent = LOG.join("\n");
@@ -603,21 +717,44 @@ const silent = (() => {
   v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); str(36, "data"); v.setUint32(40, n, true); b.fill(128, 44);
   const a = new Audio(URL.createObjectURL(new Blob([b], {type: "audio/wav"}))); a.loop = true; a.volume = 0.01; return a;
 })();
+function setPlaying(on){
+  playing = on; document.body.classList.toggle("playing", on); $("play").textContent = on ? "⏸ Pausa" : "▶ Reproducir";
+  if ("mediaSession" in navigator) navigator.mediaSession.playbackState = on ? "playing" : "paused";
+}
+function updatePos(){
+  try { if (mode === "file" && isFinite(au.duration) && au.duration > 0) navigator.mediaSession?.setPositionState?.({duration: au.duration, playbackRate: au.playbackRate || 1, position: Math.min(au.currentTime, au.duration)}); } catch {}
+}
+au.addEventListener("playing", () => { if (mode === "file"){ setPlaying(true); updatePos(); log("archivo sonando"); } });
+au.addEventListener("pause", () => { if (mode === "file") setPlaying(false); });
+au.addEventListener("ended", () => { if (mode === "file"){ log("archivo terminó"); step(1); } });
+au.addEventListener("error", () => { if (mode === "file" && au.src){ log("archivo con error"); setTimeout(() => step(1), 800); } });
+au.addEventListener("loadedmetadata", updatePos);
+au.addEventListener("seeked", updatePos);
+function playFile(f, x){
+  if (auUrl) URL.revokeObjectURL(auUrl);
+  auUrl = URL.createObjectURL(f.blob); au.src = auUrl;
+  const art = x.y ? "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg" : null;
+  $("art").hidden = !art; if (art) $("art").src = art;
+  $("ph").hidden = !!art; $("ph").querySelector("span").textContent = "♪ Sonando desde este dispositivo";
+  au.play().catch(e => log("archivo no arrancó: " + e.name));
+}
 function keepAlive(){ if (silent.paused) silent.play().then(() => log("audio de fondo activo")).catch(e => log("audio de fondo no: " + e.name)); }
 function setMedia(x){
   if (!("mediaSession" in navigator)) return;
   try {
     navigator.mediaSession.metadata = new MediaMetadata({title: x.t, artist: x.a, album: queueLabel, artwork: x.y ? [{src: "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg"}] : []});
     const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => { log("lock: play"); keepAlive(); player?.playVideo(); });
-    ms.setActionHandler("pause", () => { log("lock: pausa"); started = true; clearInterval(kick); player?.pauseVideo(); });
+    ms.setActionHandler("play", () => { log("lock: play"); if (mode === "file") au.play(); else { keepAlive(); player?.playVideo(); } });
+    ms.setActionHandler("pause", () => { log("lock: pausa"); if (mode === "file") au.pause(); else { started = true; clearInterval(kick); player?.pauseVideo(); } });
     ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
     ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
+    // Solo "seekto" (barra de avance). Con seekforward/seekbackward el iPhone cambiaría ⏮ ⏭ por saltos de 10 s.
+    try { ms.setActionHandler("seekto", fileFor(x) ? e => { au.currentTime = Math.max(0, Math.min(au.duration || 0, e.seekTime)); updatePos(); } : null); } catch {}
   } catch (e) { log("mediaSession: " + e.message); }
 }
 function playFrom(i, list, label){
   const full = list || current, pick = full[i];
-  queue = full.filter(x => x.y); queueLabel = label || listLabel();
+  queue = full.filter(x => x.y || fileFor(x)); queueLabel = label || listLabel();
   if (!queue.length) return;
   let qi = Math.max(0, queue.indexOf(pick));
   if (shuffle && list) qi = Math.floor(Math.random() * queue.length);
@@ -637,8 +774,16 @@ function load(i){
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;
   $("ph").hidden = true; $("addcur").hidden = false; $("alt").hidden = false;
   log("canción " + (i + 1) + ": " + x.t);
-  keepAlive(); setMedia(x);
-  if (ready) start(x.y); else pendingId = x.y;
+  const f = fileFor(x);
+  if (f){
+    mode = "file"; clearInterval(kick); pendingId = null; silent.pause();
+    if (ready) player.stopVideo();
+    setMedia(x); playFile(f, x);
+  } else {
+    mode = "yt"; au.pause(); $("art").hidden = true;
+    keepAlive(); setMedia(x);
+    if (ready) start(x.y); else pendingId = x.y;
+  }
   renderList();
 }
 function start(id){
@@ -654,7 +799,13 @@ function start(id){
 }
 function step(d){
   if (!queue.length) return playFrom(0, current, listLabel());
-  at = (at + d + orderIdx.length) % orderIdx.length;
+  // Con la pantalla bloqueada YouTube no arranca: si hay canciones con archivo, salta a la próxima que tenga.
+  const skipYt = document.hidden && queue.some(x => fileFor(x));
+  for (let n = 0; n < orderIdx.length; n++){
+    at = (at + d + orderIdx.length) % orderIdx.length;
+    if (!skipYt || fileFor(queue[orderIdx[at]])) break;
+  }
+  if (skipYt) log("pantalla bloqueada: sigue con la próxima canción con archivo");
   load(orderIdx[at]);
 }
 // Si el navegador pausa el video justo al bloquear la pantalla o cambiar de app, intenta seguir (funciona si el navegador lo permite).
@@ -663,7 +814,9 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) hidde
 $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);
 $("play").onclick = () => {
-  if (cur < 0) return step(1); if (!ready) return;
+  if (cur < 0) return step(1);
+  if (mode === "file"){ if (au.paused) au.play(); else au.pause(); return; }
+  if (!ready) return;
   if (playing){ started = true; clearInterval(kick); player.pauseVideo(); } else { keepAlive(); player.playVideo(); }
 };
 $("shuf").onclick = () => {
@@ -684,16 +837,16 @@ function initYT(){
     events: {
       onReady(){ ready = true; if (pendingId){ start(pendingId); pendingId = null; } },
       onStateChange(e){
+        if (mode !== "yt") return; // suena un archivo de audio: lo que haga el video detenido no importa
         const wasPlaying = playing;
-        playing = e.data === YT.PlayerState.PLAYING; document.body.classList.toggle("playing", playing); $("play").textContent = playing ? "⏸ Pausa" : "▶ Reproducir";
+        setPlaying(e.data === YT.PlayerState.PLAYING);
         if (playing) started = true;
         log("estado " + ({"-1": "sin empezar", 0: "terminó", 1: "sonando", 2: "pausa", 3: "cargando", 5: "lista"}[e.data] ?? e.data));
-        if ("mediaSession" in navigator) navigator.mediaSession.playbackState = playing ? "playing" : "paused";
         if (e.data === YT.PlayerState.ENDED) step(1);
         if (e.data === YT.PlayerState.CUED && !started) player.playVideo(); // cargó pero no arrancó (pasa en segundo plano)
         if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000) setTimeout(() => { if (document.hidden && !playing) player.playVideo(); }, 400);
       },
-      onError(){ setTimeout(() => step(1), 800); } // video bloqueado para insertar: pasa al siguiente
+      onError(){ if (mode === "yt") setTimeout(() => step(1), 800); } // video bloqueado para insertar: pasa al siguiente
     }});
 }
 if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = initYT;
@@ -702,6 +855,7 @@ if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = init
 const EYE_OFF = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.1M6.1 6.1C3.9 7.6 2.5 9.8 2 12c1 2.5 5 7 10 7 1.8 0 3.4-.5 4.8-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
 const EYE = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const vids = p => [...new Set(p.songs.filter(s => s.y).map(s => s.y))];
+const playable = p => p.songs.some(s => s.y || fileFor(s));
 const hue = s => [...s].reduce((h, c) => (h * 31 + c.codePointAt(0)) % 360, 7); // color estable por nombre para portadas sin video
 function coverHTML(p){
   const ids = vids(p).slice(0, 4);
@@ -719,7 +873,7 @@ function renderPls(){
   const op = openPl();
   if (openId && !op) openId = null;
   if (op){
-    const has = vids(op).length;
+    const has = playable(op);
     box.innerHTML = `<div class="plhead">${coverHTML(op)}<div class="info"><h2>${esc(op.name)}</h2>
       <p class="msg" style="margin:0">${count(op)}${op.songs.length > 1 ? ' <span class="hint">· arrastra ⠿ (o mantén pulsada una canción) para cambiar el orden</span>' : ""}</p>
       <div class="ctrls"><button class="btn sm" type="button" data-act="back">← Playlists</button>
@@ -738,13 +892,13 @@ function renderPls(){
   else if (!mis.length) items = `<div class="empty"><b>Todavía no hay playlists</b>Escribe un nombre arriba y toca Crear, o toca ＋ en cualquier canción.</div>`;
   else if (plView === "a") items = `<div class="pa-grid">${vis.map(p => `<div class="pa${p.oculta ? " off" : ""}${menuOpen === p.id ? " menu-on" : ""}">
       <div class="art"><button class="cv" type="button" data-act="open" data-id="${p.id}" aria-label="Ver canciones de ${esc(p.name)}">${coverHTML(p)}</button>
-        ${vids(p).length ? `<button class="ic play-b pb" type="button" data-act="playp" data-id="${p.id}" aria-label="Reproducir">▶</button>` : ""}
+        ${playable(p) ? `<button class="ic play-b pb" type="button" data-act="playp" data-id="${p.id}" aria-label="Reproducir">▶</button>` : ""}
         <button class="ic menu" type="button" data-act="menu" data-id="${p.id}" aria-label="Más opciones" aria-expanded="${menuOpen === p.id}">⋯</button>
         ${menuOpen === p.id ? `<div class="pop"><button type="button" data-act="hide" data-id="${p.id}">${p.oculta ? "Mostrar" : "Ocultar"}</button><button type="button" class="danger" data-act="delc" data-id="${p.id}">${ask(p) ? "¿Seguro? Borrar" : "Borrar"}</button></div>` : ""}</div>
       <span class="nm">${esc(p.name)}</span><small>${count(p)}</small></div>`).join("")}</div>`;
   else items = `<div class="pb-list">${vis.map(p => `<div class="pb-row${p.oculta ? " off" : ""}">
       <button class="rowmain" type="button" data-act="open" data-id="${p.id}">${coverHTML(p)}<span><span class="nm">${esc(p.name)}</span><span class="sb">${esc(count(p) + (p.songs.length ? " · " + artistsOf(p) : ""))}</span></span></button>
-      <div class="acts">${vids(p).length ? `<button class="ic play-b" type="button" data-act="playp" data-id="${p.id}" aria-label="Reproducir" title="Reproducir">▶</button>` : ""}
+      <div class="acts">${playable(p) ? `<button class="ic play-b" type="button" data-act="playp" data-id="${p.id}" aria-label="Reproducir" title="Reproducir">▶</button>` : ""}
         <button class="ic" type="button" data-act="hide" data-id="${p.id}" aria-label="${p.oculta ? "Mostrar" : "Ocultar"}" title="${p.oculta ? "Mostrar" : "Ocultar"}">${p.oculta ? EYE : EYE_OFF}</button>
         <button class="ic${ask(p) ? " ask" : ""}" type="button" data-act="delc" data-id="${p.id}" aria-label="Borrar" title="Borrar">${ask(p) ? "¿Borrar?" : "×"}</button></div></div>`).join("")}</div>`;
   box.innerHTML = `<div class="newbar"><div class="top-row">
@@ -848,7 +1002,7 @@ function replaceVideo(x){
   queue.forEach(it => { if (it.k === s.k) it.y = x.y; });
   altFor = null;
   flash("Listo: «" + s.t + "» ahora usa este video" + (prev ? " en vez del anterior" : "") + ". Se guardó para los dos.");
-  if (ready && queue[cur]?.k === s.k) start(x.y); // si justo sonaba esa canción, sigue ya con el video nuevo
+  if (ready && mode === "yt" && queue[cur]?.k === s.k) start(x.y); // si justo sonaba esa canción, sigue ya con el video nuevo
   refresh();
 }
 $("ytbox").addEventListener("submit", e => {
@@ -889,13 +1043,13 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("sheet"
 /* ---------- Pestañas ---------- */
 function fillSrc(){
   const keep = $("srcpl").value;
-  $("srcpl").innerHTML = '<option value="">Todas las playlists de Spotify</option><option value="__nuevas">Agregadas desde YouTube</option>' + CAT.pls.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  $("srcpl").innerHTML = '<option value="">Todas las playlists de Spotify</option><option value="__nuevas">Agregadas desde YouTube</option><option value="__archivo">Con archivo de audio</option>' + CAT.pls.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
   $("srcpl").value = keep;
 }
 function setTab(t){
   tab = t; confirmDel = null; menuOpen = null; shown = PAGE;
-  for (const k of ["all","pls","yt"]) $("tab-"+k).setAttribute("aria-pressed", k === t);
-  $("sf").hidden = t === "pls"; $("srcpl").hidden = t !== "all"; $("go").hidden = t !== "yt";
+  for (const k of ["all","pls","yt","files"]) $("tab-"+k).setAttribute("aria-pressed", k === t);
+  $("sf").hidden = t === "pls" || t === "files"; confirmWipe = false; $("srcpl").hidden = t !== "all"; $("go").hidden = t !== "yt";
   $("q").placeholder = t === "yt" ? "Escribe una canción o artista y toca Buscar" : "Buscar canción o artista";
   flash("");
   refresh();
@@ -904,9 +1058,10 @@ function refresh(){
   const all = allSongs();
   $("call").textContent = all.length;
   $("cpls").textContent = mis.filter(p => !p.oculta).length;
-  renderImport(); renderPls(); renderYt(); renderList();
+  $("cfiles").textContent = FILES.length || "";
+  renderImport(); renderPls(); renderYt(); renderFiles(); renderList();
 }
-for (const t of ["all","pls","yt"]) $("tab-"+t).onclick = () => { if (t !== tab) $("q").value = t === "yt" ? ytQuery : ""; if (t === "pls") openId = null; setTab(t); if (t === "yt") $("q").focus(); };
+for (const t of ["all","pls","yt","files"]) $("tab-"+t).onclick = () => { if (t !== tab) $("q").value = t === "yt" ? ytQuery : ""; if (t === "pls") openId = null; setTab(t); if (t === "yt") $("q").focus(); };
 $("q").addEventListener("input", () => { if (tab === "all"){ shown = PAGE; renderList(); } });
 $("srcpl").addEventListener("change", () => { shown = PAGE; renderList(); });
 $("sort").value = sortBy;
@@ -918,6 +1073,7 @@ $("big").onclick = () => { const on = !document.body.classList.contains("big"); 
 $("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set("np-sort", sortBy); shown = PAGE; renderList(); });
 $("sf").addEventListener("submit", e => { e.preventDefault(); if (tab === "yt") ytSearch($("q").value); });
 setTab("all");
+loadFiles();
 </script>
 <script src="https://www.youtube.com/iframe_api"></script>
 </body>

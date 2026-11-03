@@ -297,7 +297,7 @@ body.dragging .row:hover{background:transparent}
     <div class="ctrls">
       <span class="transport">
         <button class="btn go skip" id="prev" type="button" aria-label="Anterior" title="Anterior">⏮</button>
-        <button class="btn go primary play-main" id="play" type="button">▶ Reproducir</button>
+        <button class="btn go primary play-main" id="play" type="button">▶ Reproducir&nbsp;</button>
         <button class="btn go skip" id="next" type="button" aria-label="Siguiente" title="Siguiente">⏭</button>
       </span>
       <button class="btn" id="shuf" type="button" aria-pressed="false">Aleatorio</button>
@@ -684,7 +684,7 @@ function initYT(){
       onReady(){ ready = true; if (pendingId){ start(pendingId); pendingId = null; } },
       onStateChange(e){
         const wasPlaying = playing;
-        playing = e.data === YT.PlayerState.PLAYING; document.body.classList.toggle("playing", playing); $("play").textContent = playing ? "⏸ Pausa" : "▶ Reproducir";
+        playing = e.data === YT.PlayerState.PLAYING; document.body.classList.toggle("playing", playing); $("play").textContent = playing ? "⏸ Pausa " : "▶ Reproducir "; // espacio duro al final para que el texto quede centrado a la vista
         if (playing) started = true;
         log("estado " + ({"-1": "sin empezar", 0: "terminó", 1: "sonando", 2: "pausa", 3: "cargando", 5: "lista"}[e.data] ?? e.data));
         if ("mediaSession" in navigator) navigator.mediaSession.playbackState = playing ? "playing" : "paused";

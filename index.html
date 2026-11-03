@@ -52,7 +52,10 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .np::after{content:"";position:absolute;z-index:-1;bottom:-160px;left:-80px;width:320px;height:320px;border-radius:50%;background:radial-gradient(closest-side,var(--glow-2),transparent 72%);pointer-events:none}
 .player{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);grid-template-areas:"video now" "video ctrls";gap:6px 18px;align-items:center}
 .video{grid-area:video;aspect-ratio:16/9;max-width:100%;background:#0B0B10;border-radius:var(--r-md);overflow:hidden;position:relative;box-shadow:0 10px 30px -10px rgba(0,0,0,.5)}
-.video #yt{position:absolute;inset:0;width:100%;height:100%}
+.video #yt,.video #yt2{position:absolute;inset:0;width:100%;height:100%}
+/* Dos reproductores: el de reserva (oculto) prepara la siguiente canción para cambiar sin espera */
+.video #yt2,.video.swap #yt{opacity:0;pointer-events:none}
+.video.swap #yt2{opacity:1;pointer-events:auto}
 .video .ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#C4C2CE;font-size:13px;text-align:center;padding:12px;background:radial-gradient(circle at 50% 35%,#2B2340,#0B0B10 72%)}
 .video .ph::before{content:"▶";display:grid;place-items:center;padding-left:3px;width:46px;height:46px;border-radius:50%;background:var(--accent);color:#fff;font-size:17px;box-shadow:0 0 0 8px var(--accent-glow)}
 .now{grid-area:now;min-width:0;display:flex;flex-direction:column;gap:4px}
@@ -298,7 +301,7 @@ body.dragging .row:hover{background:transparent}
 <div id="app" hidden>
 <header class="top">
   <div class="np"><div class="player">
-    <div class="video"><div id="yt"></div><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden></div>
+    <div class="video"><div id="yt"></div><div id="yt2"></div><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden></div>
     <div class="now">
       <p class="eyebrow" id="pos">Nuestras playlists</p>
       <h1 id="nt">Elige una canción</h1>
@@ -811,11 +814,25 @@ function load(i){
   }
   renderList();
 }
+// Reproductor de reserva: mientras suena una canción, deja preparada (sin sonar) la que sigue; al terminar se cambia al instante.
+let spare = null, spareReady = false, cued = null;
+function precue(){
+  if (!spareReady || mode !== "yt" || !queue.length) return;
+  const nx = queue[orderIdx[(at + 1) % orderIdx.length]];
+  const id = nx && !fileFor(nx) ? nx.y : null;
+  if (!id || id === cued) return;
+  cued = id; spare.cueVideoById(id);
+}
 function start(id){
-  started = false;
-  player.loadVideoById(id);
+  started = false; clearInterval(kick);
+  if (spareReady && cued === id){ // la siguiente ya estaba preparada: se intercambian los reproductores
+    const old = player; player = spare; spare = old; cued = null;
+    document.querySelector(".video").classList.toggle("swap", player.getIframe().id === "yt2");
+    player.playVideo(); try { spare.stopVideo(); } catch {}
+    log("siguiente ya preparada");
+  } else player.loadVideoById(id);
   // En segundo plano YouTube a veces carga la canción pero no la arranca: insiste hasta que suene (solo mientras no haya empezado).
-  clearInterval(kick); let tries = 0;
+  let tries = 0;
   kick = setInterval(() => {
     if (started || ++tries > 30){ if (!started) log("no arrancó tras 30 s"); return clearInterval(kick); }
     const s = player.getPlayerState();
@@ -850,7 +867,7 @@ $("play").onclick = () => {
 };
 $("shuf").onclick = () => {
   shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle); store.set("np-shuffle", shuffle ? "1" : "0");
-  if (cur >= 0){ orderIdx = order(cur); at = 0; } // rearma lo que sigue a partir de la canción actual
+  if (cur >= 0){ orderIdx = order(cur); at = 0; precue(); } // rearma lo que sigue a partir de la canción actual
 };
 $("addcur").onclick = () => { if (queue[cur]) openSheet(queue[cur]); };
 $("alt").onclick = () => { const x = queue[cur]; if (x){ altFor = x; ytSearch(x.a.split(",")[0] + " " + x.t); } };
@@ -862,22 +879,31 @@ document.addEventListener("keydown", e => {
 // El módulo corre después de cargar Firebase; la API de YouTube puede haber cargado antes y ya no llamará al callback.
 function initYT(){
   if (player) return;
-  player = new YT.Player("yt", { width: "100%", height: "100%", playerVars: { playsinline: 1, rel: 0 },
+  const mk = (el, main) => new YT.Player(el, { width: "100%", height: "100%", playerVars: { playsinline: 1, rel: 0 },
     events: {
-      onReady(){ ready = true; if (pendingId){ start(pendingId); pendingId = null; } },
+      onReady(e){
+        if (main){ ready = true; if (pendingId){ start(pendingId); pendingId = null; } }
+        else { spareReady = true; precue(); }
+      },
       onStateChange(e){
+        if (e.target !== player){ if (e.data === YT.PlayerState.PLAYING) e.target.pauseVideo(); return; } // el de reserva nunca debe sonar
         if (mode !== "yt") return; // suena un archivo de audio: lo que haga el video detenido no importa
         const wasPlaying = playing;
         setPlaying(e.data === YT.PlayerState.PLAYING);
         if (playing) started = true;
         if (playing || e.data === YT.PlayerState.PAUSED) updatePos(); // barra de progreso de la pantalla de bloqueo
         log("estado " + ({"-1": "sin empezar", 0: "terminó", 1: "sonando", 2: "pausa", 3: "cargando", 5: "lista"}[e.data] ?? e.data));
+        if (playing && !wasPlaying) precue();
         if (e.data === YT.PlayerState.ENDED) step(1);
         if (e.data === YT.PlayerState.CUED && !started) player.playVideo(); // cargó pero no arrancó (pasa en segundo plano)
         if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000) setTimeout(() => { if (document.hidden && !playing) player.playVideo(); }, 400);
       },
-      onError(){ if (mode === "yt") setTimeout(() => step(1), 800); } // video bloqueado para insertar: pasa al siguiente
+      onError(e){
+        if (e.target !== player){ cued = null; return; } // la preparada falló: se cargará de la forma normal
+        if (mode === "yt") setTimeout(() => step(1), 800); // video bloqueado para insertar: pasa al siguiente
+      }
     }});
+  player = mk("yt", true); spare = mk("yt2", false);
 }
 if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = initYT;
 

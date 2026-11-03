@@ -111,18 +111,18 @@ select{border:1px solid var(--line);background:var(--surface);color:var(--ink);b
 .who{display:flex;align-items:center;gap:8px;color:var(--ink-3);font-size:13px;margin-left:auto}
 .who button{border:0;background:transparent;color:var(--ink-3);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:0}
 /* Botón Tema: abre un menú con apariencia (auto/claro/oscuro) y color de acento */
-.theme{position:relative}
 .who #theme{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);text-decoration:none;font-weight:600;padding:5px 11px;border-radius:99px;box-shadow:var(--shadow-sm)}
 .who #theme::before{content:"";width:11px;height:11px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 0 0 2px var(--accent-bg)}
 .who #theme[aria-expanded="true"]{border-color:var(--accent);color:var(--ink)}
-.tm{position:absolute;right:0;top:calc(100% + 8px);z-index:7;width:min(290px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:12px;display:flex;flex-direction:column;gap:8px;text-align:left;animation:pop .15s ease-out}
+/* El menú vive en <body> (el desenfoque de la cabecera rompería position:fixed) y el JS lo coloca bajo el botón */
+.tm{position:fixed;z-index:21;width:min(290px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:12px;display:flex;flex-direction:column;gap:8px;text-align:left;animation:pop .15s ease-out}
 @keyframes pop{from{opacity:0;transform:translateY(-6px)}}
 .tm-h{margin:4px 0 0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
 .tm-h:first-child{margin-top:0}
 .tm-opts{display:flex;flex-wrap:wrap;gap:6px}
-.who .tm-opts button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);text-decoration:none;font-weight:600;font-size:13px;padding:6px 11px;border-radius:99px;transition:background .15s,border-color .15s}
-.who .tm-opts button:hover{background:var(--surface-3)}
-.who .tm-opts button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 2px var(--accent-glow)}
+.tm .tm-opts button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);text-decoration:none;font-weight:600;font-size:13px;padding:6px 11px;border-radius:99px;transition:background .15s,border-color .15s}
+.tm .tm-opts button:hover{background:var(--surface-3)}
+.tm .tm-opts button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 2px var(--accent-glow)}
 .tm-opts.sw button::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--sw);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
 /* Canciones */
 .list{display:flex;flex-direction:column;gap:3px;margin-top:10px}
@@ -297,8 +297,7 @@ body.dragging .row:hover{background:transparent}
   .seg small{display:none}
   .who{order:1;margin-left:auto}
   /* El menú Tema se abre como panel al pie de la pantalla (anclado al botón se salía por un lado) */
-  .theme{position:static}
-  .tm{position:fixed;top:auto;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:auto;z-index:21;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.35);animation:up .2s ease-out}
+  .tm{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:auto;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.35);animation:up .2s ease-out}
   #who{display:none}
   .search{order:2;flex:1 1 100%;min-width:0;padding-left:12px}
   .search input{padding:8px 0;font-size:14px}
@@ -414,14 +413,20 @@ function applyTheme(){
   for (const b of $("tmenu").querySelectorAll("button[data-v]")) b.setAttribute("aria-pressed", THEME[b.parentElement.dataset.k] === b.dataset.v);
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", getComputedStyle(d).getPropertyValue("--bg").trim()); // barra del sistema en Android
 }
-function themeMenu(open){ $("tmenu").hidden = !open; $("theme").setAttribute("aria-expanded", open); }
+document.body.appendChild($("tmenu")); // fuera de la cabecera para que position:fixed sea respecto a la ventana
+function themeMenu(open){
+  const m = $("tmenu"); m.hidden = !open; $("theme").setAttribute("aria-expanded", open);
+  if (!open) return;
+  const r = $("theme").getBoundingClientRect(), mob = matchMedia("(max-width:640px)").matches;
+  m.style.top = mob ? "" : (r.bottom + 8) + "px"; m.style.right = mob ? "" : (innerWidth - r.right) + "px"; // en celular el CSS lo pone al pie
+}
 sysDark.addEventListener("change", applyTheme);
 $("theme").onclick = () => themeMenu($("tmenu").hidden);
 $("tmenu").onclick = e => {
   const b = e.target.closest("button[data-v]"); if (!b) return;
   THEME[b.parentElement.dataset.k] = b.dataset.v; store.set("np-theme", JSON.stringify(THEME)); applyTheme();
 };
-document.addEventListener("pointerdown", e => { if (!$("tmenu").hidden && !e.target.closest(".theme")) themeMenu(false); });
+document.addEventListener("pointerdown", e => { if (!$("tmenu").hidden && !e.target.closest(".theme, .tm")) themeMenu(false); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("tmenu").hidden) themeMenu(false); });
 applyTheme();
 const norm = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");

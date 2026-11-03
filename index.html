@@ -76,7 +76,18 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 @media (hover:hover) and (pointer:fine){#big{display:none}} /* solo tiene sentido en el celular */
 .player>.ctrls{grid-area:ctrls;margin-top:8px}
 /* Transporte: ⏮ ▶ ⏭ grandes y de la misma altura; el resto de botones, compactos */
-.transport{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-width:420px}
+/* Transporte al estilo Spotify: [🔀] ⏮ ▶ ⏭ [hueco] — el hueco mantiene centrados los tres grandes */
+.transport{display:grid;grid-template-columns:44px repeat(3,minmax(0,1fr)) 44px;gap:8px;min-width:480px;align-items:center}
+.btn.go.side{position:relative;width:44px;height:44px;padding:0;border-radius:50%;background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2);justify-self:center}
+.btn.go.side:hover{background:var(--surface-2);color:var(--ink)}
+.btn.go.side svg{width:21px;height:21px}
+.btn.go.side[aria-pressed="true"],.btn.go.side[aria-pressed="true"]:hover{background:var(--accent-bg);color:var(--accent);border-color:transparent}
+.btn.go.side[aria-pressed="true"]::after{content:"";position:absolute;left:50%;bottom:5px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--accent)}
+/* Botón Grande en la esquina del video (solo celular) */
+.vbig{position:absolute;top:6px;right:6px;z-index:3;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:var(--chip-dark);color:#fff;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.vbig svg{width:15px;height:15px;fill:currentColor}
+.vbig .i-in,body.big .vbig .i-out{display:none}
+body.big .vbig .i-in{display:block}
 .btn.go{height:46px;font-size:15px;padding:0 12px;justify-content:center;min-width:0;gap:9px}
 .btn.go svg{width:22px;height:22px;fill:currentColor;flex:none}
 .btn.go.play-main svg{width:26px;height:26px}
@@ -287,7 +298,8 @@ body.dragging .row:hover{background:transparent}
   .player>.ctrls{gap:6px}
   .btn{padding:7px 12px;font-size:13px}
   /* En el celular el transporte ocupa toda una fila: ⏮ ▶ ⏭ grandes, debajo los botones pequeños */
-  .transport{width:100%;min-width:0;gap:8px}
+  .transport{width:100%;min-width:0;gap:8px;grid-template-columns:40px repeat(3,minmax(0,1fr)) 40px}
+  .btn.go.side{width:40px;height:40px}
   .btn.go{height:44px;font-size:14.5px;padding:0 8px;gap:8px}
   .player>.ctrls .btn:not(.go){padding:4px 10px;font-size:12px}
   /* Barra de herramientas en tres filas: [las 4 pestañas iguales] [buscador · Tema · Salir] [playlist de origen · orden] */
@@ -327,7 +339,7 @@ body.dragging .row:hover{background:transparent}
 <div id="app" hidden>
 <header class="top">
   <div class="np"><div class="player">
-    <div class="video"><div id="yt"></div><div id="yt2"></div><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden></div>
+    <div class="video"><div id="yt"></div><div id="yt2"></div><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden><button class="vbig" id="big" type="button" aria-pressed="false" aria-label="Video grande" title="Video grande a todo el ancho"><svg class="i-out" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10z"/></svg><svg class="i-in" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3.41 16.71 8.7 20 12h-8V4l3.29 3.29L20.59 2 22 3.41zM3.41 22l5.29-5.29L12 20v-8H4l3.29 3.29L2 20.59 3.41 22z"/></svg></button></div>
     <div class="now">
       <p class="eyebrow" id="pos">Nuestras playlists</p>
       <h1 id="nt">Elige una canción</h1>
@@ -335,14 +347,14 @@ body.dragging .row:hover{background:transparent}
     </div>
     <div class="ctrls">
       <span class="transport">
+        <button class="btn go side" id="shuf" type="button" aria-pressed="false" aria-label="Aleatorio" title="Aleatorio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
         <button class="btn go skip" id="prev" type="button" aria-label="Anterior" title="Anterior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h2.4v14H5zM19 5.6v12.8L9 12z"/></svg></button>
         <button class="btn go primary play-main" id="play" type="button" aria-label="Reproducir" title="Reproducir"><svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg><svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5h4.4v15H6zM13.6 4.5H18v15h-4.4z"/></svg></button>
         <button class="btn go skip" id="next" type="button" aria-label="Siguiente" title="Siguiente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.6 5H19v14h-2.4zM5 5.6v12.8L15 12z"/></svg></button>
+        <span class="side-sp" aria-hidden="true"></span>
       </span>
-      <button class="btn" id="shuf" type="button" aria-pressed="false">Aleatorio</button>
       <button class="btn" id="addcur" type="button" hidden>＋ A playlist</button>
       <button class="btn" id="alt" type="button" hidden>Otras versiones</button>
-      <button class="btn" id="big" type="button" aria-pressed="false" title="Video grande a todo el ancho">⤢ Grande</button>
     </div>
   </div></div>
   <div class="tools">

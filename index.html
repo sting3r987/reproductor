@@ -296,6 +296,9 @@ body.dragging .row:hover{background:transparent}
   .seg button{padding:6px 10px;font-size:12.5px}
   .seg small{display:none}
   .who{order:1;margin-left:auto}
+  /* El menú Tema se abre como panel al pie de la pantalla (anclado al botón se salía por un lado) */
+  .theme{position:static}
+  .tm{position:fixed;top:auto;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:auto;z-index:21;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.35);animation:up .2s ease-out}
   #who{display:none}
   .search{order:2;flex:1 1 100%;min-width:0;padding-left:12px}
   .search input{padding:8px 0;font-size:14px}

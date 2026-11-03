@@ -864,12 +864,32 @@ function updatePos(){
   } catch {}
 }
 setInterval(() => { if (playing) updatePos(); }, 2000);
-au.addEventListener("playing", () => { if (mode === "file"){ setPlaying(true); updatePos(); log("archivo sonando"); } });
+au.addEventListener("playing", () => { if (mode === "file"){ const first = !started; started = true; setPlaying(true); updatePos(); log("archivo sonando"); fadeTo(100, first ? FADE : FADE_RESUME); } });
 au.addEventListener("pause", () => { if (mode === "file") setPlaying(false); });
 au.addEventListener("ended", () => { if (mode === "file"){ log("archivo terminó"); step(1); } });
 au.addEventListener("error", () => { if (mode === "file" && au.src){ log("archivo con error"); setTimeout(() => step(1), 800); } });
 au.addEventListener("loadedmetadata", updatePos);
 au.addEventListener("seeked", updatePos);
+/* ---------- Fundido entre canciones: entra subiendo el volumen y sale bajándolo en los últimos segundos ---------- */
+const FADE = 2500, FADE_RESUME = 600; // ms (al empezar una canción / al reanudar tras pausa)
+let vol = 100, fadeTimer = 0, fading = false;
+const setVol = v => { vol = v; try { if (mode === "file") au.volume = v / 100; else player?.setVolume(v); } catch {} };
+function fadeTo(target, ms){
+  clearInterval(fadeTimer); fading = true;
+  const from = vol, t0 = Date.now();
+  fadeTimer = setInterval(() => {
+    const k = Math.min(1, (Date.now() - t0) / ms);
+    setVol(Math.round(from + (target - from) * k));
+    if (k >= 1){ clearInterval(fadeTimer); fading = false; }
+  }, 50);
+}
+setInterval(() => { // fade out: baja el volumen en los últimos segundos; si no estamos al final, el volumen se mantiene al 100 %
+  if (!playing || fading || armed) return;
+  const d = mode === "file" ? au.duration : (ready ? player.getDuration() : 0), left = d ? d - curPos() : 0;
+  if (!d) return;
+  if (left <= FADE / 1000) setVol(Math.max(0, Math.round(100 * left / (FADE / 1000))));
+  else if (vol < 100) setVol(100);
+}, 100);
 function playFile(f, x, pos){
   if (auUrl) URL.revokeObjectURL(auUrl);
   auUrl = URL.createObjectURL(f.blob); au.src = auUrl;
@@ -877,6 +897,7 @@ function playFile(f, x, pos){
   const art = x.y ? "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg" : null;
   $("art").hidden = !art; if (art) $("art").src = art;
   $("ph").hidden = !!art; $("ph").querySelector("span").textContent = "♪ Sonando desde este dispositivo";
+  started = false; clearInterval(fadeTimer); fading = false; setVol(0);
   au.play().catch(e => log("archivo no arrancó: " + e.name));
 }
 function keepAlive(){ if (silent.paused) silent.play().then(() => log("audio de fondo activo")).catch(e => log("audio de fondo no: " + e.name)); }
@@ -987,14 +1008,14 @@ function precue(){
   cued = id; spare.cueVideoById(id);
 }
 function start(id, pos){
-  started = false; clearInterval(kick);
-  if (pos) player.loadVideoById({videoId: id, startSeconds: pos});
+  started = false; clearInterval(kick); clearInterval(fadeTimer); fading = false;
+  if (pos){ setVol(0); player.loadVideoById({videoId: id, startSeconds: pos}); }
   else if (spareReady && cued === id){ // la siguiente ya estaba preparada: se intercambian los reproductores
     const old = player; player = spare; spare = old; cued = null;
     document.querySelector(".video").classList.toggle("swap", player.getIframe().id === "yt2");
-    player.playVideo(); try { spare.stopVideo(); } catch {}
+    setVol(0); player.playVideo(); try { spare.stopVideo(); } catch {}
     log("siguiente ya preparada");
-  } else player.loadVideoById(id);
+  } else { setVol(0); player.loadVideoById(id); }
   // En segundo plano YouTube a veces carga la canción pero no la arranca: insiste hasta que suene (solo mientras no haya empezado).
   let tries = 0;
   kick = setInterval(() => {
@@ -1062,9 +1083,10 @@ function initYT(){
       onStateChange(e){
         if (e.target !== player){ if (e.data === YT.PlayerState.PLAYING) e.target.pauseVideo(); return; } // el de reserva nunca debe sonar
         if (mode !== "yt") return; // suena un archivo de audio: lo que haga el video detenido no importa
-        const wasPlaying = playing;
+        const wasPlaying = playing, first = !started;
         setPlaying(e.data === YT.PlayerState.PLAYING);
         if (playing) started = true;
+        if (playing && !wasPlaying) fadeTo(100, first ? FADE : FADE_RESUME); // fade in
         if (playing || e.data === YT.PlayerState.PAUSED) updatePos(); // barra de progreso de la pantalla de bloqueo
         log("estado " + ({"-1": "sin empezar", 0: "terminó", 1: "sonando", 2: "pausa", 3: "cargando", 5: "lista"}[e.data] ?? e.data));
         if (playing && !wasPlaying) precue();

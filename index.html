@@ -397,13 +397,13 @@ onAuthStateChanged(auth, u => {
     catLoaded = true;
     const v = s.exists() ? s.data() : null;
     CAT = v ? {all: v.all || [], pls: v.pls || []} : {all: [], pls: []};
-    fillSrc(); refresh(); rematch();
+    fillSrc(); refresh(); rematch(); tryResume();
   }, denied));
   unsub.push(onSnapshot(plCol, s => {
     loaded = true;
     mis = s.docs.map(d => { const v = d.data(); return {id: d.id, name: v.name || "Sin nombre", orden: v.orden ?? 0, oculta: !!v.oculta, songs: Array.isArray(v.songs) ? v.songs.slice() : []}; })
       .sort((a, b) => a.orden - b.orden);
-    refresh();
+    refresh(); tryResume();
   }, denied));
 });
 const chains = {};
@@ -634,9 +634,11 @@ function guess(name){ // "Artista - Título.mp3"
 function relink(){ fileByK = new Map(FILES.filter(f => f.k).map(f => [f.k, f])); }
 const fileFor = x => !x ? null : String(x.k).startsWith("f:") ? FILES.find(f => "f:" + f.id === x.k) || null : fileByK.get(x.k) || null;
 const fileSongs = () => FILES.filter(f => !f.k).map(f => ({t: f.t, a: f.a, k: "f:" + f.id, y: null, pl: [], archivo: true}));
+const filesList = () => FILES.map(f => f.k ? {...(allSongs().find(x => x.k === f.k) || {t: f.t, a: f.a, y: null}), k: f.k} : {t: f.t, a: f.a, k: "f:" + f.id, y: null});
 async function loadFiles(){
   try { FILES = (await tx("readonly", st => st.getAll())) || []; } catch (e) { log("archivos: " + e.message); FILES = []; }
   FILES.sort((a, b) => a.name.localeCompare(b.name, "es")); relink(); refresh();
+  filesDone = true; tryResume();
 }
 // Cuando llega el catálogo, intenta unir los archivos que todavía no tenían canción.
 async function rematch(){
@@ -692,14 +694,14 @@ $("filebox").addEventListener("change", e => { if (e.target.id === "f-in"){ addF
 $("filebox").addEventListener("click", e => {
   const del = e.target.closest("[data-fdel]"), act = e.target.closest("[data-act]")?.dataset.act;
   if (del) return removeFiles([del.dataset.fdel]);
-  if (act === "fplay"){ const l = FILES.map(f => f.k ? {...(allSongs().find(x => x.k === f.k) || {t: f.t, a: f.a, y: null}), k: f.k} : {t: f.t, a: f.a, k: "f:" + f.id, y: null}); return playFrom(0, l, "Archivos de audio"); }
+  if (act === "fplay") return playFrom(0, filesList(), "Archivos de audio", {kind: "files"});
   if (act === "fwipe"){ if (confirmWipe){ confirmWipe = false; removeFiles(FILES.map(f => f.id)); flash("Quitaste todos los archivos de este dispositivo."); } else { confirmWipe = true; renderFiles(); } }
 });
 
 /* ---------- Reproductor ---------- */
 // La página lleva la cola y le pasa al reproductor una canción cada vez. (En modo playlist de YouTube el reproductor
 // se pausa solo al pasar la página a segundo plano en el celular; en modo canción suelta sigue sonando.)
-let orderIdx = [], at = 0, pendingId = null, kick = 0, started = false;
+let orderIdx = [], at = 0, pendingId = null, pendingPos = 0, kick = 0, started = false;
 let mode = "yt"; // "yt" = video de YouTube, "file" = archivo de audio del dispositivo
 // Un solo elemento de audio para todas las canciones con archivo: así el navegador deja pasar a la siguiente
 // con la pantalla bloqueada (es el mismo reproductor que ya tenía permiso para sonar).
@@ -742,9 +744,10 @@ au.addEventListener("ended", () => { if (mode === "file"){ log("archivo terminó
 au.addEventListener("error", () => { if (mode === "file" && au.src){ log("archivo con error"); setTimeout(() => step(1), 800); } });
 au.addEventListener("loadedmetadata", updatePos);
 au.addEventListener("seeked", updatePos);
-function playFile(f, x){
+function playFile(f, x, pos){
   if (auUrl) URL.revokeObjectURL(auUrl);
   auUrl = URL.createObjectURL(f.blob); au.src = auUrl;
+  if (pos) au.addEventListener("loadedmetadata", () => { au.currentTime = Math.min(pos, au.duration || pos); }, {once: true});
   const art = x.y ? "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg" : null;
   $("art").hidden = !art; if (art) $("art").src = art;
   $("ph").hidden = !!art; $("ph").querySelector("span").textContent = "♪ Sonando desde este dispositivo";
@@ -756,7 +759,7 @@ function setMedia(x){
   try {
     navigator.mediaSession.metadata = new MediaMetadata({title: x.t, artist: x.a, album: queueLabel, artwork: x.y ? [{src: "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg"}] : []});
     const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => { log("lock: play"); if (mode === "file") au.play(); else { keepAlive(); player?.playVideo(); } });
+    ms.setActionHandler("play", () => { log("lock: play"); if (armed) $("play").click(); else if (mode === "file") au.play(); else { keepAlive(); player?.playVideo(); } });
     ms.setActionHandler("pause", () => { log("lock: pausa"); if (mode === "file") au.pause(); else { started = true; clearInterval(kick); player?.pauseVideo(); } });
     ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
     ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
@@ -764,9 +767,12 @@ function setMedia(x){
     try { ms.setActionHandler("seekto", fileFor(x) ? e => { au.currentTime = Math.max(0, Math.min(au.duration || 0, e.seekTime)); updatePos(); } : e => { if (ready){ player.seekTo(e.seekTime, true); setTimeout(updatePos, 300); } }); } catch {}
   } catch (e) { log("mediaSession: " + e.message); }
 }
-function playFrom(i, list, label){
+// De dónde salió la cola (para retomarla al volver a abrir la app)
+const curSrc = () => tab === "pls" ? {kind: "pl", id: openId} : tab === "all" ? {kind: "all", pl: $("srcpl").value, q: $("q").value} : null;
+let queueSrc = null;
+function playFrom(i, list, label, src){
   const full = list || current, pick = full[i];
-  queue = full.filter(x => x.y || fileFor(x)); queueLabel = label || listLabel();
+  queue = full.filter(x => x.y || fileFor(x)); queueLabel = label || listLabel(); queueSrc = src || (list ? null : curSrc());
   if (!queue.length) return;
   let qi = Math.max(0, queue.indexOf(pick));
   if (shuffle && list) qi = Math.floor(Math.random() * queue.length);
@@ -795,24 +801,55 @@ function spread(from, pool){
   }
   return out;
 }
-function load(i){
+// opt.armed: deja la canción cargada en el reproductor sin sonar (al volver a abrir la app); opt.pos: segundo desde el que seguir.
+let armed = false, resumePos = 0;
+function load(i, opt = {}){
   const x = queue[i]; if (!x) return;
-  cur = i;
+  cur = i; armed = !!opt.armed; resumePos = opt.pos || 0;
   $("nt").textContent = x.t; $("na").textContent = x.a;
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;
   $("ph").hidden = true; $("addcur").hidden = false; $("alt").hidden = false;
-  log("canción " + (i + 1) + ": " + x.t);
+  log((armed ? "retomo " : "canción ") + (i + 1) + ": " + x.t + (resumePos ? " desde " + resumePos + " s" : ""));
   const f = fileFor(x);
+  if (armed){
+    $("ph").hidden = false; $("ph").querySelector("span").textContent = "Toca Reproducir para seguir donde ibas";
+    setMedia(x); renderList(); saveResume(resumePos); return;
+  }
   if (f){
     mode = "file"; clearInterval(kick); pendingId = null; silent.pause();
     if (ready) player.stopVideo();
-    setMedia(x); playFile(f, x);
+    setMedia(x); playFile(f, x, resumePos);
   } else {
     mode = "yt"; au.pause(); $("art").hidden = true;
     keepAlive(); setMedia(x);
-    if (ready) start(x.y); else pendingId = x.y;
+    if (ready) start(x.y, resumePos); else { pendingId = x.y; pendingPos = resumePos; }
   }
-  renderList();
+  renderList(); saveResume(resumePos);
+}
+// Guarda qué suena (origen, canción y segundo) para retomarlo al volver a abrir la app.
+function saveResume(pos){
+  const x = queue[cur]; if (!x) return;
+  store.set("np-resume", JSON.stringify({src: queueSrc, label: queueLabel, song: {t: x.t, a: x.a, k: x.k, y: x.y || null}, pos: Math.max(0, Math.floor(pos || 0)), when: Date.now()}));
+}
+const curPos = () => mode === "file" ? au.currentTime : (ready ? player.getCurrentTime() : 0);
+setInterval(() => { if (playing) saveResume(curPos()); }, 5000);
+document.addEventListener("visibilitychange", () => { if (document.hidden && cur >= 0 && !armed) saveResume(curPos()); });
+let filesDone = false, resumed = false;
+function tryResume(){
+  if (resumed || !catLoaded || !loaded || !filesDone || cur >= 0) return;
+  resumed = true;
+  let s; try { s = JSON.parse(store.get("np-resume") || "null"); } catch { s = null; }
+  if (!s || !s.song) return;
+  const src = s.src || {};
+  let list = null, label = s.label || "";
+  if (src.kind === "pl"){ const p = mis.find(p => p.id === src.id); if (p){ openId = p.id; setTab("pls"); list = songsShown(); label = p.name; } }
+  else if (src.kind === "all"){ $("srcpl").value = src.pl || ""; if ($("srcpl").selectedIndex < 0) $("srcpl").value = ""; $("q").value = src.q || ""; setTab("all"); list = songsShown(); label = listLabel(); }
+  else if (src.kind === "files") list = filesList();
+  if (!list || !list.some(x => x.k === s.song.k)) list = [s.song];
+  queue = list.filter(x => x.y || fileFor(x)); queueLabel = label; queueSrc = src.kind ? src : null;
+  const qi = queue.findIndex(x => x.k === s.song.k); if (qi < 0){ queue = []; return; }
+  orderIdx = order(qi); at = 0;
+  load(orderIdx[0], {armed: true, pos: s.pos});
 }
 // Reproductor de reserva: mientras suena una canción, deja preparada (sin sonar) la que sigue; al terminar se cambia al instante.
 let spare = null, spareReady = false, cued = null;
@@ -823,9 +860,10 @@ function precue(){
   if (!id || id === cued) return;
   cued = id; spare.cueVideoById(id);
 }
-function start(id){
+function start(id, pos){
   started = false; clearInterval(kick);
-  if (spareReady && cued === id){ // la siguiente ya estaba preparada: se intercambian los reproductores
+  if (pos) player.loadVideoById({videoId: id, startSeconds: pos});
+  else if (spareReady && cued === id){ // la siguiente ya estaba preparada: se intercambian los reproductores
     const old = player; player = spare; spare = old; cued = null;
     document.querySelector(".video").classList.toggle("swap", player.getIframe().id === "yt2");
     player.playVideo(); try { spare.stopVideo(); } catch {}
@@ -861,6 +899,7 @@ $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);
 $("play").onclick = () => {
   if (cur < 0) return step(1);
+  if (armed) return load(cur, {pos: resumePos}); // retoma la canción que quedó cargada al abrir la app
   if (mode === "file"){ if (au.paused) au.play(); else au.pause(); return; }
   if (!ready) return;
   if (playing){ started = true; clearInterval(kick); player.pauseVideo(); } else { keepAlive(); player.playVideo(); }
@@ -882,7 +921,7 @@ function initYT(){
   const mk = (el, main) => new YT.Player(el, { width: "100%", height: "100%", playerVars: { playsinline: 1, rel: 0 },
     events: {
       onReady(e){
-        if (main){ ready = true; if (pendingId){ start(pendingId); pendingId = null; } }
+        if (main){ ready = true; if (pendingId){ start(pendingId, pendingPos); pendingId = null; pendingPos = 0; } }
         else { spareReady = true; precue(); }
       },
       onStateChange(e){
@@ -983,7 +1022,7 @@ $("pls").addEventListener("click", e => {
   }
   confirmDel = null; menuOpen = null;
   if (act === "playp" || act === "playall"){
-    playFrom(0, p.songs, p.name);
+    playFrom(0, p.songs, p.name, {kind: "pl", id: p.id});
     return;
   }
   if (act === "hide" || act === "hidecur"){

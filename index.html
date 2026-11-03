@@ -722,9 +722,16 @@ function setPlaying(on){
   playing = on; document.body.classList.toggle("playing", on); $("play").textContent = on ? "⏸ Pausa" : "▶ Reproducir";
   if ("mediaSession" in navigator) navigator.mediaSession.playbackState = on ? "playing" : "paused";
 }
+// Posición para la barra de progreso de la pantalla de bloqueo. Con playbackRate 1 el sistema la hace avanzar solo
+// entre actualizaciones, así que sigue moviéndose aunque la página esté en segundo plano y los temporizadores vayan lentos.
 function updatePos(){
-  try { if (mode === "file" && isFinite(au.duration) && au.duration > 0) navigator.mediaSession?.setPositionState?.({duration: au.duration, playbackRate: au.playbackRate || 1, position: Math.min(au.currentTime, au.duration)}); } catch {}
+  try {
+    const ms = navigator.mediaSession; if (!ms?.setPositionState) return;
+    if (mode === "file"){ if (isFinite(au.duration) && au.duration > 0) ms.setPositionState({duration: au.duration, playbackRate: au.playbackRate || 1, position: Math.min(au.currentTime, au.duration)}); }
+    else if (ready){ const d = player.getDuration(), p = player.getCurrentTime(); if (d > 0 && p >= 0) ms.setPositionState({duration: d, playbackRate: 1, position: Math.min(p, d)}); }
+  } catch {}
 }
+setInterval(() => { if (playing) updatePos(); }, 2000);
 au.addEventListener("playing", () => { if (mode === "file"){ setPlaying(true); updatePos(); log("archivo sonando"); } });
 au.addEventListener("pause", () => { if (mode === "file") setPlaying(false); });
 au.addEventListener("ended", () => { if (mode === "file"){ log("archivo terminó"); step(1); } });
@@ -750,7 +757,7 @@ function setMedia(x){
     ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
     ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
     // Solo "seekto" (barra de avance). Con seekforward/seekbackward el iPhone cambiaría ⏮ ⏭ por saltos de 10 s.
-    try { ms.setActionHandler("seekto", fileFor(x) ? e => { au.currentTime = Math.max(0, Math.min(au.duration || 0, e.seekTime)); updatePos(); } : null); } catch {}
+    try { ms.setActionHandler("seekto", fileFor(x) ? e => { au.currentTime = Math.max(0, Math.min(au.duration || 0, e.seekTime)); updatePos(); } : e => { if (ready){ player.seekTo(e.seekTime, true); setTimeout(updatePos, 300); } }); } catch {}
   } catch (e) { log("mediaSession: " + e.message); }
 }
 function playFrom(i, list, label){
@@ -846,6 +853,7 @@ function initYT(){
         const wasPlaying = playing;
         setPlaying(e.data === YT.PlayerState.PLAYING);
         if (playing) started = true;
+        if (playing || e.data === YT.PlayerState.PAUSED) updatePos(); // barra de progreso de la pantalla de bloqueo
         log("estado " + ({"-1": "sin empezar", 0: "terminó", 1: "sonando", 2: "pausa", 3: "cargando", 5: "lista"}[e.data] ?? e.data));
         if (e.data === YT.PlayerState.ENDED) step(1);
         if (e.data === YT.PlayerState.CUED && !started) player.playVideo(); // cargó pero no arrancó (pasa en segundo plano)

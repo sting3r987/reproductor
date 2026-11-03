@@ -170,6 +170,9 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
 .tag.yt{color:var(--pl);background:var(--pl-bg)}
 .tag.mine{color:var(--have);background:var(--have-bg)}
 .tag.file{color:var(--accent);background:var(--accent-bg)}
+.tag.aud{display:inline-flex;align-items:center;padding:3px 5px;color:var(--ink-3);background:var(--surface-2)}
+.tag.aud svg{width:12px;height:12px;fill:currentColor}
+body.audio .tag.aud{color:var(--accent);background:var(--accent-bg)}
 .video #art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .files{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .frow{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px}
@@ -363,7 +366,7 @@ body.dragging .row:hover{background:transparent}
         <button class="btn go skip" id="prev" type="button" aria-label="Anterior" title="Anterior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h2.4v14H5zM19 5.6v12.8L9 12z"/></svg></button>
         <button class="btn go primary play-main" id="play" type="button" aria-label="Reproducir" title="Reproducir"><svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg><svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5h4.4v15H6zM13.6 4.5H18v15h-4.4z"/></svg></button>
         <button class="btn go skip" id="next" type="button" aria-label="Siguiente" title="Siguiente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.6 5H19v14h-2.4zM5 5.6v12.8L15 12z"/></svg></button>
-        <span class="side-sp" aria-hidden="true"></span>
+        <button class="btn go side" id="aud" type="button" aria-pressed="false" aria-label="Solo audio" title="Solo audio: usa la versión de audio (sin efectos del video) cuando existe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-9 9v7a3 3 0 0 0 3 3h3v-8H5v-2a7 7 0 0 1 14 0v2h-4v8h3a3 3 0 0 0 3-3v-7a9 9 0 0 0-9-9z"/></svg></button>
       </span>
       <button class="btn" id="addcur" type="button" hidden>＋ A playlist</button>
       <button class="btn" id="alt" type="button" hidden>Otras versiones</button>
@@ -495,6 +498,7 @@ onAuthStateChanged(auth, u => {
     catLoaded = true;
     const v = s.exists() ? s.data() : null;
     CAT = v ? {all: v.all || [], pls: v.pls || []} : {all: [], pls: []};
+    YA = new Map(CAT.all.filter(c => c.ya).map(c => [c.k, c.ya]));
     fillSrc(); refresh(); rematch(); tryResume();
   }, denied));
   unsub.push(onSnapshot(plCol, s => {
@@ -510,6 +514,11 @@ function write(id, fn){
 }
 function flash(t){ $("msg").hidden = !t; $("msg").textContent = t || ""; }
 const song = x => ({t: x.t, a: x.a, k: x.k, y: x.y || null});
+/* Versión "solo audio" (campo ya en el catálogo: canal Topic, audio oficial, letra). Con el modo audio activo se reproduce esa en vez del clip. */
+let YA = new Map(), audioOnly = store.get("np-audio") === "1";
+const yaOf = x => x.ya || YA.get(x.k) || null;
+const vid = x => (audioOnly && yaOf(x)) || x.y;
+const HP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-9 9v7a3 3 0 0 0 3 3h3v-8H5v-2a7 7 0 0 1 14 0v2h-4v8h3a3 3 0 0 0 3-3v-7a9 9 0 0 0-9-9z"/></svg>';
 const inMis = k => mis.filter(p => p.songs.some(s => s.k === k));
 function newPl(name){
   name = name.trim(); if (!name) return null;
@@ -556,6 +565,22 @@ function renderImport(){
   };
 }
 
+function renderAudioImport(){
+  if (!location.search.includes("importar-audio") || !catLoaded || $("imp").dataset.audio) return;
+  $("imp").dataset.audio = "1"; $("imp").hidden = false;
+  $("imp").innerHTML = `<div class="empty" style="text-align:left"><b>Cargar versiones solo audio</b>
+    <p style="margin:6px 0 12px">Elige el archivo <code>audio_import.json</code> (clave → id de YouTube). Solo cambia el catálogo.</p>
+    <input type="file" id="aimp-file" accept="application/json,.json"><p class="err" id="aimp-err" hidden></p></div>`;
+  $("aimp-file").onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text()); let n = 0;
+      const all = CAT.all.map(it => { const ya = d[it.k]; if (ya && typeof ya === "string" && ya !== it.y){ n++; return {...it, ya}; } return {...it}; });
+      await updateDoc(doc(db, "catalog", "main"), {all});
+      flash("Listo: " + n + " canciones con versión solo audio."); $("imp").hidden = true;
+    } catch (err) { $("aimp-err").hidden = false; $("aimp-err").textContent = "No se pudo cargar ese archivo (" + (err.code || err.message) + ")."; }
+  };
+}
 /* ---------- Lista de canciones ---------- */
 function allSongs(){
   const base = new Set(CAT.all.map(x => x.k)), seen = new Set(), extra = [];
@@ -585,6 +610,7 @@ function songRow(x, i){
   const file = fileFor(x);
   if (file) meta += '<span class="tag file">♪ audio</span>';
   else if (!x.y) meta += '<span class="tag no">sin video · buscar</span>';
+  if (yaOf(x) && tab !== "yt") meta += '<span class="tag aud" title="Tiene versión solo audio">' + HP + '</span>';
   if (mode === "all") meta += mine.map(p => `<span class="tag mine">${esc(p.name)}</span>`).join("");
   const on = cur >= 0 && queue[cur] && queue[cur].k === x.k && queueLabel === listLabel();
   const mv = mode === "pl" && !sortBy && current.length > 1
@@ -592,6 +618,7 @@ function songRow(x, i){
   const btn = mode === "pl"
     ? mv + `<button type="button" class="add" data-rm="${i}" title="Quitar de esta playlist" aria-label="Quitar de esta playlist">×</button>`
     : (tab === "yt" && altFor && altFor.y !== x.y ? `<button type="button" class="btn sm rep" data-rep="${i}" title="Usar este video para «${esc(altFor.t)}»">⇄ Reemplazar</button>` : "")
+      + (tab === "yt" && altFor && yaOf(altFor) !== x.y ? `<button type="button" class="btn sm rep" data-aud="${i}" title="Usar este video como versión solo audio de «${esc(altFor.t)}»">🎧 Como audio</button>` : "")
       + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`;
   return `<div class="row${x.y || file ? "" : " dis"}${on ? " on" : ""}" role="listitem"><button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
@@ -608,8 +635,9 @@ function renderList(){
 $("list").addEventListener("click", e => {
   const add = e.target.closest("[data-add]"), rm = e.target.closest("[data-rm]"), pl = e.target.closest(".play");
   if (suppressClick || e.target.closest("[data-grip]")) return;
-  const rep = e.target.closest("[data-rep]");
+  const rep = e.target.closest("[data-rep]"), aud = e.target.closest("[data-aud]");
   if (rep) return replaceVideo(current[+rep.dataset.rep]);
+  if (aud) return setAudio(current[+aud.dataset.aud]);
   if (add) return openSheet(current[+add.dataset.add]);
   if (rm){ toggleSong(openPl(), current[+rm.dataset.rm]); return refresh(); }
   if (pl){ const x = current[+pl.dataset.i]; if (x.y || fileFor(x)) playFrom(+pl.dataset.i); else { altFor = x; ytSearch(x.a.split(",")[0] + " " + x.t); } }
@@ -920,7 +948,7 @@ function load(i, opt = {}){
   } else {
     mode = "yt"; au.pause(); $("art").hidden = true;
     keepAlive(); setMedia(x);
-    if (ready) start(x.y, resumePos); else { pendingId = x.y; pendingPos = resumePos; }
+    if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; }
   }
   renderList(); saveResume(resumePos);
 }
@@ -954,7 +982,7 @@ let spare = null, spareReady = false, cued = null;
 function precue(){
   if (!spareReady || mode !== "yt" || !queue.length) return;
   const nx = queue[orderIdx[(at + 1) % orderIdx.length]];
-  const id = nx && !fileFor(nx) ? nx.y : null;
+  const id = nx && !fileFor(nx) ? vid(nx) : null;
   if (!id || id === cued) return;
   cued = id; spare.cueVideoById(id);
 }
@@ -1007,6 +1035,15 @@ $("shuf").onclick = () => {
   if (cur >= 0){ orderIdx = order(cur); at = 0; precue(); } // rearma lo que sigue a partir de la canción actual
 };
 $("addcur").onclick = () => { if (queue[cur]) openSheet(queue[cur]); };
+const setAudioOnly = on => { audioOnly = on; $("aud").setAttribute("aria-pressed", on); document.body.classList.toggle("audio", on); };
+setAudioOnly(audioOnly);
+$("aud").onclick = () => {
+  setAudioOnly(!audioOnly); store.set("np-audio", audioOnly ? "1" : "0");
+  const x = queue[cur];
+  if (x && yaOf(x) && mode === "yt" && ready && !armed) start(vid(x), curPos()); // cambia de versión sin perder el punto
+  cued = null; precue(); renderList();
+  flash(audioOnly ? "Solo audio: suena la versión de audio cuando la canción la tiene (🎧 en la lista)." : "Video: suena el clip de cada canción.");
+};
 $("alt").onclick = () => { const x = queue[cur]; if (x){ altFor = x; ytSearch(x.a.split(",")[0] + " " + x.t); } };
 document.addEventListener("keydown", e => {
   if (["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName) || !$("sheet").hidden) return;
@@ -1183,6 +1220,17 @@ function renderYt(){
         <button class="btn primary" type="submit" style="align-self:flex-start">Escuchar y guardar</button></form></div></div>`);
 }
 $("ytbox").addEventListener("click", e => { if (e.target.closest('[data-act="altoff"]')){ altFor = null; flash(""); refresh(); } });
+// Como audio: la canción `altFor` usa el video de `x` como versión solo audio (solo en el catálogo; las playlists resuelven por clave)
+function setAudio(x){
+  const s = altFor; if (!s || !x?.y) return;
+  const c = CAT.all.find(it => it.k === s.k);
+  if (c){ c.ya = x.y; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
+  YA.set(s.k, x.y); if (s.ya !== undefined) s.ya = x.y;
+  altFor = null;
+  flash("Listo: «" + s.t + "» usará este video en modo Solo audio. Se guardó para los dos.");
+  if (audioOnly && ready && mode === "yt" && queue[cur]?.k === s.k) start(x.y, curPos());
+  refresh();
+}
 // Reemplazar: la canción `altFor` pasa a usar el video de `x` (en el catálogo y en todas las playlists donde esté)
 function replaceVideo(x){
   const s = altFor; if (!s || !x?.y) return;
@@ -1254,7 +1302,7 @@ function refresh(){
   $("call").textContent = all.length;
   $("cpls").textContent = mis.filter(p => !p.oculta).length;
   $("cfiles").textContent = FILES.length || "";
-  renderImport(); renderPls(); renderYt(); renderFiles(); renderList();
+  renderImport(); renderAudioImport(); renderPls(); renderYt(); renderFiles(); renderList();
 }
 for (const t of ["all","pls","yt","files"]) $("tab-"+t).onclick = () => { if (t !== tab) $("q").value = t === "yt" ? ytQuery : ""; if (t === "pls") openId = null; setTab(t); if (t === "yt") $("q").focus(); };
 $("q").addEventListener("input", () => { if (tab === "all"){ shown = PAGE; renderList(); } });

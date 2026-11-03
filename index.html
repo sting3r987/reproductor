@@ -195,7 +195,9 @@ body.dragging .row:hover{background:transparent}
 .newform{display:flex;gap:8px;flex-wrap:wrap;flex:1 1 280px;max-width:520px}
 .newform input,.field input{flex:1 1 140px;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:8px 14px;font:inherit;box-shadow:var(--shadow-sm)}
 .newform input:focus,.field input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-glow)}
-.ideas{display:flex;flex-wrap:wrap;gap:6px}
+/* Ideas de nombres: solo mientras el campo "Nueva playlist" tiene el foco (ocupaban media pantalla en el celular) */
+.ideas{display:none;flex-wrap:wrap;gap:6px}
+.ideas.show{display:flex}
 .chip{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:99px;padding:4px 11px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
 .chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
 .view .seg button{padding:6px 12px}
@@ -1078,11 +1080,13 @@ function renderPls(){
       <div class="ideas" id="np-ideas"></div></div>
     ${items}
     ${nHidden ? `<p class="msg"><button class="btn sm" type="button" data-act="showhidden">${showHidden ? "Esconder las ocultas" : "Ver ocultas (" + nHidden + ")"}</button></p>` : ""}`;
-  fillIdeas($("np-ideas"), n => { $("np-name").value = n; $("np-name").focus(); });
+  fillIdeas($("np-ideas"), $("np-name"), n => { $("np-name").value = n; });
 }
-function fillIdeas(el, pick){
+function fillIdeas(el, input, pick){
   const used = new Set(mis.map(p => norm(p.name)));
-  el.replaceChildren(...IDEAS.filter(n => !used.has(norm(n))).map(n => { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = n; b.onclick = () => pick(n); return b; }));
+  input.onfocus = () => el.classList.add("show"); input.onblur = () => el.classList.remove("show");
+  // pointerdown + preventDefault: elige la idea sin que el campo pierda el foco (si no, las ideas se esconderían antes del clic)
+  el.replaceChildren(...IDEAS.filter(n => !used.has(norm(n))).map(n => { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = n; b.onpointerdown = e => { e.preventDefault(); pick(n); }; return b; }));
 }
 $("pls").addEventListener("click", e => {
   const b = e.target.closest("[data-act]");
@@ -1203,7 +1207,7 @@ function renderSheet(){
     l.querySelector("input").onchange = () => { toggleSong(p, sheetSong); renderSheet(); };
     return l;
   }));
-  fillIdeas($("sh-ideas"), n => { $("sh-name").value = n; $("sh-name").focus(); });
+  fillIdeas($("sh-ideas"), $("sh-name"), n => { $("sh-name").value = n; });
 }
 function closeSheet(){ $("sheet").hidden = true; sheetSong = null; refresh(); }
 $("sh-new").addEventListener("submit", e => { e.preventDefault(); const p = newPl($("sh-name").value); if (p){ toggleSong(p, sheetSong); $("sh-name").value = ""; renderSheet(); } });

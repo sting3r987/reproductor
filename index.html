@@ -115,15 +115,15 @@ select{border:1px solid var(--line);background:var(--surface);color:var(--ink);b
 .who #theme{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);text-decoration:none;font-weight:600;padding:5px 11px;border-radius:99px;box-shadow:var(--shadow-sm)}
 .who #theme::before{content:"";width:11px;height:11px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 0 0 2px var(--accent-bg)}
 .who #theme[aria-expanded="true"]{border-color:var(--accent);color:var(--ink)}
-.menu{position:absolute;right:0;top:calc(100% + 8px);z-index:7;width:min(290px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:12px;display:flex;flex-direction:column;gap:8px;text-align:left;animation:pop .15s ease-out}
+.tm{position:absolute;right:0;top:calc(100% + 8px);z-index:7;width:min(290px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:12px;display:flex;flex-direction:column;gap:8px;text-align:left;animation:pop .15s ease-out}
 @keyframes pop{from{opacity:0;transform:translateY(-6px)}}
-.menu-h{margin:4px 0 0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
-.menu-h:first-child{margin-top:0}
-.opts{display:flex;flex-wrap:wrap;gap:6px}
-.who .opts button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);text-decoration:none;font-weight:600;font-size:13px;padding:6px 11px;border-radius:99px;transition:background .15s,border-color .15s}
-.who .opts button:hover{background:var(--surface-3)}
-.who .opts button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 2px var(--accent-glow)}
-.opts.sw button::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--sw);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.tm-h{margin:4px 0 0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.tm-h:first-child{margin-top:0}
+.tm-opts{display:flex;flex-wrap:wrap;gap:6px}
+.who .tm-opts button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);text-decoration:none;font-weight:600;font-size:13px;padding:6px 11px;border-radius:99px;transition:background .15s,border-color .15s}
+.who .tm-opts button:hover{background:var(--surface-3)}
+.who .tm-opts button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 2px var(--accent-glow)}
+.tm-opts.sw button::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--sw);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
 /* Canciones */
 .list{display:flex;flex-direction:column;gap:3px;margin-top:10px}
 .row{display:flex;align-items:stretch;border-radius:var(--r-md);transition:background .12s}
@@ -356,11 +356,11 @@ body.dragging .row:hover{background:transparent}
     <span class="who">
       <span class="theme">
         <button type="button" id="theme" aria-haspopup="true" aria-expanded="false" title="Cambiar tema">Tema</button>
-        <div class="menu" id="tmenu" hidden role="group" aria-label="Tema">
-          <p class="menu-h">Apariencia</p>
-          <div class="opts" data-k="mode"><button type="button" data-v="auto">Como el sistema</button><button type="button" data-v="light">Claro</button><button type="button" data-v="dark">Oscuro</button></div>
-          <p class="menu-h">Color</p>
-          <div class="opts sw" data-k="color"><button type="button" data-v="rumba" style="--sw:#D43A5C">Rumba</button><button type="button" data-v="oceano" style="--sw:#1C7FA8">Océano</button><button type="button" data-v="selva" style="--sw:#2C8A4F">Selva</button><button type="button" data-v="uva" style="--sw:#7B3FD1">Uva</button><button type="button" data-v="dorado" style="--sw:#B8731A">Dorado</button></div>
+        <div class="tm" id="tmenu" hidden role="group" aria-label="Tema">
+          <p class="tm-h">Apariencia</p>
+          <div class="tm-opts" data-k="mode"><button type="button" data-v="auto">Como el sistema</button><button type="button" data-v="light">Claro</button><button type="button" data-v="dark">Oscuro</button></div>
+          <p class="tm-h">Color</p>
+          <div class="tm-opts sw" data-k="color"><button type="button" data-v="rumba" style="--sw:#D43A5C">Rumba</button><button type="button" data-v="oceano" style="--sw:#1C7FA8">Océano</button><button type="button" data-v="selva" style="--sw:#2C8A4F">Selva</button><button type="button" data-v="uva" style="--sw:#7B3FD1">Uva</button><button type="button" data-v="dorado" style="--sw:#B8731A">Dorado</button></div>
         </div>
       </span>
       <span id="who"></span><button type="button" id="logout">Salir</button></span>

@@ -119,22 +119,32 @@ select{border:1px solid var(--line);background:var(--surface);color:var(--ink);b
 .msg{margin:10px 0 0;color:var(--ink-2);font-size:14px}
 #msg{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:6px 14px;font-size:13px;box-shadow:var(--shadow-sm);max-width:100%;overflow-wrap:anywhere}
 #msg::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
-.who{display:flex;align-items:center;gap:8px;color:var(--ink-3);font-size:13px;margin-left:auto}
-.who button{border:0;background:transparent;color:var(--ink-3);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:0}
-/* Botón Tema: abre un menú con apariencia (auto/claro/oscuro) y color de acento */
-.who #theme{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);text-decoration:none;font-weight:600;padding:5px 11px;border-radius:99px;box-shadow:var(--shadow-sm)}
-.who #theme::before{content:"";width:11px;height:11px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 0 0 2px var(--accent-bg)}
-.who #theme[aria-expanded="true"]{border-color:var(--accent);color:var(--ink)}
+.who{display:flex;align-items:center;margin-left:auto}
+/* Avatar (foto de Google o inicial): abre el panel de cuenta y apariencia */
+.avatar{width:36px;height:36px;border-radius:50%;border:2px solid var(--line);padding:0;background:var(--surface);display:grid;place-items:center;overflow:hidden;cursor:pointer;color:var(--accent);font:700 15px/1 var(--display);box-shadow:0 0 0 2px var(--accent-bg);transition:box-shadow .15s,border-color .15s}
+.avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.avatar:hover,.avatar[aria-expanded="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
 /* El menú vive en <body> (el desenfoque de la cabecera rompería position:fixed) y el JS lo coloca bajo el botón */
-.tm{position:fixed;z-index:21;width:min(290px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:12px;display:flex;flex-direction:column;gap:8px;text-align:left;animation:pop .15s ease-out}
+.tm{position:fixed;z-index:21;width:min(300px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow);padding:12px;display:flex;flex-direction:column;gap:8px;text-align:left;animation:pop .15s ease-out}
 @keyframes pop{from{opacity:0;transform:translateY(-6px)}}
 .tm-h{margin:4px 0 0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
-.tm-h:first-child{margin-top:0}
-.tm-opts{display:flex;flex-wrap:wrap;gap:6px}
-.tm .tm-opts button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);text-decoration:none;font-weight:600;font-size:13px;padding:6px 11px;border-radius:99px;transition:background .15s,border-color .15s}
-.tm .tm-opts button:hover{background:var(--surface-3)}
-.tm .tm-opts button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 2px var(--accent-glow)}
-.tm-opts.sw button::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--sw);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.tm-user{display:flex;flex-direction:column;gap:1px;padding-bottom:10px;border-bottom:1px solid var(--line);min-width:0}
+.tm-user b{font-size:14px;color:var(--ink);font-family:var(--display)}
+.tm-user b:empty{display:none}
+.tm-user span{font-size:12.5px;color:var(--ink-3);overflow-wrap:anywhere}
+/* Apariencia: selector de tres segmentos con icono */
+.tm-seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;padding:3px;border:1px solid var(--line);border-radius:99px;background:var(--surface-2)}
+.tm-seg button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:600;padding:7px 4px;border-radius:99px;cursor:pointer;min-width:0;white-space:nowrap;transition:background .15s,color .15s}
+.tm-seg button svg{width:16px;height:16px;fill:currentColor;flex:none}
+.tm-seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
+/* Color: cinco círculos, el elegido con anillo y marca */
+.tm-dots{display:flex;gap:12px;padding:3px 4px 2px}
+.tm-dots button{position:relative;width:30px;height:30px;border-radius:50%;border:0;padding:0;background:var(--sw);cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15);transition:transform .15s,box-shadow .15s}
+.tm-dots button:hover{transform:scale(1.08)}
+.tm-dots button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--sw)}
+.tm-dots button[aria-pressed="true"]::after{content:"";position:absolute;left:50%;top:50%;width:10px;height:5px;border:solid #fff;border-width:0 0 2.5px 2.5px;transform:translate(-50%,-70%) rotate(-45deg)}
+.tm-foot{display:flex;align-items:center;justify-content:space-between;margin-top:4px;padding-top:10px;border-top:1px solid var(--line)}
+.tm-foot #logout{border:0;background:transparent;color:var(--ink-3);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:0}
 /* Canciones */
 .list{display:flex;flex-direction:column;gap:3px;margin-top:10px}
 .row{display:flex;align-items:stretch;border-radius:var(--r-md);transition:background .12s}
@@ -304,16 +314,16 @@ body.dragging .row:hover{background:transparent}
   .btn.go.side{width:40px;height:40px}
   .btn.go{height:44px;font-size:14.5px;padding:0 8px;gap:8px}
   .player>.ctrls .btn:not(.go){padding:4px 10px;font-size:12px}
-  /* Barra de herramientas en tres filas: [las 4 pestañas iguales] [buscador · Tema · Salir] [playlist de origen · orden] */
+  /* Barra de herramientas en tres filas: [las 4 pestañas iguales · avatar] [buscador] [playlist de origen · orden] */
   .tools{gap:8px;margin-top:10px}
-  .seg{order:0;flex:1 1 100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:2px}
+  .seg{order:0;flex:1 1 0;min-width:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:2px}
   .seg button{padding:7px 4px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .seg small,.seg .long{display:none}
-  .who{order:2;margin-left:auto}
+  .who{order:0;margin-left:0}
+  .avatar{width:34px;height:34px}
   /* El menú Tema se abre como panel al pie de la pantalla (anclado al botón se salía por un lado) */
   .tm{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:auto;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.35);animation:up .2s ease-out}
-  #who{display:none}
-  .search{order:2;flex:1 1 150px;min-width:0;padding-left:12px}
+  .search{order:2;flex:1 1 100%;min-width:0;padding-left:12px}
   .search input{padding:8px 0;font-size:14px}
   select{order:3;flex:1 1 40%;min-width:0;font-size:13px;padding:7px 10px;text-overflow:ellipsis} /* los dos selectores comparten fila */
   .meta{max-width:96px}
@@ -370,16 +380,22 @@ body.dragging .row:hover{background:transparent}
     <select id="srcpl" aria-label="Playlist de origen"></select>
     <select id="sort" aria-label="Orden"><option value="">Orden original</option><option value="t">Nombre A–Z</option><option value="a">Artista A–Z</option></select>
     <span class="who">
-      <span class="theme">
-        <button type="button" id="theme" aria-haspopup="true" aria-expanded="false" title="Cambiar tema">Tema</button>
-        <div class="tm" id="tmenu" hidden role="group" aria-label="Tema">
-          <p class="tm-h">Apariencia</p>
-          <div class="tm-opts" data-k="mode"><button type="button" data-v="auto">Como el sistema</button><button type="button" data-v="light">Claro</button><button type="button" data-v="dark">Oscuro</button></div>
-          <p class="tm-h">Color</p>
-          <div class="tm-opts sw" data-k="color"><button type="button" data-v="rumba" style="--sw:#D43A5C">Rumba</button><button type="button" data-v="oceano" style="--sw:#1C7FA8">Océano</button><button type="button" data-v="selva" style="--sw:#2C8A4F">Selva</button><button type="button" data-v="uva" style="--sw:#7B3FD1">Uva</button><button type="button" data-v="dorado" style="--sw:#B8731A">Dorado</button></div>
+      <button type="button" id="theme" class="avatar" aria-haspopup="true" aria-expanded="false" title="Cuenta y apariencia" aria-label="Cuenta y apariencia"><img id="who-img" alt="" referrerpolicy="no-referrer" hidden><span id="who-ini">♪</span></button>
+      <div class="tm" id="tmenu" hidden role="dialog" aria-label="Cuenta y apariencia">
+        <div class="tm-user"><b id="who-name"></b><span id="who"></span></div>
+        <p class="tm-h">Apariencia</p>
+        <div class="tm-seg" data-k="mode" role="group" aria-label="Apariencia">
+          <button type="button" data-v="light" title="Claro"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm-1-6h2v3h-2zm0 19h2v3h-2zM1 11h3v2H1zm19 0h3v2h-3zM4.2 5.6l1.4-1.4 2.2 2.2-1.4 1.4zm12 12 1.4-1.4 2.2 2.2-1.4 1.4zM4.2 18.4l2.2-2.2 1.4 1.4-2.2 2.2zm12-12 2.2-2.2 1.4 1.4-2.2 2.2z"/></svg>Claro</button>
+          <button type="button" data-v="auto" title="Como el sistema"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2v16a8 8 0 0 1 0-16z"/></svg>Sistema</button>
+          <button type="button" data-v="dark" title="Oscuro"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1z"/></svg>Oscuro</button>
         </div>
-      </span>
-      <span id="who"></span><button type="button" id="logout">Salir</button></span>
+        <p class="tm-h">Color</p>
+        <div class="tm-dots" data-k="color" role="group" aria-label="Color">
+          <button type="button" data-v="rumba" style="--sw:#D43A5C" aria-label="Rumba" title="Rumba"></button><button type="button" data-v="oceano" style="--sw:#1C7FA8" aria-label="Océano" title="Océano"></button><button type="button" data-v="selva" style="--sw:#2C8A4F" aria-label="Selva" title="Selva"></button><button type="button" data-v="uva" style="--sw:#7B3FD1" aria-label="Uva" title="Uva"></button><button type="button" data-v="dorado" style="--sw:#B8731A" aria-label="Dorado" title="Dorado"></button>
+        </div>
+        <div class="tm-foot"><button type="button" id="logout">Salir</button><button class="btn sm" type="button" id="tm-done">Listo</button></div>
+      </div>
+    </span>
   </div>
   <p class="msg" id="msg" hidden></p>
   <pre id="dbg" hidden></pre>
@@ -436,11 +452,12 @@ function themeMenu(open){
 }
 sysDark.addEventListener("change", applyTheme);
 $("theme").onclick = () => themeMenu($("tmenu").hidden);
+$("tm-done").onclick = () => themeMenu(false);
 $("tmenu").onclick = e => {
   const b = e.target.closest("button[data-v]"); if (!b) return;
   THEME[b.parentElement.dataset.k] = b.dataset.v; store.set("np-theme", JSON.stringify(THEME)); applyTheme();
 };
-document.addEventListener("pointerdown", e => { if (!$("tmenu").hidden && !e.target.closest(".theme, .tm")) themeMenu(false); });
+document.addEventListener("pointerdown", e => { if (!$("tmenu").hidden && !e.target.closest("#theme, .tm")) themeMenu(false); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("tmenu").hidden) themeMenu(false); });
 applyTheme();
 const norm = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
@@ -466,7 +483,10 @@ onAuthStateChanged(auth, u => {
   unsub.forEach(f => f()); unsub = [];
   $("gate").hidden = !!u; $("app").hidden = !u;
   if (!u){ mis = []; loaded = catLoaded = false; return; }
-  $("who").textContent = u.email;
+  $("who").textContent = u.email; $("who-name").textContent = u.displayName || "";
+  const img = $("who-img"), ini = $("who-ini"); ini.textContent = (u.displayName || u.email)[0].toUpperCase();
+  img.hidden = !u.photoURL; ini.hidden = !!u.photoURL; if (u.photoURL) img.src = u.photoURL;
+  img.onerror = () => { img.hidden = true; ini.hidden = false; };
   const denied = e => {
     if (e.code === "permission-denied"){ $("gate").hidden = false; $("app").hidden = true; $("gate-msg").textContent = "La cuenta " + u.email + " no tiene acceso a estas playlists. Entra con otra cuenta."; $("login").textContent = "Entrar con otra cuenta"; signOut(auth); }
     else flash("No se pudieron cargar los datos (" + e.code + "). Revisa tu conexión.");

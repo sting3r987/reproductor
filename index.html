@@ -290,16 +290,16 @@ body.dragging .row:hover{background:transparent}
   .transport{width:100%;min-width:0;gap:8px}
   .btn.go{height:44px;font-size:14.5px;padding:0 8px;gap:8px}
   .player>.ctrls .btn:not(.go){padding:4px 10px;font-size:12px}
-  /* Barra de herramientas en dos filas: [pestañas · Salir] [buscador · playlist de origen] */
+  /* Barra de herramientas en tres filas: [las 4 pestañas iguales] [buscador · Tema · Salir] [playlist de origen · orden] */
   .tools{gap:8px;margin-top:10px}
-  .seg{order:0;padding:2px}
-  .seg button{padding:6px 10px;font-size:12.5px}
-  .seg small{display:none}
-  .who{order:1;margin-left:auto}
+  .seg{order:0;flex:1 1 100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:2px}
+  .seg button{padding:7px 4px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .seg small,.seg .long{display:none}
+  .who{order:2;margin-left:auto}
   /* El menú Tema se abre como panel al pie de la pantalla (anclado al botón se salía por un lado) */
   .tm{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:auto;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.35);animation:up .2s ease-out}
   #who{display:none}
-  .search{order:2;flex:1 1 100%;min-width:0;padding-left:12px}
+  .search{order:2;flex:1 1 150px;min-width:0;padding-left:12px}
   .search input{padding:8px 0;font-size:14px}
   select{order:3;flex:1 1 40%;min-width:0;font-size:13px;padding:7px 10px;text-overflow:ellipsis} /* los dos selectores comparten fila */
   .meta{max-width:96px}
@@ -349,7 +349,7 @@ body.dragging .row:hover{background:transparent}
     <div class="seg" role="group" aria-label="Sección">
       <button type="button" id="tab-all" aria-pressed="true">Todas<small id="call"></small></button>
       <button type="button" id="tab-pls" aria-pressed="false">Playlists<small id="cpls"></small></button>
-      <button type="button" id="tab-yt" aria-pressed="false">Buscar en YouTube</button>
+      <button type="button" id="tab-yt" aria-pressed="false"><span class="long">Buscar en </span>YouTube</button>
       <button type="button" id="tab-files" aria-pressed="false">Archivos<small id="cfiles"></small></button>
     </div>
     <form class="search" id="sf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Buscar canción o artista" autocomplete="off"><button class="btn sm" id="go" type="submit" hidden>Buscar</button></form>

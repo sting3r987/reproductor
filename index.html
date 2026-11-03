@@ -64,9 +64,11 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .player>.ctrls{grid-area:ctrls;margin-top:8px}
 /* Transporte: ⏮ ▶ ⏭ grandes y de la misma altura; el resto de botones, compactos */
 .transport{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-width:420px}
-.btn.go{height:46px;font-size:15px;padding:0 12px;justify-content:center;min-width:0}
-.btn.go.skip{font-size:22px;line-height:1}
-.btn.go.play-main{padding-left:6px;padding-right:calc(6px + 1em)} /* más margen a la derecha: el icono ▶ pesa a la izquierda y así el texto se ve centrado */
+.btn.go{height:46px;font-size:15px;padding:0 12px;justify-content:center;min-width:0;gap:9px}
+.btn.go svg{width:22px;height:22px;fill:currentColor;flex:none}
+.btn.go.play-main svg{width:20px;height:20px}
+.btn.go.play-main .i-pause,body.playing .btn.go.play-main .i-play{display:none}
+body.playing .btn.go.play-main .i-pause{display:block}
 .player>.ctrls .btn:not(.go){padding:5px 11px;font-size:12.5px;box-shadow:none}
 .btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;font:inherit;font-size:14px;font-weight:600;padding:8px 15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap;box-shadow:var(--shadow-sm);transition:background .15s,border-color .15s,transform .1s,filter .15s}
 .btn:hover{background:var(--surface-2);border-color:var(--line-2)}
@@ -259,8 +261,7 @@ body.dragging .row:hover{background:transparent}
   .btn{padding:7px 12px;font-size:13px}
   /* En el celular el transporte ocupa toda una fila: ⏮ ▶ ⏭ grandes, debajo los botones pequeños */
   .transport{width:100%;min-width:0;gap:8px}
-  .btn.go{height:44px;font-size:14.5px;padding:0 8px}
-  .btn.go.skip{font-size:21px}
+  .btn.go{height:44px;font-size:14.5px;padding:0 8px;gap:8px}
   .player>.ctrls .btn:not(.go){padding:4px 10px;font-size:12px}
   /* Barra de herramientas en dos filas: [pestañas · Salir] [buscador · playlist de origen] */
   .tools{gap:8px;margin-top:10px}
@@ -305,9 +306,9 @@ body.dragging .row:hover{background:transparent}
     </div>
     <div class="ctrls">
       <span class="transport">
-        <button class="btn go skip" id="prev" type="button" aria-label="Anterior" title="Anterior">⏮</button>
-        <button class="btn go primary play-main" id="play" type="button">▶ Reproducir</button>
-        <button class="btn go skip" id="next" type="button" aria-label="Siguiente" title="Siguiente">⏭</button>
+        <button class="btn go skip" id="prev" type="button" aria-label="Anterior" title="Anterior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h2.4v14H5zM19 5.6v12.8L9 12z"/></svg></button>
+        <button class="btn go primary play-main" id="play" type="button"><svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg><svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5h4.4v15H6zM13.6 4.5H18v15h-4.4z"/></svg><span id="playlbl">Reproducir</span></button>
+        <button class="btn go skip" id="next" type="button" aria-label="Siguiente" title="Siguiente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.6 5H19v14h-2.4zM5 5.6v12.8L15 12z"/></svg></button>
       </span>
       <button class="btn" id="shuf" type="button" aria-pressed="false">Aleatorio</button>
       <button class="btn" id="addcur" type="button" hidden>＋ A playlist</button>
@@ -719,7 +720,7 @@ const silent = (() => {
   const a = new Audio(URL.createObjectURL(new Blob([b], {type: "audio/wav"}))); a.loop = true; a.volume = 0.01; return a;
 })();
 function setPlaying(on){
-  playing = on; document.body.classList.toggle("playing", on); $("play").textContent = on ? "⏸ Pausa" : "▶ Reproducir";
+  playing = on; document.body.classList.toggle("playing", on); $("playlbl").textContent = on ? "Pausa" : "Reproducir";
   if ("mediaSession" in navigator) navigator.mediaSession.playbackState = on ? "playing" : "paused";
 }
 // Posición para la barra de progreso de la pantalla de bloqueo. Con playbackRate 1 el sistema la hace avanzar solo

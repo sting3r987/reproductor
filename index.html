@@ -418,7 +418,7 @@ function themeMenu(open){
   const m = $("tmenu"); m.hidden = !open; $("theme").setAttribute("aria-expanded", open);
   if (!open) return;
   const r = $("theme").getBoundingClientRect(), mob = matchMedia("(max-width:640px)").matches;
-  m.style.top = mob ? "" : (r.bottom + 8) + "px"; m.style.right = mob ? "" : (innerWidth - r.right) + "px"; // en celular el CSS lo pone al pie
+  m.style.top = mob ? "" : (r.bottom + 8) + "px"; m.style.right = mob ? "" : (document.documentElement.clientWidth - r.right) + "px"; // en celular el CSS lo pone al pie
 }
 sysDark.addEventListener("change", applyTheme);
 $("theme").onclick = () => themeMenu($("tmenu").hidden);

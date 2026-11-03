@@ -60,7 +60,7 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .now h1{font-family:var(--display);font-weight:800;font-size:clamp(22px,3.2vw,34px);line-height:1.06;letter-spacing:-.025em;margin:0;text-wrap:balance;overflow-wrap:anywhere}
 .now .by{color:var(--ink-2);margin:0;overflow-wrap:anywhere}
 .ctrls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-@media (hover:hover) and (pointer:fine){#bg,#big{display:none}} /* solo tienen sentido en el celular */
+@media (hover:hover) and (pointer:fine){#big{display:none}} /* solo tiene sentido en el celular */
 .player>.ctrls{grid-area:ctrls;margin-top:8px}
 /* Transporte: ⏮ ▶ ⏭ grandes y de la misma altura; el resto de botones, compactos */
 .transport{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-width:420px}
@@ -303,7 +303,6 @@ body.dragging .row:hover{background:transparent}
       <button class="btn" id="shuf" type="button" aria-pressed="false">Aleatorio</button>
       <button class="btn" id="addcur" type="button" hidden>＋ A playlist</button>
       <button class="btn" id="alt" type="button" hidden>Otras versiones</button>
-      <a class="btn" id="bg" target="_blank" rel="noopener" hidden title="Abre lo que sigue en YouTube para seguir escuchando con la pantalla bloqueada">🔒 Con pantalla bloqueada</a>
       <button class="btn" id="big" type="button" aria-pressed="false" title="Video grande a todo el ancho">⤢ Grande</button>
     </div>
   </div></div>
@@ -636,7 +635,6 @@ function load(i){
   $("nt").textContent = x.t; $("na").textContent = x.a;
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;
   $("ph").hidden = true; $("addcur").hidden = false; $("alt").hidden = false;
-  $("bg").href = bgLink(); $("bg").hidden = false;
   log("canción " + (i + 1) + ": " + x.t);
   keepAlive(); setMedia(x);
   if (ready) start(x.y); else pendingId = x.y;
@@ -658,16 +656,6 @@ function step(d){
   at = (at + d + orderIdx.length) % orderIdx.length;
   load(orderIdx[at]);
 }
-// Enlace a YouTube con lo que sigue en la cola (desde la canción actual, máx. 50): ahí Brave sí sigue sonando con la pantalla bloqueada.
-function bgLink(){
-  const ids = [];
-  for (let n = 0; n < queue.length && ids.length < 50; n++){ const y = queue[(cur + n) % queue.length].y; if (y && !ids.includes(y)) ids.push(y); }
-  return "https://www.youtube.com/watch_videos?video_ids=" + ids.join(",");
-}
-$("bg").addEventListener("click", () => {
-  if (ready && playing) player.pauseVideo();
-  flash("Se abrió lo que sigue en YouTube. Para que siga sonando con la pantalla bloqueada, en Brave activa Ajustes → Multimedia → Reproducción de video en segundo plano (solo hace falta una vez).");
-});
 // Si el navegador pausa el video justo al bloquear la pantalla o cambiar de app, intenta seguir (funciona si el navegador lo permite).
 let hiddenAt = 0;
 document.addEventListener("visibilitychange", () => { if (document.hidden) hiddenAt = Date.now(); log(document.hidden ? "página oculta" : "página visible"); });

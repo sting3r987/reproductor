@@ -217,6 +217,7 @@ body.audio .tag.aud{color:var(--accent);background:var(--accent-bg)}
 body.selecting{padding-bottom:76px}
 .altchip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding:10px 14px;border-radius:var(--r-md);background:var(--accent-bg);color:var(--ink);font-size:13px}
 .altchip b{color:var(--accent)}
+.altbtns{display:flex;flex-wrap:wrap;gap:6px}
 #dbg{margin:10px 0 0;padding:10px 12px;max-height:220px;overflow:auto;border-radius:var(--r-md);background:var(--surface-2);color:var(--ink-2);font:11.5px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 @media (max-width:640px){.rep{padding:6px 9px;font-size:12px}}
 .grip{flex:none;width:36px;align-self:stretch;margin:4px 0;display:grid;place-items:center;border:0;border-radius:var(--r-sm);background:transparent;color:var(--ink-3);cursor:grab;touch-action:none;transition:color .12s,background .12s}
@@ -1519,7 +1520,9 @@ const YTI = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.7 
 function renderYt(){
   const box = $("ytbox"), q = $("q").value.trim();
   const back = `<button type="button" class="btn sm" data-act="altoff">← Volver sin cambiar</button>`;
-  const chip = altFor ? `<div class="altchip"><span>Buscando otra versión de <b>${esc(altFor.t)}</b> · ${esc(altFor.a)}</span>${back}</div>` : "";
+  const okBtn = altFor?.e === "dudoso" ? `<button type="button" class="btn sm primary" data-act="altok" title="El video actual sí es el correcto: se quita la marca «dudosa»">✓ Es la correcta</button>` : "";
+  const hearBtn = altFor?.y ? `<button type="button" class="btn sm" data-act="althear" title="Reproduce el video que tiene ahora, para compararlo">▶ Oír la actual</button>` : "";
+  const chip = altFor ? `<div class="altchip"><span>Buscando otra versión de <b>${esc(altFor.t)}</b> · ${esc(altFor.a)}${altFor.e === "dudoso" ? " · marcada como dudosa" : ""}</span><span class="altbtns">${hearBtn}${okBtn}${back}</span></div>` : "";
   let html = "";
   if (tab === "all" && (q || altFor)){
     const done = ytDone && ytQuery === q; // ya se buscó justo esto (aunque no quedara nada que mostrar)
@@ -1547,6 +1550,8 @@ function renderYt(){
 }
 $("ytbox").addEventListener("click", e => {
   if (e.target.closest('[data-act="altoff"]')){ flash(""); altReturn(); }
+  if (e.target.closest('[data-act="altok"]') && altFor){ markOk(altFor); altReturn(); } // la actual es la buena: fuera la marca y de vuelta
+  if (e.target.closest('[data-act="althear"]') && altFor?.y) playFrom(0, [altFor], "Revisando: " + altFor.t, {kind: "yt"}, true);
   if (e.target.closest('[data-act="yt-go"]')) ytSearch($("q").value);
 });
 // Como audio: la canción `altFor` usa el video de `x` como versión solo audio (solo en el catálogo; las playlists resuelven por clave)

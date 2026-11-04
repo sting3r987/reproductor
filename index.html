@@ -297,6 +297,10 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 .step h3{font-family:var(--display);font-size:18px;margin:0}
 .step p{margin:0;color:var(--ink-2);font-size:14px}
 .field{display:flex;flex-direction:column;gap:4px}
+.paste{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+.paste input{flex:1 1 260px;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:8px 14px;font:inherit;box-shadow:var(--shadow-sm)}
+.paste input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-glow)}
+.paste .err{flex-basis:100%;margin:0}
 .field label{font-size:11.5px;font-weight:700;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
 .field input,.field select{width:100%}
 .err{color:var(--accent);font-size:13px;margin:0}
@@ -1358,10 +1362,12 @@ async function ytSearch(q){
   if (!CFG.youtubeKey){ renderYt(); return; }
   flash("Buscando “" + q + "” en YouTube…"); refresh();
   try {
-    const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=20&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error?.errors?.[0]?.reason || r.status);
-    const all = (d.items || []).filter(it => it.id?.videoId).map(it => ({t: decodeHtml(it.snippet.title), a: decodeHtml(it.snippet.channelTitle), y: it.id.videoId, k: "yt:" + it.id.videoId}));
+    let all = [], tried = [];
+    for (const v of searchVariants(q, altFor)){ // si una consulta no da nada (YouTube bloquea algunas frases), se prueban variantes
+      if (tried.includes(v)) continue; tried.push(v);
+      if (tried.length > 1){ log("sin resultados; pruebo «" + v + "»"); flash("Nada con “" + tried[tried.length - 2] + "”; probando “" + v + "”…"); }
+      all = await ytApiSearch(v); if (all.length) break;
+    }
     const music = await musicOnly(all), own = altFor ? music : notOwned(music); // buscando otra versión sí interesan las que ya tienes
     yres = own.slice(0, 10); ytHidden = music.length - own.length; ytDone = true;
     flash(yres.length ? yres.length + " opciones para “" + q + "”" + (ytHidden ? " (" + ytHidden + " ya las tienes)" : "") + ". Toca una para escucharla" + (altFor ? ", ⇄ Reemplazar para que «" + altFor.t + "» use ese video" : " o ＋ para guardarla") + "."
@@ -1370,6 +1376,19 @@ async function ytSearch(q){
     flash(String(e.message).includes("quota") ? "Se acabaron las búsquedas de hoy en YouTube. Mañana se renuevan; mientras tanto puedes pegar un enlace." : "No se pudo buscar en YouTube (" + e.message + ").");
   }
   refresh();
+}
+async function ytApiSearch(q){
+  const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=20&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error?.errors?.[0]?.reason || r.status);
+  return (d.items || []).filter(it => it.id?.videoId).map(it => ({t: decodeHtml(it.snippet.title), a: decodeHtml(it.snippet.channelTitle), y: it.id.videoId, k: "yt:" + it.id.videoId}));
+}
+// Variantes de una consulta, de la más completa a la más corta (máximo 4 intentos)
+function searchVariants(q, x){
+  const out = [q], STOP = /^(el|la|los|las|un|una|de|del|en|y|a|the|of|and|feat|ft)$/i;
+  if (x){ const a = x.a.split(",")[0].trim(), tw = x.t.split(/\s+/).filter(w => w && !STOP.test(w)); out.push(a + " " + tw.join(" "), a + " " + tw.slice(0, 1).join(" "), a); }
+  else { const w = q.split(/\s+/).filter(Boolean), sig = w.filter(t => !STOP.test(t) && t.length > 2); out.push(sig.join(" ")); for (let n = sig.length - 1; n >= 2; n--) out.push(sig.slice(0, n).join(" ")); }
+  return [...new Set(out.map(s => s.trim()).filter(Boolean))].slice(0, 4);
 }
 // Solo música: descarta lo que por el título no es una canción (entrevistas, shorts, reacciones, podcasts…) y pone primero lo que más parece canción
 const NOT_SONG = /\b(entrevist\w*|interview|habla|hablan|hablando|opina[rs]?|revela|confiesa|responde|explica|cuenta sobre|reacci|react|podcast|noticia|tutorial|how to|como (tocar|cantar|hacer)|trailer|capitulo|episodio|vlog|q ?& ?a|detras de|behind the|documental|biograf|top ?\d|ranking|shorts?|tiktok|polemica|escandalo|chisme|curiosidades|analisis|review|resena|clase|leccion|karaoke|speaking|funny|mejores momentos|compilation|recopilacion|mix \d|\d+ (canciones|exitos|horas))\b/;
@@ -1423,6 +1442,7 @@ function renderYt(){
     if (yres.length) html += `<div class="ythead">${YTI}En YouTube · <b>${esc(ytQuery)}</b></div><div class="list" id="ytlist" role="list">${yres.map((x, i) => songRow(x, i, true)).join("")}</div>`;
     if (done && !yres.length) html += `<p class="ytnone">${ytHidden ? "Todo lo que salió en YouTube para «" + esc(ytQuery) + "» ya lo tienes en tu música." : "En YouTube no salieron canciones para «" + esc(ytQuery) + "». Prueba con otras palabras."}</p>`;
     else if (done && ytHidden) html += `<p class="hint" style="margin-top:8px">${ytHidden === 1 ? "1 resultado no se muestra porque ya está" : ytHidden + " resultados no se muestran porque ya están"} en tu música.</p>`;
+    if ((done || altFor) && CFG.youtubeKey) html += `<form id="yf2" class="paste"><input id="yf2-url" inputmode="url" placeholder="${altFor ? "¿No aparece? Pega el enlace del video para «" + esc(altFor.t) + "»" : "¿No aparece? Pega aquí el enlace de YouTube"}" autocomplete="off" aria-label="Enlace de YouTube"><button class="btn sm primary" type="submit">Usar</button><p class="err" id="yf2-err" hidden></p></form>`;
   }
   html += tab !== "all" || !q || CFG.youtubeKey ? "" : `<div class="steps">
     <div class="step"><h3>1 · Búscala en YouTube</h3><p>Escribe arriba y toca Buscar para abrir los resultados. Elige el video y copia su enlace.</p>
@@ -1511,7 +1531,19 @@ function replaceVideo(x){
   if (ready && mode === "yt" && queue[cur]?.k === s.k) start(x.y); // si justo sonaba esa canción, sigue ya con el video nuevo
   refresh();
 }
-$("ytbox").addEventListener("submit", e => {
+$("ytbox").addEventListener("submit", async e => {
+  if (e.target.id === "yf2"){ // enlace pegado: va a la canción que se estaba corrigiendo, o entra como canción nueva
+    e.preventDefault();
+    const id = parseId($("yf2-url").value), err = m => { $("yf2-err").hidden = false; $("yf2-err").textContent = m; };
+    if (!id) return err("Ese enlace no parece de un video de YouTube. Cópialo desde Compartir en YouTube.");
+    if (altFor) return replaceVideo({y: id});
+    let t = $("q").value.trim() || "Video de YouTube", a = "YouTube";
+    try { const d = await (await fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" + id + "&key=" + CFG.youtubeKey)).json(); const s = d.items?.[0]?.snippet; if (s){ t = decodeHtml(s.title); a = decodeHtml(s.channelTitle); } } catch {}
+    const x = {t, a, k: "yt:" + id, y: id};
+    yres = [x]; ytQuery = $("q").value.trim(); ytDone = true; ytHidden = 0;
+    playFrom(0, yres, ytLabel(), {kind: "yt"}, true); openSheet(x); refresh();
+    return;
+  }
   if (e.target.id !== "yf") return;
   e.preventDefault();
   const y = parseId($("yf-url").value), t = $("yf-t").value.trim(), a = $("yf-a").value.trim();

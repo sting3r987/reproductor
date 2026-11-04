@@ -661,7 +661,12 @@ function renderAudioImport(){
       const all = CAT.all.map(it => {
         const ya = d[it.k];
         if (ya === null){ if (!it.ya) return {...it}; n++; const {ya: _, ...r} = it; return r; } // quitar versión de audio
-        if (ya && typeof ya === "object" && ya.y && ya.y !== it.y){ n++; clips[it.k] = ya.y; const r = {...it, y: ya.y}; delete r.e; return r; } // cambiar el clip
+        if (ya && typeof ya === "object"){ // {y: id} cambia el clip; {ya: id | null} pone o quita la versión de audio; pueden venir juntos
+          const r = {...it}; let ch = false;
+          if (ya.y && ya.y !== it.y){ clips[it.k] = ya.y; r.y = ya.y; delete r.e; ch = true; }
+          if ("ya" in ya){ if (ya.ya === null){ if (r.ya){ delete r.ya; ch = true; } } else if (ya.ya && ya.ya !== r.y && ya.ya !== r.ya){ r.ya = ya.ya; ch = true; } }
+          if (ch) n++; return r;
+        }
         if (ya && typeof ya === "string" && ya !== it.y){ n++; return {...it, ya}; } // poner versión de audio
         return {...it};
       });

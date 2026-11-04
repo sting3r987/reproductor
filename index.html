@@ -516,7 +516,7 @@ let tab = "all", openId = null, shown = PAGE, current = [];
 let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confirmDel = null, menuOpen = null, sheetSong = null;
 let sel = null, shDone = new Set(), rmArm = false, TOUCH = matchMedia("(hover:none)").matches; // sel: Map clave → canción mientras se seleccionan varias; shDone: playlists a las que ya se agregaron en la hoja
 let sortBy = ["t", "a"].includes(store.get("np-sort")) ? store.get("np-sort") : "";
-let yres = [], ytQuery = "", ytHidden = 0, altFor = null; // ytHidden: resultados escondidos por estar ya en tu música; // altFor: canción a la que se le busca otra versión (para "Reemplazar")
+let yres = [], ytQuery = "", ytHidden = 0, ytDone = false, altFor = null; // ytDone: la búsqueda de ytQuery ya terminó; // ytHidden: resultados escondidos por estar ya en tu música; // altFor: canción a la que se le busca otra versión (para "Reemplazar")
 let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = store.get("np-shuffle") === "1";
 
 /* ---------- Firebase ---------- */
@@ -1354,7 +1354,7 @@ function parseId(s){
 async function ytSearch(q){
   q = q.trim(); if (!q) return;
   if (tab !== "all") setTab("all");
-  $("q").value = q; ytQuery = q; yres = []; ytHidden = 0; shown = PAGE; syncGo();
+  $("q").value = q; ytQuery = q; yres = []; ytHidden = 0; ytDone = false; shown = PAGE; syncGo();
   if (!CFG.youtubeKey){ renderYt(); return; }
   flash("Buscando “" + q + "” en YouTube…"); refresh();
   try {
@@ -1363,9 +1363,9 @@ async function ytSearch(q){
     if (!r.ok) throw new Error(d.error?.errors?.[0]?.reason || r.status);
     const all = (d.items || []).filter(it => it.id?.videoId).map(it => ({t: decodeHtml(it.snippet.title), a: decodeHtml(it.snippet.channelTitle), y: it.id.videoId, k: "yt:" + it.id.videoId}));
     const music = await musicOnly(all), own = altFor ? music : notOwned(music); // buscando otra versión sí interesan las que ya tienes
-    yres = own.slice(0, 10); ytHidden = music.length - own.length;
+    yres = own.slice(0, 10); ytHidden = music.length - own.length; ytDone = true;
     flash(yres.length ? yres.length + " opciones para “" + q + "”" + (ytHidden ? " (" + ytHidden + " ya las tienes)" : "") + ". Toca una para escucharla" + (altFor ? ", ⇄ Reemplazar para que «" + altFor.t + "» use ese video" : " o ＋ para guardarla") + "."
-      : ytHidden ? "Todo lo que salió para “" + q + "” ya lo tienes en tu música." : "No hubo resultados para “" + q + "”. Prueba con otras palabras.");
+      : ytHidden ? "Todo lo que salió para “" + q + "” ya lo tienes en tu música." : "No hubo canciones para “" + q + "”. Prueba con otras palabras.");
   } catch (e) {
     flash(String(e.message).includes("quota") ? "Se acabaron las búsquedas de hoy en YouTube. Mañana se renuevan; mientras tanto puedes pegar un enlace." : "No se pudo buscar en YouTube (" + e.message + ").");
   }
@@ -1416,12 +1416,13 @@ function renderYt(){
   const chip = altFor ? `<div class="altchip"><span>Buscando otra versión de <b>${esc(altFor.t)}</b> · ${esc(altFor.a)}</span><button type="button" class="btn sm" data-act="altoff">Dejar de reemplazar</button></div>` : "";
   let html = "";
   if (tab === "all" && (q || altFor)){
-    const done = yres.length && ytQuery === q; // ya se buscó justo esto
+    const done = ytDone && ytQuery === q; // ya se buscó justo esto (aunque no quedara nada que mostrar)
     if (q && !current.length && !done) html += `<p class="ytnone">Nada en tu música con «${esc(q)}».</p>`;
     if (q && !done && CFG.youtubeKey) html += `<button type="button" class="btn ytgo" data-act="yt-go">${YTI}<span>Buscar «${esc(q)}» en YouTube</span></button>`;
     html += chip;
     if (yres.length) html += `<div class="ythead">${YTI}En YouTube · <b>${esc(ytQuery)}</b></div><div class="list" id="ytlist" role="list">${yres.map((x, i) => songRow(x, i, true)).join("")}</div>`;
-    if (done && ytHidden) html += `<p class="hint" style="margin-top:8px">${ytHidden === 1 ? "1 resultado no se muestra porque ya está" : ytHidden + " resultados no se muestran porque ya están"} en tu música.</p>`;
+    if (done && !yres.length) html += `<p class="ytnone">${ytHidden ? "Todo lo que salió en YouTube para «" + esc(ytQuery) + "» ya lo tienes en tu música." : "En YouTube no salieron canciones para «" + esc(ytQuery) + "». Prueba con otras palabras."}</p>`;
+    else if (done && ytHidden) html += `<p class="hint" style="margin-top:8px">${ytHidden === 1 ? "1 resultado no se muestra porque ya está" : ytHidden + " resultados no se muestran porque ya están"} en tu música.</p>`;
   }
   html += tab !== "all" || !q || CFG.youtubeKey ? "" : `<div class="steps">
     <div class="step"><h3>1 · Búscala en YouTube</h3><p>Escribe arriba y toca Buscar para abrir los resultados. Elige el video y copia su enlace.</p>

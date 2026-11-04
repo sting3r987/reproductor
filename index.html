@@ -760,7 +760,7 @@ $("list").addEventListener("click", e => {
     if (a === "fix"){ altFor = x; return ytSearch(x.a.split(",")[0] + " " + x.t); }
     if (a === "paste"){ altFor = x; renderList(); renderYt(); const u = $("yf2-url"); if (u){ u.scrollIntoView({block: "center"}); u.focus(); } return; }
   }
-  if (fix){ const x = current[+fix.dataset.fix]; altFor = x; return ytSearch(x.a.split(",")[0] + " " + x.t); }
+  if (fix){ const x = current[+fix.dataset.fix]; songMenu = null; altFor = x; return ytSearch(x.a.split(",")[0] + " " + x.t); }
   if (songMenu){ songMenu = null; renderList(); } // clic en otra parte: se cierra el menú
   const rep = e.target.closest("[data-rep]"), aud = e.target.closest("[data-aud]");
   if (rep) return replaceVideo(current[+rep.dataset.rep]);

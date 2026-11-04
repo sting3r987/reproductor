@@ -235,7 +235,13 @@ body.selecting{padding-bottom:76px}
 .altchip b{color:var(--accent)}
 .altbtns{display:flex;flex-wrap:wrap;gap:6px}
 #dbg{margin:10px 0 0;padding:10px 12px;max-height:220px;overflow:auto;border-radius:var(--r-md);background:var(--surface-2);color:var(--ink-2);font:11.5px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
-@media (max-width:640px){.rep{padding:6px 9px;font-size:12px}}
+@media (max-width:640px){
+  .rep{padding:6px 9px;font-size:12px}
+  .row:has(.rep){flex-wrap:wrap;justify-content:flex-end;padding-bottom:6px}
+  .row:has(.rep) .play{flex-basis:100%}
+  .row:has(.rep) .rep,.row:has(.rep) .add{margin-top:-2px}
+  .row:has(.rep) .add{height:30px;margin-right:6px}
+}
 .grip{flex:none;width:36px;align-self:stretch;margin:4px 0;display:grid;place-items:center;border:0;border-radius:var(--r-sm);background:transparent;color:var(--ink-3);cursor:grab;touch-action:none;transition:color .12s,background .12s}
 .grip svg{width:12px;height:18px;fill:currentColor}
 .grip:hover,.grip:focus-visible{color:var(--accent);background:var(--accent-bg)}
@@ -1506,7 +1512,7 @@ async function ytSearch(q){
 function startAlt(x, search = true){
   altBack = {tab, openId, q: $("q").value, y: window.scrollY, src: $("srcpl").value, shown, k: x.k}; // shown: cuántas filas había desplegadas (Mostrar más)
   altFor = x; loadAltCur(x);
-  if (search) return ytSearch(x.a.split(",")[0] + " " + x.t);
+  if (search){ const a1 = x.a.split(",")[0].trim(); return ytSearch(norm(x.t).includes(norm(a1)) ? x.t : a1 + " " + x.t); }
   renderList(); renderYt(); const u = $("yf2-url"); if (u){ u.scrollIntoView({block: "center"}); u.focus(); }
 }
 // Filas «actual»: el clip y la versión solo audio que la canción ya tiene; se completan con el título y canal reales de YouTube

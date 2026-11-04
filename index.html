@@ -97,6 +97,32 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .pop.volpop{top:52px;left:0;right:0;flex-direction:row;align-items:center;gap:10px;padding:8px 14px 8px 8px;min-width:0;z-index:5}
 .volpop .tm-range{margin:0;flex:1}
 .volpop b{font-size:12px;color:var(--ink-2);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
+/* Barra de progreso y cola «A continuación»: mismo ancho que el transporte */
+.seek{display:flex;align-items:center;gap:10px;width:100%;max-width:480px;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.seek input{flex:1;min-width:0;margin:0;height:22px;accent-color:var(--accent);cursor:pointer}
+.seek input:disabled{cursor:default;opacity:.5}
+.seek span{flex:none;min-width:34px}
+.seek span:last-child{text-align:right}
+.upnext{width:100%;max-width:480px;display:flex;flex-direction:column;gap:6px}
+#nextbtn{display:flex;align-items:center;gap:8px;width:100%;min-width:0;border:0;border-radius:10px;background:transparent;color:var(--ink-2);font:inherit;font-size:13px;padding:5px 6px;cursor:pointer;text-align:left}
+#nextbtn:hover{background:var(--surface-2)}
+#nextbtn .qh{flex:none;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+#nextbtn b{flex:1;min-width:0;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#nextbtn svg{flex:none;width:18px;height:18px;fill:currentColor;transition:transform .15s}
+#nextbtn[aria-expanded="true"] svg{transform:rotate(180deg)}
+#qlist{list-style:none;margin:0;padding:4px;max-height:min(320px,40vh);overflow:auto;overscroll-behavior:contain;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md)}
+#qlist li{display:flex;align-items:center;gap:2px}
+.qplay{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;padding:6px 8px;border-radius:10px;cursor:pointer}
+.qplay:hover{background:var(--surface-2)}
+.qplay .t{flex:1}
+.qplay .t b,.qplay .t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
+.qplay .t b{font-size:13.5px}
+.qplay .t span{font-size:12px}
+.qn{flex:none;width:20px;text-align:right;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.qup{flex:none;width:36px;height:36px;border:0;border-radius:99px;background:transparent;color:var(--ink-3);font:inherit;font-size:17px;line-height:1;cursor:pointer}
+.qup:hover{color:var(--accent);background:var(--accent-bg)}
+.qmore{padding:6px 10px 8px 38px;font-size:12px;color:var(--ink-3)}
+#backup{align-self:flex-start;margin-bottom:6px}
 #aud[data-mode="auto"] svg{margin-top:-7px}
 #aud[data-mode="auto"]::after{content:"auto";width:auto;height:auto;margin:0;bottom:4px;transform:translateX(-50%);border-radius:0;background:none;font-size:8.5px;font-weight:800;letter-spacing:.04em;line-height:1;text-transform:uppercase}
 /* Botón Grande en la esquina del video (solo celular) */
@@ -438,6 +464,7 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
       <p class="by" id="na">Suena aquí mismo y pasa sola a la siguiente.</p>
     </div>
     <div class="ctrls">
+      <div class="seek" id="seekrow" hidden><span id="t-cur">0:00</span><input type="range" id="seek" min="0" max="1" step="1" value="0" aria-label="Posición en la canción"><span id="t-dur">0:00</span></div>
       <span class="transport">
         <button class="btn go side" id="shuf" type="button" aria-pressed="false" aria-label="Aleatorio" title="Aleatorio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
         <button class="btn go skip" id="prev" type="button" aria-label="Anterior" title="Anterior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h2.4v14H5zM19 5.6v12.8L9 12z"/></svg></button>
@@ -453,6 +480,10 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
           <div class="pop volpop" id="volpop" hidden><button class="btn go side" id="mute" type="button" aria-pressed="false" aria-label="Silenciar" title="Silenciar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg></button><input type="range" class="tm-range" id="vol" min="0" max="100" step="1" aria-label="Volumen"><b id="vol-v">100%</b></div>
         </span>
       </span>
+      <div class="upnext" id="upnext" hidden>
+        <button type="button" id="nextbtn" aria-expanded="false" aria-controls="qlist"><span class="qh">A continuación</span><b id="next-t"></b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
+        <ol id="qlist" hidden></ol>
+      </div>
     </div>
   </div></div>
   <div class="tools">
@@ -481,6 +512,8 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
         </div>
         <p class="tm-h">Fundido entre canciones <span class="tm-v" id="fade-v"></span></p>
         <input type="range" class="tm-range" id="fade" min="0" max="8" step="0.5" aria-label="Segundos de fundido">
+        <p class="tm-h">Copia de seguridad</p>
+        <button class="btn sm" type="button" id="backup" title="Descarga el catálogo y todas las playlists en un archivo .json">Descargar copia</button>
         <div class="tm-foot"><button type="button" id="logout">Salir</button><button class="btn sm" type="button" id="tm-done">Listo</button></div>
       </div>
     </span>
@@ -660,12 +693,12 @@ function removePl(p){ mis.splice(mis.indexOf(p), 1); write(p.id, () => deleteDoc
 
 /* ---------- Importar (primera vez) ---------- */
 function renderImport(){
-  const need = catLoaded && loaded && !CAT.all.length && !mis.length;
+  const restore = location.search.includes("restaurar"), need = catLoaded && loaded && (restore || !CAT.all.length && !mis.length); // ?restaurar: cargar una copia de seguridad
   $("imp").hidden = !need;
   if (!need || $("imp").dataset.ready) return;
   $("imp").dataset.ready = "1";
   $("imp").innerHTML = `<div class="empty" style="text-align:left"><b>Carga tus canciones y playlists</b>
-    <p style="margin:6px 0 12px">Solo hace falta una vez. Elige el archivo <code>importar.json</code> que te preparé.</p>
+    <p style="margin:6px 0 12px">${restore ? "Elige una copia descargada con «Descargar copia». Reemplaza el catálogo y las playlists que trae el archivo, para los dos." : "Solo hace falta una vez. Elige el archivo <code>importar.json</code> que te preparé."}</p>
     <input type="file" id="imp-file" accept="application/json,.json"><p class="err" id="imp-err" hidden></p></div>`;
   $("imp-file").onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
@@ -1108,6 +1141,13 @@ let FADE = 2500; const FADE_RESUME = 600; // ms (al empezar una canción / al re
 const setFade = s => { FADE = s * 1000; $("fade").value = s; $("fade-v").textContent = s ? s.toString().replace(".", ",") + " s" : "Sin fundido"; };
 { const f = store.get("np-fade"); setFade(f === null ? 2.5 : +f); }
 $("fade").oninput = e => { setFade(+e.target.value); store.set("np-fade", e.target.value); };
+$("backup").onclick = () => {
+  const data = {exportado: new Date().toISOString(), catalog: {all: CAT.all, pls: CAT.pls || []}, playlists: mis.map(p => ({id: p.id, name: p.name, orden: p.orden, oculta: p.oculta, songs: p.songs}))};
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type: "application/json"}));
+  a.download = "playlists-" + new Date().toISOString().slice(0, 10) + ".json"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  flash("Copia descargada: " + data.catalog.all.length + " canciones y " + data.playlists.length + " playlists. Guárdala en un lugar seguro.");
+};
 let vol = 100, fadeTimer = 0, fading = false;
 /* Volumen general (0-100): el fundido trabaja en relativo y este es su tope. Se recuerda en el dispositivo (np-vol).
    En iPhone/iPad la página no puede cambiar el volumen (lo manda el botón físico): el control no se muestra. */
@@ -1207,12 +1247,12 @@ function load(i, opt = {}){
   cur = i; armed = !!opt.armed; resumePos = opt.pos || 0;
   $("nt").textContent = x.t; $("na").textContent = x.a;
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;
-  $("ph").hidden = true; $("sub").hidden = false;
+  $("ph").hidden = true; $("sub").hidden = false; $("seekrow").hidden = false;
   log((armed ? "retomo " : "canción ") + (i + 1) + ": " + x.t + (resumePos ? " desde " + resumePos + " s" : ""));
   const f = fileFor(x);
   if (armed){
     $("ph").hidden = false; $("ph").querySelector("span").textContent = "Toca Reproducir para seguir donde ibas";
-    setMedia(x); renderList(); saveResume(resumePos); return;
+    setMedia(x); renderList(); saveResume(resumePos); renderNext(); paintSeek(); return;
   }
   if (f){
     mode = "file"; clearInterval(kick); pendingId = null; silent.pause();
@@ -1223,7 +1263,7 @@ function load(i, opt = {}){
     keepAlive(); setMedia(x);
     if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; }
   }
-  renderList(); saveResume(resumePos);
+  renderList(); saveResume(resumePos); renderNext(); paintSeek();
 }
 // Guarda qué suena (origen, canción y segundo) para retomarlo al volver a abrir la app.
 function saveResume(pos){
@@ -1232,6 +1272,49 @@ function saveResume(pos){
 }
 const curPos = () => mode === "file" ? au.currentTime : (ready ? player.getCurrentTime() : 0);
 setInterval(() => { if (playing) saveResume(curPos()); }, 5000);
+/* ---------- Barra de progreso: muestra el tiempo y permite adelantar o volver ---------- */
+const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+const curDur = () => { try { return mode === "file" ? (isFinite(au.duration) ? au.duration : 0) : (ready ? player.getDuration() || 0 : 0); } catch { return 0; } };
+let seeking = false; // mientras se arrastra no se mueve sola
+function paintSeek(){
+  if (seeking || $("seekrow").hidden) return;
+  const d = armed ? 0 : curDur(), p = armed ? resumePos : (curPos() || 0), s = $("seek");
+  s.disabled = !d; s.max = Math.max(1, Math.floor(d)); s.value = Math.min(Math.floor(p), s.max);
+  $("t-cur").textContent = fmt(p); $("t-dur").textContent = d ? fmt(d) : "–:––";
+}
+setInterval(() => { if (!document.hidden) paintSeek(); }, 500);
+$("seek").oninput = e => { seeking = true; $("t-cur").textContent = fmt(+e.target.value); };
+$("seek").onchange = e => {
+  const s = +e.target.value; seeking = false;
+  if (mode === "file") au.currentTime = s; else if (ready) player.seekTo(s, true);
+  log("adelanto a " + fmt(s)); setTimeout(() => { updatePos(); paintSeek(); }, 300);
+};
+/* ---------- A continuación: lo que viene en la cola (en el orden real, también con Aleatorio) ---------- */
+let qOpen = false;
+const upcoming = n => { const out = []; for (let k = 1; k <= Math.min(n, orderIdx.length - 1); k++) out.push((at + k) % orderIdx.length); return out; }; // posiciones en orderIdx
+function renderNext(){
+  const box = $("upnext");
+  if (!queue.length || cur < 0){ box.hidden = true; return; }
+  box.hidden = false;
+  const ps = upcoming(30), nx = ps.length ? queue[orderIdx[ps[0]]] : null;
+  $("next-t").textContent = nx ? nx.t + " · " + nx.a.split(",")[0] : "Es la última de la lista";
+  $("nextbtn").setAttribute("aria-expanded", String(qOpen)); $("qlist").hidden = !qOpen || !ps.length;
+  if (!qOpen) return;
+  const rest = orderIdx.length - 1 - ps.length;
+  $("qlist").innerHTML = ps.map((p, n) => { const x = queue[orderIdx[p]];
+    return `<li><button type="button" class="qplay" data-p="${p}" title="Escuchar ahora"><span class="qn">${n + 1}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span></button>`
+      + (n ? `<button type="button" class="qup" data-up="${p}" title="Que suene justo después de la actual" aria-label="Poner a continuación">⤒</button>` : `<span class="qup" aria-hidden="true"></span>`) + `</li>`;
+  }).join("") + (rest > 0 ? `<li class="qmore">y ${rest} más</li>` : "");
+}
+$("nextbtn").onclick = () => { qOpen = !qOpen; renderNext(); };
+$("qlist").onclick = e => {
+  const pl = e.target.closest("[data-p]"), up = e.target.closest("[data-up]");
+  if (up){ // la sube para que suene después de la actual
+    const p = +up.dataset.up, v = orderIdx.splice(p, 1)[0]; if (p < at) at--;
+    orderIdx.splice(at + 1, 0, v); cued = null; precue(); renderNext(); return;
+  }
+  if (pl){ at = +pl.dataset.p; load(orderIdx[at]); }
+};
 document.addEventListener("visibilitychange", () => { if (document.hidden && cur >= 0 && !armed) saveResume(curPos()); });
 let filesDone = false, resumed = false;
 function tryResume(){
@@ -1309,7 +1392,7 @@ $("play").onclick = () => {
 };
 $("shuf").onclick = () => {
   shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle); store.set("np-shuffle", shuffle ? "1" : "0");
-  if (cur >= 0){ orderIdx = order(cur); at = 0; precue(); } // rearma lo que sigue a partir de la canción actual
+  if (cur >= 0){ orderIdx = order(cur); at = 0; cued = null; precue(); renderNext(); } // rearma lo que sigue a partir de la canción actual
 };
 $("addcur").onclick = () => { if (queue[cur]) openSheet(queue[cur]); };
 const MODES = ["video", "audio", "auto"], MODE_KEY = {video: "0", audio: "1", auto: "auto"}, MODE_NAME = {video: "Video", audio: "Solo audio", auto: "Automático"};

@@ -161,7 +161,13 @@ select{border:1px solid var(--line);background:var(--surface);color:var(--ink);b
 .tm-foot #logout{border:0;background:transparent;color:var(--ink-3);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:0}
 /* Canciones */
 .list{display:flex;flex-direction:column;gap:3px;margin-top:10px}
-.row{display:flex;align-items:stretch;border-radius:var(--r-md);transition:background .12s}
+.row{position:relative;display:flex;align-items:stretch;border-radius:var(--r-md);transition:background .12s}
+.row .more{font-size:18px;letter-spacing:1px}
+.row .pop{top:46px;right:14px;z-index:4;min-width:210px}
+.tag.dud[data-fix]{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.edit-song{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px}
+.edit-song input{flex:1 1 130px;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:7px 12px;font:inherit}
+.edit-song input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-glow)}
 .row:hover{background:var(--surface)}
 .row.on{background:var(--accent-bg)}
 .play{flex:1;min-width:0;display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:12px;align-items:center;padding:7px 8px;cursor:pointer;background:transparent;border:0;border-radius:var(--r-md);text-align:left;color:inherit;font:inherit}
@@ -518,6 +524,7 @@ const PAGE = 150;
 let CAT = {all: [], pls: []}, mis = [], loaded = false, catLoaded = false;
 let tab = "all", openId = null, shown = PAGE, current = [];
 let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confirmDel = null, menuOpen = null, sheetSong = null;
+let songMenu = null, songEdit = null; // clave de la canción con el menú ⋯ abierto / en edición (pestaña Todas)
 let sel = null, shDone = new Set(), rmArm = false, TOUCH = matchMedia("(hover:none)").matches; // sel: Map clave → canción mientras se seleccionan varias; shDone: playlists a las que ya se agregaron en la hoja
 let sortBy = ["t", "a"].includes(store.get("np-sort")) ? store.get("np-sort") : "";
 let yres = [], ytQuery = "", ytHidden = 0, ytDone = false, altFor = null; // ytDone: la búsqueda de ytQuery ya terminó; // ytHidden: resultados escondidos por estar ya en tu música; // altFor: canción a la que se le busca otra versión (para "Reemplazar")
@@ -681,7 +688,8 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
   const mine = inMis(x.k), mode = tab === "pls" ? "pl" : "all";
   let meta = "";
   if (x.nueva && mode === "all" && !yt) meta += '<span class="tag yt">de YouTube</span>';
-  if (x.e === "dudoso") meta += '<span class="tag dud">dudosa</span>';
+  if (x.e === "dudoso") meta += mode === "all" && !yt ? `<span class="tag dud" data-fix="${i}" title="El video puede no ser el correcto. Toca para buscar otro">dudosa · corregir</span>` : '<span class="tag dud">dudosa</span>';
+  if (!yt && songEdit === x.k) return `<form class="row edit-song" data-i="${i}"><input name="t" value="${esc(x.t)}" aria-label="Título" placeholder="Título" required><input name="a" value="${esc(x.a)}" aria-label="Artista" placeholder="Artista"><button class="btn sm primary" type="submit">Guardar</button><button class="btn sm" type="button" data-act="cancel" data-i="${i}">Cancelar</button></form>`;
   const file = fileFor(x);
   if (file) meta += '<span class="tag file">♪ audio</span>';
   else if (!x.y) meta += '<span class="tag no">sin video · buscar</span>';
@@ -695,7 +703,9 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
     ? mv + `<button type="button" class="add" data-rm="${i}" title="Quitar de esta playlist" aria-label="Quitar de esta playlist">×</button>`
     : (yt && altFor && altFor.y !== x.y ? `<button type="button" class="btn sm rep" data-rep="${i}" title="Usar este video para «${esc(altFor.t)}»">⇄ Reemplazar</button>` : "")
       + (yt && altFor && yaOf(altFor) !== x.y ? `<button type="button" class="btn sm rep" data-aud="${i}" title="Usar este video como versión solo audio de «${esc(altFor.t)}»">🎧 Como audio</button>` : "")
-      + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`;
+      + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`
+      + (yt || fileFor(x) && !x.y ? "" : `<button type="button" class="add more" data-menu="${i}" title="Más opciones" aria-label="Más opciones" aria-expanded="${songMenu === x.k}">⋯</button>`
+        + (songMenu === x.k ? `<div class="pop" role="menu"><button type="button" data-act="fix" data-i="${i}">Buscar otro video</button><button type="button" data-act="paste" data-i="${i}">Pegar enlace de YouTube</button>${x.e === "dudoso" ? `<button type="button" data-act="ok" data-i="${i}">Está bien así (quitar «dudosa»)</button>` : ""}<button type="button" data-act="edit" data-i="${i}">Editar título y artista</button></div>` : ""));
   return `<div class="row${x.y || file ? "" : " dis"}${on ? " on" : ""}${picked && sel.has(x.k) ? " sel" : ""}" role="listitem">${picked ? '<span class="ck" aria-hidden="true"></span>' : ""}<button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
 function renderList(){
@@ -740,6 +750,18 @@ $("list").addEventListener("click", e => {
     if (sel.has(x.k)) sel.delete(x.k); else sel.set(x.k, x);
     row.classList.toggle("sel", sel.has(x.k)); rmArm = false; selBar(); return;
   }
+  const fix = e.target.closest("[data-fix]"), menu = e.target.closest("[data-menu]"), act = e.target.closest("[data-act]");
+  if (menu){ const x = current[+menu.dataset.menu]; songMenu = songMenu === x.k ? null : x.k; return renderList(); }
+  if (act){
+    const x = current[+act.dataset.i], a = act.dataset.act; songMenu = null;
+    if (a === "cancel"){ songEdit = null; return renderList(); }
+    if (a === "edit"){ songEdit = x.k; renderList(); $("list").querySelector(".edit-song input")?.focus(); return; }
+    if (a === "ok") return markOk(x);
+    if (a === "fix"){ altFor = x; return ytSearch(x.a.split(",")[0] + " " + x.t); }
+    if (a === "paste"){ altFor = x; renderList(); renderYt(); const u = $("yf2-url"); if (u){ u.scrollIntoView({block: "center"}); u.focus(); } return; }
+  }
+  if (fix){ const x = current[+fix.dataset.fix]; altFor = x; return ytSearch(x.a.split(",")[0] + " " + x.t); }
+  if (songMenu){ songMenu = null; renderList(); } // clic en otra parte: se cierra el menú
   const rep = e.target.closest("[data-rep]"), aud = e.target.closest("[data-aud]");
   if (rep) return replaceVideo(current[+rep.dataset.rep]);
   if (aud) return setAudio(current[+aud.dataset.aud]);
@@ -747,6 +769,33 @@ $("list").addEventListener("click", e => {
   if (rm){ toggleSong(openPl(), current[+rm.dataset.rm]); return refresh(); }
   if (pl){ const x = current[+pl.dataset.i]; if (x.y || fileFor(x)) playFrom(+pl.dataset.i); else { altFor = x; ytSearch(x.a.split(",")[0] + " " + x.t); } }
 });
+$("list").addEventListener("submit", e => { // guardar título y artista editados
+  const f = e.target.closest(".edit-song"); if (!f) return;
+  e.preventDefault();
+  const x = current[+f.dataset.i], t = f.t.value.trim(), a = f.a.value.trim();
+  if (!t) return;
+  renameSong(x, t, a || x.a); songEdit = null; refresh();
+});
+// La canción deja de estar marcada como dudosa (el video sí es el correcto)
+function markOk(x){
+  const c = CAT.all.find(it => it.k === x.k); if (c) delete c.e; delete x.e;
+  const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all}));
+  flash("«" + x.t + "» ya no está marcada como dudosa."); refresh();
+}
+// Cambia título y artista en el catálogo, en las playlists donde esté y en la cola (la clave no cambia)
+function renameSong(x, t, a){
+  const c = CAT.all.find(it => it.k === x.k);
+  if (c){ c.t = t; c.a = a; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
+  x.t = t; x.a = a;
+  for (const p of mis){
+    const hit = p.songs.filter(s => s.k === x.k); if (!hit.length) continue;
+    hit.forEach(s => { s.t = t; s.a = a; }); const songs = p.songs.slice();
+    write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
+  }
+  queue.forEach(s => { if (s.k === x.k){ s.t = t; s.a = a; } });
+  if (queue[cur]?.k === x.k){ $("nt").textContent = t; $("na").textContent = a; }
+  flash("Guardado: «" + t + "» · " + a + ". Se cambió para los dos.");
+}
 // Resultados de YouTube (sección bajo la lista de Todas): misma fila, pero la cola es la búsqueda
 $("ytbox").addEventListener("click", e => {
   const add = e.target.closest("[data-add]"), pl = e.target.closest(".play"), rep = e.target.closest("[data-rep]"), aud = e.target.closest("[data-aud]");
@@ -1598,7 +1647,7 @@ function fillSrc(){
   $("srcpl").value = keep;
 }
 function setTab(t){
-  tab = t; confirmDel = null; menuOpen = null; shown = PAGE; sel = null;
+  tab = t; confirmDel = null; menuOpen = null; songMenu = null; songEdit = null; shown = PAGE; sel = null;
   for (const k of ["all","pls","files"]) $("tab-"+k).setAttribute("aria-pressed", k === t);
   $("sf").hidden = t === "pls" || t === "files"; confirmWipe = false; $("srcpl").hidden = t !== "all"; syncGo();
   flash("");

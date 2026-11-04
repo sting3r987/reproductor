@@ -559,7 +559,9 @@ const song = x => ({t: x.t, a: x.a, k: x.k, y: x.y || null});
 /* Versión "solo audio" (campo ya en el catálogo: canal Topic, audio oficial, letra). Con el modo audio activo se reproduce esa en vez del clip. */
 let YA = new Map(), audioOnly = store.get("np-audio") === "1";
 const yaOf = x => x.ya || YA.get(x.k) || null;
-const vid = x => (audioOnly && yaOf(x)) || x.y;
+const BAD = new Set(); // videos que YouTube no dejó insertar en esta sesión (error 100/101/150)
+const vid = x => { const a = audioOnly && yaOf(x); return a && !BAD.has(a) ? a : x.y; };
+let loadedId = null; // último id cargado en el reproductor principal
 const HP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-9 9v7a3 3 0 0 0 3 3h3v-8H5v-2a7 7 0 0 1 14 0v2h-4v8h3a3 3 0 0 0 3-3v-7a9 9 0 0 0-9-9z"/></svg>';
 const inMis = k => mis.filter(p => p.songs.some(s => s.k === k));
 function newPl(name){
@@ -635,15 +637,15 @@ function renderAudioImport(){
   if (!location.search.includes("importar-audio") || !catLoaded || $("imp").dataset.audio) return;
   $("imp").dataset.audio = "1"; $("imp").hidden = false;
   $("imp").innerHTML = `<div class="empty" style="text-align:left"><b>Cargar versiones solo audio</b>
-    <p style="margin:6px 0 12px">Elige el archivo <code>audio_import.json</code> (clave → id de YouTube). Solo cambia el catálogo.</p>
+    <p style="margin:6px 0 12px">Elige el archivo <code>audio_import.json</code> (clave → id de YouTube; null quita la versión). Solo cambia el catálogo.</p>
     <input type="file" id="aimp-file" accept="application/json,.json"><p class="err" id="aimp-err" hidden></p></div>`;
   $("aimp-file").onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
     try {
       const d = JSON.parse(await f.text()); let n = 0;
-      const all = CAT.all.map(it => { const ya = d[it.k]; if (ya && typeof ya === "string" && ya !== it.y){ n++; return {...it, ya}; } return {...it}; });
+      const all = CAT.all.map(it => { const ya = d[it.k]; if (ya === null){ if (!it.ya) return {...it}; n++; const {ya: _, ...r} = it; return r; } if (ya && typeof ya === "string" && ya !== it.y){ n++; return {...it, ya}; } return {...it}; });
       await updateDoc(doc(db, "catalog", "main"), {all});
-      flash("Listo: " + n + " canciones con versión solo audio."); $("imp").hidden = true;
+      flash("Listo: " + n + " canciones cambiadas."); $("imp").hidden = true;
     } catch (err) { $("aimp-err").hidden = false; $("aimp-err").textContent = "No se pudo cargar ese archivo (" + (err.code || err.message) + ")."; }
   };
 }
@@ -1119,7 +1121,7 @@ function precue(){
   cued = id; spare.cueVideoById(id);
 }
 function start(id, pos){
-  started = false; clearInterval(kick); clearInterval(fadeTimer); fading = false;
+  loadedId = id; started = false; clearInterval(kick); clearInterval(fadeTimer); fading = false;
   if (pos){ setVol(0); player.loadVideoById({videoId: id, startSeconds: pos}); }
   else if (spareReady && cued === id){ // la siguiente ya estaba preparada: se intercambian los reproductores
     const old = player; player = spare; spare = old; cued = null;
@@ -1207,7 +1209,13 @@ function initYT(){
       },
       onError(e){
         if (e.target !== player){ cued = null; return; } // la preparada falló: se cargará de la forma normal
-        if (mode === "yt") setTimeout(() => step(1), 800); // video bloqueado para insertar: pasa al siguiente
+        if (mode !== "yt") return;
+        const x = queue[cur], bad = loadedId; BAD.add(bad);
+        log("YouTube no reproduce " + bad + " (error " + e.data + ")");
+        const alt = x && [x.y, yaOf(x)].find(id => id && id !== bad && !BAD.has(id)); // la otra versión de la misma canción
+        if (x && bad === yaOf(x) && bad !== x.y && [100, 101, 150].includes(e.data)) dropAudio(x); // versión de audio bloqueada: fuera para los dos
+        if (alt){ flash("YouTube bloquea esa versión de «" + x.t + "»; suena la otra."); start(alt, 0); }
+        else setTimeout(() => step(1), 800); // no hay otra: pasa a la siguiente
       }
     }});
   player = mk("yt", true); spare = mk("yt2", false);
@@ -1374,6 +1382,12 @@ function setAudio(x){
   flash("Listo: «" + s.t + "» usará este video en modo Solo audio. Se guardó para los dos.");
   if (audioOnly && ready && mode === "yt" && queue[cur]?.k === s.k) start(x.y, curPos());
   refresh();
+}
+// Quita la versión solo audio de una canción (YouTube la bloqueó fuera de su sitio): vuelve a sonar el clip
+function dropAudio(x){
+  const c = CAT.all.find(it => it.k === x.k); if (!c || !c.ya) return;
+  delete c.ya; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all}));
+  YA.delete(x.k); if (x.ya) delete x.ya;
 }
 // Reemplazar: la canción `altFor` pasa a usar el video de `x` (en el catálogo y en todas las playlists donde esté)
 function replaceVideo(x){

@@ -1443,7 +1443,7 @@ async function ytSearch(q){
 }
 // Empieza a buscar otra versión de `x` (o solo abre el campo de pegar enlace) recordando dónde estaba el usuario
 function startAlt(x, search = true){
-  altBack = {tab, openId, q: $("q").value, y: window.scrollY, src: $("srcpl").value};
+  altBack = {tab, openId, q: $("q").value, y: window.scrollY, src: $("srcpl").value, shown, k: x.k}; // shown: cuántas filas había desplegadas (Mostrar más)
   altFor = x;
   if (search) return ytSearch(x.a.split(",")[0] + " " + x.t);
   renderList(); renderYt(); const u = $("yf2-url"); if (u){ u.scrollIntoView({block: "center"}); u.focus(); }
@@ -1454,8 +1454,14 @@ function altReturn(){
   if (!b){ refresh(); return; }
   if (b.tab !== tab){ openId = b.openId; setTab(b.tab); } else if (tab === "pls") openId = b.openId;
   $("q").value = b.q; if ($("srcpl").value !== b.src) $("srcpl").value = b.src;
-  syncGo(); refresh();
-  requestAnimationFrame(() => window.scrollTo(0, b.y));
+  syncGo(); shown = Math.max(shown, b.shown); refresh();
+  // la canción puede estar más allá de lo desplegado: se despliega hasta ella y se centra en pantalla
+  const i = current.findIndex(x => x.k === b.k);
+  if (i >= shown){ shown = i + PAGE; renderList(); }
+  requestAnimationFrame(() => {
+    const btn = i >= 0 ? $("list").querySelector(`.play[data-i="${i}"]`) : null;
+    if (btn) btn.closest(".row").scrollIntoView({block: "center"}); else window.scrollTo(0, b.y);
+  });
 }
 async function ytApiSearch(q){
   const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=20&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);

@@ -1200,6 +1200,7 @@ function initYT(){
         setPlaying(e.data === YT.PlayerState.PLAYING);
         if (playing) started = true;
         if (playing && !wasPlaying) fadeTo(100, first ? FADE : FADE_RESUME); // fade in
+        if (playing && pendingFix){ const x = queue[cur]; if (x && x.k === pendingFix.k && loadedId === pendingFix.id) adoptVideo(x, pendingFix.id); pendingFix = null; }
         if (playing || e.data === YT.PlayerState.PAUSED) updatePos(); // barra de progreso de la pantalla de bloqueo
         log("estado " + ({"-1": "sin empezar", 0: "terminó", 1: "sonando", 2: "pausa", 3: "cargando", 5: "lista"}[e.data] ?? e.data));
         if (playing && !wasPlaying) precue();
@@ -1215,7 +1216,8 @@ function initYT(){
         const alt = x && [x.y, yaOf(x)].find(id => id && id !== bad && !BAD.has(id)); // la otra versión de la misma canción
         if (x && bad === yaOf(x) && bad !== x.y && [100, 101, 150].includes(e.data)) dropAudio(x); // versión de audio bloqueada: fuera para los dos
         if (alt){ flash("YouTube bloquea esa versión de «" + x.t + "»; suena la otra."); start(alt, 0); }
-        else setTimeout(() => step(1), 800); // no hay otra: pasa a la siguiente
+        else if (x) autoAlt(x).then(ok => { if (!ok) setTimeout(() => step(1), 800); }); // busca otra versión; si no hay, pasa a la siguiente
+        else setTimeout(() => step(1), 800);
       }
     }});
   player = mk("yt", true); spare = mk("yt2", false);
@@ -1390,17 +1392,53 @@ function dropAudio(x){
   YA.delete(x.k); if (x.ya) delete x.ya;
 }
 // Reemplazar: la canción `altFor` pasa a usar el video de `x` (en el catálogo y en todas las playlists donde esté)
-function replaceVideo(x){
-  const s = altFor; if (!s || !x?.y) return;
-  const prev = s.y; s.y = x.y;
+// La canción `s` pasa a usar el video `id` como clip: catálogo, playlists donde esté y cola. Si su versión de audio estaba bloqueada, también se quita.
+function setClip(s, id){
+  s.y = id;
   const c = CAT.all.find(it => it.k === s.k);
-  if (c){ c.y = x.y; delete c.e; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
+  if (c){ c.y = id; delete c.e; if (c.ya && BAD.has(c.ya)) delete c.ya; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
+  if (BAD.has(yaOf(s))){ YA.delete(s.k); if (s.ya) delete s.ya; }
   for (const p of mis){
     const hit = p.songs.filter(it => it.k === s.k); if (!hit.length) continue;
-    hit.forEach(it => { it.y = x.y; }); const songs = p.songs.slice();
+    hit.forEach(it => { it.y = id; }); const songs = p.songs.slice();
     write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
   }
-  queue.forEach(it => { if (it.k === s.k) it.y = x.y; });
+  queue.forEach(it => { if (it.k === s.k) it.y = id; });
+}
+// Búsqueda automática: cuando YouTube bloquea las versiones que tiene una canción, se busca otra y se prueba (hasta 3 candidatos).
+// Si llega a sonar, adoptVideo la guarda para los dos.
+const AUTO = new Map(); // clave → {ids, tries}
+let pendingFix = null;  // {k, id}: candidato que está cargando
+async function autoAlt(x){
+  let a = AUTO.get(x.k);
+  if (!a){
+    if (!CFG.youtubeKey) return false;
+    a = {ids: [], tries: 0}; AUTO.set(x.k, a);
+    try {
+      const q = x.a.split(",")[0] + " " + x.t;
+      const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&videoSyndicated=true&maxResults=8&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error?.errors?.[0]?.reason || r.status);
+      a.ids = (d.items || []).map(it => it.id?.videoId).filter(Boolean);
+      log("otra versión de «" + x.t + "»: " + a.ids.length + " candidatos");
+    } catch (e) { log("no se pudo buscar otra versión: " + e.message); return false; }
+  }
+  if (queue[cur]?.k !== x.k || mode !== "yt") return true; // ya cambió la canción mientras buscaba
+  const id = a.ids.find(id => id !== x.y && id !== yaOf(x) && !BAD.has(id));
+  if (!id || a.tries >= 3) return false;
+  a.tries++; pendingFix = {k: x.k, id};
+  flash("YouTube bloquea «" + x.t + "»; probando otra versión…");
+  start(id, 0);
+  return true;
+}
+function adoptVideo(s, id){
+  setClip(s, id);
+  flash("YouTube bloqueaba «" + s.t + "»: ahora suena otra versión y quedó guardada para los dos. Si no es la buena, cámbiala con Otras versiones.");
+  refresh();
+}
+function replaceVideo(x){
+  const s = altFor; if (!s || !x?.y) return;
+  const prev = s.y; setClip(s, x.y);
   altFor = null;
   flash("Listo: «" + s.t + "» ahora usa este video" + (prev ? " en vez del anterior" : "") + ". Se guardó para los dos.");
   if (ready && mode === "yt" && queue[cur]?.k === s.k) start(x.y); // si justo sonaba esa canción, sigue ya con el video nuevo

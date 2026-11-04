@@ -204,12 +204,12 @@ body.audio .tag.aud{color:var(--accent);background:var(--accent-bg)}
 .grip{flex:none;width:36px;align-self:stretch;margin:4px 0;display:grid;place-items:center;border:0;border-radius:var(--r-sm);background:transparent;color:var(--ink-3);cursor:grab;touch-action:none;transition:color .12s,background .12s}
 .grip svg{width:12px;height:18px;fill:currentColor}
 .grip:hover,.grip:focus-visible{color:var(--accent);background:var(--accent-bg)}
-.row.dragging{position:relative;z-index:5;background:var(--surface);box-shadow:var(--shadow);outline:1px solid var(--line-2)}
-.row.dragging,.row.dragging .grip{cursor:grabbing}
+.row.dragging,.pb-row.dragging{position:relative;z-index:5;background:var(--surface);box-shadow:var(--shadow);outline:1px solid var(--line-2)}
+.dragging,.dragging .grip{cursor:grabbing}
 body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
-body.dragging .row:not(.dragging){transition:transform .16s ease}
-body.dragging .row:hover{background:transparent}
-.row{-webkit-touch-callout:none}
+body.dragging .row:not(.dragging),body.dragging .pb-row:not(.dragging){transition:transform .16s ease}
+body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
+.row,.pb-row{-webkit-touch-callout:none}
 @media (hover:none){.grip{width:44px;color:var(--ink-2)}}
 .hint{color:var(--ink-3);font-size:12px}
 .more{margin:16px auto 0;display:flex}
@@ -250,6 +250,8 @@ body.dragging .row:hover{background:transparent}
 .pop button{border:0;background:transparent;color:var(--ink);font:inherit;font-size:14px;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer}
 .pop button:hover{background:var(--surface-2)}
 .pop button.danger{color:var(--accent)}
+.pop button:disabled{opacity:.4;cursor:default}
+.pls-hint{margin:10px 2px 0}
 .pa .nm{font-family:var(--display);font-weight:700;font-size:15px;line-height:1.25;overflow-wrap:anywhere;padding:0 2px}
 .pa small{color:var(--ink-3);font-size:12.5px;margin-top:-5px;padding:0 2px;font-variant-numeric:tabular-nums}
 .pb-list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-top:16px;box-shadow:var(--shadow)}
@@ -261,6 +263,8 @@ body.dragging .row:hover{background:transparent}
 .rowmain .cover.none{font-size:20px}
 .rowmain .nm{display:block;font-family:var(--display);font-weight:700;font-size:15.5px;overflow-wrap:anywhere}
 .rowmain .sb{display:block;color:var(--ink-3);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb-row .grip{margin:0 0 0 2px}
+.pb-row .grip+.rowmain{padding-left:2px}
 .pb-row .acts{display:flex;gap:2px;align-items:center;opacity:.5;transition:opacity .15s}
 .pb-row:hover .acts,.pb-row .acts:focus-within{opacity:1}
 @media (hover:none){.pb-row .acts{opacity:1}}
@@ -554,6 +558,19 @@ function moveSongTo(p, from, to){ // mueve la canción `from` al puesto `to` den
   const songs = p.songs.slice();
   write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
 }
+// Mueve la playlist del puesto `from` al `to` (puestos de la lista visible). `orden` es un número: se cambia solo el de la
+// movida (punto medio entre sus vecinas) y, si ya no cabe ninguno entre medias, se renumeran todas.
+function movePlTo(from, to){
+  const vis = mis.filter(p => !p.oculta || showHidden);
+  if (from === to || from < 0 || to < 0 || from >= vis.length || to >= vis.length) return;
+  const p = vis[from], target = vis[to];
+  mis.splice(mis.indexOf(p), 1);
+  const ti = mis.indexOf(target); mis.splice(to > from ? ti + 1 : ti, 0, p);
+  const i = mis.indexOf(p), prev = mis[i - 1], next = mis[i + 1];
+  const o = prev && next ? (prev.orden + next.orden) / 2 : prev ? prev.orden + 1000 : next ? next.orden - 1000 : 0;
+  if ((prev && o - prev.orden < 1) || (next && next.orden - o < 1)) mis.forEach((q, j) => { if (q.orden !== j * 1000) patch(q, {orden: j * 1000}); });
+  else patch(p, {orden: o});
+}
 function removePl(p){ mis.splice(mis.indexOf(p), 1); write(p.id, () => deleteDoc(doc(plCol, p.id))); }
 
 /* ---------- Importar (primera vez) ---------- */
@@ -701,50 +718,55 @@ function dragEnd(){
   d.rows.forEach(r => { r.style.transform = ""; });
   d.row.classList.remove("dragging"); document.body.classList.remove("dragging");
   if (d.moved){ suppressClick = true; setTimeout(() => { suppressClick = false; }, 400); }
-  if (d.moved && d.to !== d.from){ moveSongTo(openPl(), d.from, d.to); refresh(); }
+  if (d.moved && d.to !== d.from){ d.onMove(d.from, d.to); refresh(); }
 }
-function dragStart(e, el, row){
-  const rows = [...$("list").children], from = rows.indexOf(row);
+function dragStart(e, el, row, onMove){
+  const rows = [...row.parentElement.children], from = rows.indexOf(row);
   const h = rows.length > 1 ? Math.abs(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top) : row.offsetHeight;
-  drag = {row, rows, from, to: from, y0: e.clientY, y: e.clientY, s0: scrollY, h, moved: false};
+  drag = {row, rows, from, to: from, y0: e.clientY, y: e.clientY, s0: scrollY, h, moved: false, onMove};
   try { el.setPointerCapture(e.pointerId); } catch {}
 }
-$("list").addEventListener("pointerdown", e => {
-  if (e.button) return;
-  const g = e.target.closest("[data-grip]"), row = e.target.closest(".row");
-  if (g){ dragStart(e, g, row); e.preventDefault(); return; }
-  // En pantalla táctil: mantener pulsada cualquier canción de la playlist también la levanta
-  if (e.pointerType === "touch" && row && row.querySelector("[data-grip]")){
-    clearTimeout(hold);
-    const y0 = e.clientY, el = e.target.closest(".play") || row;
-    hold = setTimeout(() => { hold = null; dragStart(e, el, row); dragLift(drag); dragUpdate(); }, 450);
-    row.dataset.holdY = y0;
-  }
-});
-$("list").addEventListener("pointermove", e => {
-  if (hold){ // si el dedo se mueve antes de tiempo, es un scroll normal
-    const row = e.target.closest(".row");
-    if (!row || Math.abs(e.clientY - +row.dataset.holdY) > 8){ clearTimeout(hold); hold = null; }
-  }
-  const d = drag; if (!d) return;
-  d.y = e.clientY;
-  if (!d.moved){
-    if (Math.abs(d.y - d.y0) < 4) return;
-    dragLift(d);
-  }
-  dragUpdate();
-});
-$("list").addEventListener("pointerup", dragEnd);
-$("list").addEventListener("pointercancel", dragEnd);
-$("list").addEventListener("touchmove", e => { if (drag && drag.moved) e.preventDefault(); }, {passive: false});
-$("list").addEventListener("contextmenu", e => { if (drag || hold) e.preventDefault(); });
-$("list").addEventListener("keydown", e => { // ↑ ↓ con el teclado sobre el asa
-  const g = e.target.closest("[data-grip]"); if (!g) return;
-  const d = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0; if (!d) return;
-  e.preventDefault();
-  const i = +g.dataset.grip; moveSongTo(openPl(), i, i + d); refresh();
-  $("list").querySelector(`[data-grip="${i + d}"]`)?.focus();
-});
+// Activa el arrastre dentro de `host`: filas `rowSel` (hermanas en un mismo contenedor) con asa [data-grip]; onMove(from, to) guarda el cambio
+function dragEnable(host, rowSel, onMove){
+  host.addEventListener("pointerdown", e => {
+    if (e.button) return;
+    const g = e.target.closest("[data-grip]"), row = e.target.closest(rowSel);
+    if (g){ dragStart(e, g, row, onMove); e.preventDefault(); return; }
+    // En pantalla táctil: mantener pulsada cualquier fila también la levanta
+    if (e.pointerType === "touch" && row && row.querySelector("[data-grip]")){
+      clearTimeout(hold);
+      const y0 = e.clientY, el = e.target.closest(".play, .rowmain") || row;
+      hold = setTimeout(() => { hold = null; dragStart(e, el, row, onMove); dragLift(drag); dragUpdate(); }, 450);
+      row.dataset.holdY = y0;
+    }
+  });
+  host.addEventListener("pointermove", e => {
+    if (hold){ // si el dedo se mueve antes de tiempo, es un scroll normal
+      const row = e.target.closest(rowSel);
+      if (!row || Math.abs(e.clientY - +row.dataset.holdY) > 8){ clearTimeout(hold); hold = null; }
+    }
+    const d = drag; if (!d) return;
+    d.y = e.clientY;
+    if (!d.moved){
+      if (Math.abs(d.y - d.y0) < 4) return;
+      dragLift(d);
+    }
+    dragUpdate();
+  });
+  host.addEventListener("pointerup", dragEnd);
+  host.addEventListener("pointercancel", dragEnd);
+  host.addEventListener("touchmove", e => { if (drag && drag.moved) e.preventDefault(); }, {passive: false});
+  host.addEventListener("contextmenu", e => { if (drag || hold) e.preventDefault(); });
+  host.addEventListener("keydown", e => { // ↑ ↓ con el teclado sobre el asa
+    const g = e.target.closest("[data-grip]"); if (!g) return;
+    const d = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0; if (!d) return;
+    e.preventDefault();
+    const i = +g.dataset.grip; onMove(i, i + d); refresh();
+    host.querySelector(`[data-grip="${i + d}"]`)?.focus();
+  });
+}
+dragEnable($("list"), ".row", (from, to) => moveSongTo(openPl(), from, to)); // canciones dentro de una playlist
+dragEnable($("pls"), ".pb-row", movePlTo); // playlists en la vista Lista
 
 /* ---------- Archivos de audio en este dispositivo ---------- */
 // YouTube pausa sus videos al bloquear la pantalla. Un archivo de audio propio suena como en Spotify: en segundo plano,
@@ -1166,13 +1188,14 @@ function renderPls(){
   let items;
   if (!loaded) items = `<div class="empty"><b>Cargando playlists…</b>Aparecerán aquí en un momento.</div>`;
   else if (!mis.length) items = `<div class="empty"><b>Todavía no hay playlists</b>Escribe un nombre arriba y toca Crear, o toca ＋ en cualquier canción.</div>`;
-  else if (plView === "a") items = `<div class="pa-grid">${vis.map(p => `<div class="pa${p.oculta ? " off" : ""}${menuOpen === p.id ? " menu-on" : ""}">
+  else if (plView === "a") items = `<div class="pa-grid">${vis.map((p, i) => `<div class="pa${p.oculta ? " off" : ""}${menuOpen === p.id ? " menu-on" : ""}">
       <div class="art"><button class="cv" type="button" data-act="open" data-id="${p.id}" aria-label="Ver canciones de ${esc(p.name)}">${coverHTML(p)}</button>
         ${playable(p) ? `<button class="ic play-b pb" type="button" data-act="playp" data-id="${p.id}" aria-label="Reproducir">▶</button>` : ""}
         <button class="ic menu" type="button" data-act="menu" data-id="${p.id}" aria-label="Más opciones" aria-expanded="${menuOpen === p.id}">⋯</button>
-        ${menuOpen === p.id ? `<div class="pop"><button type="button" data-act="hide" data-id="${p.id}">${p.oculta ? "Mostrar" : "Ocultar"}</button><button type="button" class="danger" data-act="delc" data-id="${p.id}">${ask(p) ? "¿Seguro? Borrar" : "Borrar"}</button></div>` : ""}</div>
+        ${menuOpen === p.id ? `<div class="pop"><button type="button" data-act="up" data-id="${p.id}"${i ? "" : " disabled"}>↑ Subir</button><button type="button" data-act="down" data-id="${p.id}"${i < vis.length - 1 ? "" : " disabled"}>↓ Bajar</button><button type="button" data-act="hide" data-id="${p.id}">${p.oculta ? "Mostrar" : "Ocultar"}</button><button type="button" class="danger" data-act="delc" data-id="${p.id}">${ask(p) ? "¿Seguro? Borrar" : "Borrar"}</button></div>` : ""}</div>
       <span class="nm">${esc(p.name)}</span><small>${count(p)}</small></div>`).join("")}</div>`;
-  else items = `<div class="pb-list">${vis.map(p => `<div class="pb-row${p.oculta ? " off" : ""}">
+  else items = `<div class="pb-list">${vis.map((p, i) => `<div class="pb-row${p.oculta ? " off" : ""}">
+      ${vis.length > 1 ? `<button type="button" class="grip" data-grip="${i}" title="Arrastra para cambiar el orden (o usa ↑ ↓)" aria-label="Arrastra para cambiar el orden"><svg viewBox="0 0 12 18" aria-hidden="true"><circle cx="3" cy="3" r="1.7"/><circle cx="9" cy="3" r="1.7"/><circle cx="3" cy="9" r="1.7"/><circle cx="9" cy="9" r="1.7"/><circle cx="3" cy="15" r="1.7"/><circle cx="9" cy="15" r="1.7"/></svg></button>` : ""}
       <button class="rowmain" type="button" data-act="open" data-id="${p.id}">${coverHTML(p)}<span><span class="nm">${esc(p.name)}</span><span class="sb">${esc(count(p) + (p.songs.length ? " · " + artistsOf(p) : ""))}</span></span></button>
       <div class="acts">${playable(p) ? `<button class="ic play-b" type="button" data-act="playp" data-id="${p.id}" aria-label="Reproducir" title="Reproducir">▶</button>` : ""}
         <button class="ic" type="button" data-act="hide" data-id="${p.id}" aria-label="${p.oculta ? "Mostrar" : "Ocultar"}" title="${p.oculta ? "Mostrar" : "Ocultar"}">${p.oculta ? EYE : EYE_OFF}</button>
@@ -1182,6 +1205,7 @@ function renderPls(){
       <div class="view"><div class="seg" role="group" aria-label="Vista"><button type="button" data-act="view" data-v="a" aria-pressed="${plView === "a"}">Portadas</button><button type="button" data-act="view" data-v="b" aria-pressed="${plView === "b"}">Lista</button></div></div></div>
       <div class="ideas" id="np-ideas"></div></div>
     ${items}
+    ${loaded && vis.length > 1 ? `<p class="hint pls-hint">${plView === "a" ? "Para cambiar el orden toca ⋯ en una playlist y elige Subir o Bajar (o cámbialo arrastrando en la vista Lista)." : "Arrastra ⠿ (o mantén pulsada una playlist) para cambiar el orden."}</p>` : ""}
     ${nHidden ? `<p class="msg"><button class="btn sm" type="button" data-act="showhidden">${showHidden ? "Esconder las ocultas" : "Ver ocultas (" + nHidden + ")"}</button></p>` : ""}`;
   fillIdeas($("np-ideas"), $("np-name"), n => { $("np-name").value = n; });
 }
@@ -1192,9 +1216,11 @@ function fillIdeas(el, input, pick){
   el.replaceChildren(...IDEAS.filter(n => !used.has(norm(n))).map(n => { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = n; b.onpointerdown = e => { e.preventDefault(); pick(n); }; return b; }));
 }
 $("pls").addEventListener("click", e => {
+  if (suppressClick || e.target.closest("[data-grip]")) return;
   const b = e.target.closest("[data-act]");
   if (!b){ if (menuOpen){ menuOpen = null; confirmDel = null; refresh(); } return; }
   const act = b.dataset.act, p = b.dataset.id ? mis.find(x => x.id === b.dataset.id) : openPl();
+  if (act === "up" || act === "down"){ const i = mis.filter(q => !q.oculta || showHidden).indexOf(p); movePlTo(i, i + (act === "up" ? -1 : 1)); return refresh(); } // el menú sigue abierto para mover más
   if (act === "menu"){ menuOpen = menuOpen === p.id ? null : p.id; confirmDel = null; return refresh(); }
   if (act === "view"){ plView = b.dataset.v; store.set("np-view", plView); menuOpen = null; return refresh(); }
   if (act === "showhidden"){ showHidden = !showHidden; menuOpen = null; return refresh(); }

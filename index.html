@@ -652,14 +652,24 @@ function renderAudioImport(){
   if (!location.search.includes("importar-audio") || !catLoaded || $("imp").dataset.audio) return;
   $("imp").dataset.audio = "1"; $("imp").hidden = false;
   $("imp").innerHTML = `<div class="empty" style="text-align:left"><b>Cargar versiones solo audio</b>
-    <p style="margin:6px 0 12px">Elige el archivo <code>audio_import.json</code> (clave → id de YouTube; null quita la versión). Solo cambia el catálogo.</p>
+    <p style="margin:6px 0 12px">Elige el archivo <code>audio_import.json</code> (clave → id de YouTube; null quita la versión; {"y": id} cambia el clip). Cambia el catálogo y, si cambian clips, las playlists.</p>
     <input type="file" id="aimp-file" accept="application/json,.json"><p class="err" id="aimp-err" hidden></p></div>`;
   $("aimp-file").onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
     try {
-      const d = JSON.parse(await f.text()); let n = 0;
-      const all = CAT.all.map(it => { const ya = d[it.k]; if (ya === null){ if (!it.ya) return {...it}; n++; const {ya: _, ...r} = it; return r; } if (ya && typeof ya === "string" && ya !== it.y){ n++; return {...it, ya}; } return {...it}; });
+      const d = JSON.parse(await f.text()); let n = 0; const clips = {};
+      const all = CAT.all.map(it => {
+        const ya = d[it.k];
+        if (ya === null){ if (!it.ya) return {...it}; n++; const {ya: _, ...r} = it; return r; } // quitar versión de audio
+        if (ya && typeof ya === "object" && ya.y && ya.y !== it.y){ n++; clips[it.k] = ya.y; const r = {...it, y: ya.y}; delete r.e; return r; } // cambiar el clip
+        if (ya && typeof ya === "string" && ya !== it.y){ n++; return {...it, ya}; } // poner versión de audio
+        return {...it};
+      });
       await updateDoc(doc(db, "catalog", "main"), {all});
+      for (const p of mis){ // los clips cambiados también en las playlists donde estén
+        const hit = p.songs.filter(s => clips[s.k]); if (!hit.length) continue;
+        hit.forEach(s => { s.y = clips[s.k]; }); await updateDoc(doc(plCol, p.id), {songs: p.songs.slice()});
+      }
       flash("Listo: " + n + " canciones cambiadas."); $("imp").hidden = true;
     } catch (err) { $("aimp-err").hidden = false; $("aimp-err").textContent = "No se pudo cargar ese archivo (" + (err.code || err.message) + ")."; }
   };

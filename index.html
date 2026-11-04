@@ -85,7 +85,7 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .btn.go.side[aria-pressed="true"]::after{content:"";position:absolute;left:50%;bottom:5px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--accent)}
 /* Fila secundaria: iconos con una palabra debajo (en el celular no hay tooltip) y volumen desplegable */
 /* Fila secundaria: tres píldoras iguales (icono + texto), mismo estilo que ⏮ ⏭; el volumen se despliega a todo el ancho debajo */
-.sub{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;flex:1 1 300px;min-width:0}
+.sub{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;flex:none;width:480px;max-width:100%} /* mismo ancho que el transporte */
 .btn.go.side.cap{width:auto;min-width:0;height:44px;border-radius:99px;flex-direction:row;gap:7px;padding:0 10px;background:var(--surface);border-color:var(--line);box-shadow:var(--shadow-sm);color:var(--ink);justify-self:stretch}
 .btn.go.side.cap:hover{background:var(--surface-2)}
 .btn.go.side.cap[aria-expanded="true"]{background:var(--accent-bg);color:var(--accent)}

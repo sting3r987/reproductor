@@ -123,6 +123,8 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .qup:hover{color:var(--accent);background:var(--accent-bg)}
 .qmore{padding:6px 10px 8px 38px;font-size:12px;color:var(--ink-3)}
 #backup{align-self:flex-start;margin-bottom:6px}
+.tm-chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.35;color:var(--ink-2);margin:2px 0 10px;cursor:pointer}
+.tm-chk input{flex:none;margin:2px 0 0;accent-color:var(--accent);width:16px;height:16px}
 #aud[data-mode="auto"] svg{margin-top:-7px}
 #aud[data-mode="auto"]::after{content:"auto";width:auto;height:auto;margin:0;bottom:4px;transform:translateX(-50%);border-radius:0;background:none;font-size:8.5px;font-weight:800;letter-spacing:.04em;line-height:1;text-transform:uppercase}
 /* Botón Grande en la esquina del video (solo celular) */
@@ -512,6 +514,7 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
         </div>
         <p class="tm-h">Fundido entre canciones <span class="tm-v" id="fade-v"></span></p>
         <input type="range" class="tm-range" id="fade" min="0" max="8" step="0.5" aria-label="Segundos de fundido">
+        <label class="tm-chk"><input type="checkbox" id="btauto"><span>Carro y Bluetooth: pausar al desconectar y seguir al conectar</span></label>
         <p class="tm-h">Copia de seguridad</p>
         <button class="btn sm" type="button" id="backup" title="Descarga el catálogo y todas las playlists en un archivo .json">Descargar copia</button>
         <div class="tm-foot"><button type="button" id="logout">Salir</button><button class="btn sm" type="button" id="tm-done">Listo</button></div>
@@ -1116,7 +1119,9 @@ const silent = (() => {
   v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); str(36, "data"); v.setUint32(40, n, true); b.fill(128, 44);
   const a = new Audio(URL.createObjectURL(new Blob([b], {type: "audio/wav"}))); a.loop = true; a.volume = 0.01; return a;
 })();
+let stoppedAt = 0;
 function setPlaying(on){
+  if (playing && !on) stoppedAt = Date.now();
   playing = on; document.body.classList.toggle("playing", on); $("play").title = $("play").ariaLabel = on ? "Pausa" : "Reproducir";
   if ("mediaSession" in navigator) navigator.mediaSession.playbackState = on ? "playing" : "paused";
 }
@@ -1198,7 +1203,7 @@ function setMedia(x){
   try {
     navigator.mediaSession.metadata = new MediaMetadata({title: x.t, artist: x.a, album: queueLabel, artwork: x.y ? [{src: "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg"}] : []});
     const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => { log("lock: play"); if (armed) $("play").click(); else if (mode === "file") au.play(); else { keepAlive(); player?.playVideo(); } });
+    ms.setActionHandler("play", () => { log("lock: play"); sysPause = 0; if (armed) $("play").click(); else if (mode === "file") au.play(); else { keepAlive(); player?.playVideo(); } });
     ms.setActionHandler("pause", () => { log("lock: pausa"); if (mode === "file") au.pause(); else { started = true; clearInterval(kick); player?.pauseVideo(); } });
     ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
     ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
@@ -1255,7 +1260,7 @@ function load(i, opt = {}){
     setMedia(x); renderList(); saveResume(resumePos); renderNext(); paintSeek(); return;
   }
   if (f){
-    mode = "file"; clearInterval(kick); pendingId = null; silent.pause();
+    mode = "file"; clearInterval(kick); pendingId = null; selfSilentAt = Date.now(); silent.pause();
     if (ready) player.stopVideo();
     setMedia(x); playFile(f, x, resumePos);
   } else {
@@ -1380,10 +1385,38 @@ document.addEventListener("visibilitychange", () => {
   }
   if (document.hidden && playing) keepAlive(); // asegura el audio de fondo (y con él la notificación con controles) al salir de la app
 });
-silent.addEventListener("pause", () => { if (playing) log("audio de fondo pausado por el sistema"); });
+/* ---------- Carro y Bluetooth (como Spotify): al apagar el carro o desconectar los audífonos, Android pausa el audio de la
+   página («audio becoming noisy»); entonces se pausa también la canción. Al volver a conectar, el carro manda «play» a la
+   notificación (Media Session) o el sistema avisa del cambio de dispositivo: se sigue donde iba. Solo si la pausa la causó el
+   sistema y fue hace menos de 3 horas; si la pausaste tú, no arranca sola. Necesita la app abierta en una pestaña (Android). */
+let BT = store.get("np-bt") !== "0", sysPause = 0, selfSilentAt = 0; // sysPause: cuándo pausó el sistema (0 = no hay)
+$("btauto").checked = BT;
+$("btauto").onchange = e => { BT = e.target.checked; store.set("np-bt", BT ? "1" : "0"); sysPause = 0; };
+function btPause(why){
+  if (!BT || sysPause) return;
+  sysPause = Date.now(); log("audio desconectado (" + why + "): pausa");
+  if (mode === "file") au.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} }
+  saveResume(curPos());
+}
+function btResume(why, guard){
+  if (!BT || !sysPause || armed) return;
+  const ago = Date.now() - sysPause;
+  if (ago > 3 * 3600e3){ sysPause = 0; return; } // demasiado tiempo: ya no se retoma sola
+  if (guard && ago < 4000) return; // el aviso de cambio de dispositivo de la propia desconexión llega casi a la vez
+  sysPause = 0; log("audio conectado (" + why + "): sigue");
+  if (mode === "file") au.play().catch(() => {}); else { keepAlive(); try { player?.playVideo(); } catch {} }
+}
+silent.addEventListener("pause", () => {
+  if (Date.now() - selfSilentAt < 1500) return; // la pausamos nosotros (pasó a un archivo de audio)
+  if (playing || Date.now() - stoppedAt < 2000){ log("audio de fondo pausado por el sistema"); btPause("sistema"); }
+});
+silent.addEventListener("play", () => { if (sysPause) btResume("sistema"); }); // el sistema devolvió el audio (fin de llamada, aviso corto…)
+navigator.mediaDevices?.addEventListener?.("devicechange", () => { log("cambió el dispositivo de audio"); if (!playing) btResume("bluetooth", true); });
+if (location.search.includes("debug")) window.__np = {silent, btState: () => ({BT, sysPause, playing, mode})};
 $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);
 $("play").onclick = () => {
+  sysPause = 0;
   if (cur < 0) return step(1);
   if (armed) return load(cur, {pos: resumePos}); // retoma la canción que quedó cargada al abrir la app
   if (mode === "file"){ if (au.paused) au.play(); else au.pause(); return; }

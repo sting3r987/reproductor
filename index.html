@@ -197,6 +197,16 @@ body.audio .tag.aud{color:var(--accent);background:var(--accent-bg)}
 .add:hover{color:var(--accent);background:var(--accent-bg)}
 .add.in{color:var(--have)}
 .rep{flex:none;align-self:center;margin-right:2px;white-space:nowrap}
+/* Selección múltiple: círculo a la izquierda de cada fila y barra fija al pie */
+.row .ck{flex:none;align-self:center;width:22px;height:22px;margin-left:10px;border-radius:50%;border:2px solid var(--line-2);display:grid;place-items:center;transition:background .12s,border-color .12s}
+.row.sel{background:var(--accent-bg)}
+.row.sel .ck{background:var(--accent);border-color:var(--accent)}
+.row.sel .ck::after{content:"";width:9px;height:5px;border:solid var(--accent-ink);border-width:0 0 2px 2px;transform:translateY(-1px) rotate(-45deg)}
+#selbtn svg{width:15px;height:15px;fill:currentColor}
+#selbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}
+.selbar{position:fixed;left:0;right:0;bottom:0;z-index:19;display:flex;align-items:center;gap:8px;padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -8px 30px rgba(0,0,0,.18);animation:up .2s ease-out}
+.selbar span{font-weight:600;font-size:14px;margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.selecting{padding-bottom:76px}
 .altchip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding:10px 14px;border-radius:var(--r-md);background:var(--accent-bg);color:var(--ink);font-size:13px}
 .altchip b{color:var(--accent)}
 #dbg{margin:10px 0 0;padding:10px 12px;max-height:220px;overflow:auto;border-radius:var(--r-md);background:var(--surface-2);color:var(--ink-2);font:11.5px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -310,6 +320,13 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 .opts label:hover{background:var(--surface-2)}
 .opts input{width:18px;height:18px;accent-color:var(--accent)}
 .opts small{color:var(--ink-3);margin-left:auto;font-variant-numeric:tabular-nums}
+/* Hoja con varias canciones: cada playlist es un botón que las agrega todas */
+.opts .pl-add{display:flex;gap:10px;align-items:center;width:100%;padding:9px 8px;border:0;background:transparent;border-radius:8px;cursor:pointer;font:inherit;color:var(--ink);text-align:left;transition:background .12s}
+.opts .pl-add:hover:not(:disabled){background:var(--surface-2)}
+.opts .pl-add:disabled{cursor:default}
+.opts .pl-add:disabled>span{color:var(--ink-3)}
+.opts .pl-add em{font-style:normal;color:var(--have);font-size:12.5px;white-space:nowrap}
+.opts .pl-add em:empty{display:none}
 /* Celular: mini reproductor compacto para dejar espacio a la lista */
 @media (max-width:640px){
   .np{padding:10px}
@@ -339,6 +356,8 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .seg button{padding:7px 4px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .seg small{display:none}
   .go-yt{padding:6px 10px}
+  #selbtn{order:3;flex:none;padding:7px 9px}
+  #selbtn .long{display:none}
   .who{order:0;margin-left:0}
   .avatar{width:34px;height:34px}
   /* El menú Tema se abre como panel al pie de la pantalla (anclado al botón se salía por un lado) */
@@ -398,6 +417,7 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
     <form class="search" id="sf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Buscar en tu música o en YouTube" autocomplete="off"><button class="btn sm go-yt" id="go" type="submit" hidden title="Buscar en YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.7 2.7 0 0 0-1.9-1.9C18 4.8 12 4.8 12 4.8s-6 0-7.7.5A2.7 2.7 0 0 0 2.4 7.2 28 28 0 0 0 2 12a28 28 0 0 0 .4 4.8 2.7 2.7 0 0 0 1.9 1.9c1.7.5 7.7.5 7.7.5s6 0 7.7-.5a2.7 2.7 0 0 0 1.9-1.9A28 28 0 0 0 22 12a28 28 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg>YouTube</button></form>
     <select id="srcpl" aria-label="Playlist de origen"></select>
     <select id="sort" aria-label="Orden"><option value="">Orden original</option><option value="t">Nombre A–Z</option><option value="a">Artista A–Z</option></select>
+    <button class="btn sm" id="selbtn" type="button" hidden aria-pressed="false" title="Seleccionar varias canciones para agregarlas a una playlist"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2v2H3zm4 0h14v2H7zM3 11h2v2H3zm4 0h14v2H7zM3 17h2v2H3zm4 0h14v2H7z"/></svg><span class="long">Seleccionar</span></button>
     <span class="who">
       <button type="button" id="theme" class="avatar" aria-haspopup="true" aria-expanded="false" title="Cuenta y apariencia" aria-label="Cuenta y apariencia"><img id="who-img" alt="" referrerpolicy="no-referrer" hidden><span id="who-ini">♪</span></button>
       <div class="tm" id="tmenu" hidden role="dialog" aria-label="Cuenta y apariencia">
@@ -427,10 +447,11 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 <div class="list" id="list" role="list"></div>
 <button class="btn more" id="more" type="button" hidden>Mostrar más</button>
 <section id="ytbox" hidden></section>
-<p class="note" id="note">Toca una canción para escucharla; sigue con las demás de la lista. Con ＋ la guardas en una playlist. Si no está en tu música, con Enter o el botón YouTube la buscas allí y los resultados salen al final de la lista. Las marcadas "dudosa" pueden ser otra versión; las "sin video" abren esa búsqueda. Con "Otras versiones" buscas otro video para la que suena y lo cambias con ⇄ Reemplazar. Dentro de una playlist, arrastra ⠿ para cambiar el orden.</p>
+<p class="note" id="note">Toca una canción para escucharla; sigue con las demás de la lista. Con ＋ la guardas en una playlist; con Seleccionar marcas varias y las agregas de una vez. Si no está en tu música, con Enter o el botón YouTube la buscas allí y los resultados salen al final de la lista. Las marcadas "dudosa" pueden ser otra versión; las "sin video" abren esa búsqueda. Con "Otras versiones" buscas otro video para la que suena y lo cambias con ⇄ Reemplazar. Dentro de una playlist, arrastra ⠿ para cambiar el orden.</p>
 </div>
 </div>
 
+<div class="selbar" id="selbar" hidden><span id="sel-n"></span><button class="btn sm" id="sel-all" type="button">Todas</button><button class="btn sm primary" id="sel-add" type="button">Agregar a playlist</button><button class="btn sm" id="sel-off" type="button" aria-label="Cancelar">✕</button></div>
 <div class="sheet-bg" id="sheet" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t">
     <h3 id="sh-t">Agregar a playlist</h3>
@@ -489,6 +510,7 @@ const PAGE = 150;
 let CAT = {all: [], pls: []}, mis = [], loaded = false, catLoaded = false;
 let tab = "all", openId = null, shown = PAGE, current = [];
 let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confirmDel = null, menuOpen = null, sheetSong = null;
+let sel = null, shDone = new Set(); // sel: Map clave → canción mientras se seleccionan varias; shDone: playlists a las que ya se agregaron en la hoja
 let sortBy = ["t", "a"].includes(store.get("np-sort")) ? store.get("np-sort") : "";
 let yres = [], ytQuery = "", altFor = null; // altFor: canción a la que se le busca otra versión (para "Reemplazar")
 let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = store.get("np-shuffle") === "1";
@@ -550,6 +572,11 @@ function toggleSong(p, x){
   if (i >= 0) p.songs.splice(i, 1); else p.songs.push(song(x));
   const songs = p.songs.slice();
   write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
+}
+function addMany(p, list){ // agrega a la playlist las canciones de `list` que aún no estén; devuelve cuántas entraron
+  const have = new Set(p.songs.map(s => s.k)), add = list.filter(x => !have.has(x.k));
+  if (add.length){ p.songs.push(...add.map(song)); const songs = p.songs.slice(); write(p.id, () => updateDoc(doc(plCol, p.id), {songs})); }
+  return add.length;
 }
 function patch(p, f){ Object.assign(p, f); write(p.id, () => updateDoc(doc(plCol, p.id), f)); }
 function moveSongTo(p, from, to){ // mueve la canción `from` al puesto `to` dentro de la playlist
@@ -645,12 +672,13 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
   const on = cur >= 0 && queue[cur] && queue[cur].k === x.k && queueLabel === (yt ? ytLabel() : listLabel());
   const mv = mode === "pl" && !sortBy && current.length > 1
     ? `<button type="button" class="grip" data-grip="${i}" title="Arrastra para cambiar el orden (o usa ↑ ↓)" aria-label="Arrastra para cambiar el orden"><svg viewBox="0 0 12 18" aria-hidden="true"><circle cx="3" cy="3" r="1.7"/><circle cx="9" cy="3" r="1.7"/><circle cx="3" cy="9" r="1.7"/><circle cx="9" cy="9" r="1.7"/><circle cx="3" cy="15" r="1.7"/><circle cx="9" cy="15" r="1.7"/></svg></button>` : "";
-  const btn = mode === "pl"
+  const picked = sel && !yt;
+  const btn = picked ? "" : mode === "pl"
     ? mv + `<button type="button" class="add" data-rm="${i}" title="Quitar de esta playlist" aria-label="Quitar de esta playlist">×</button>`
     : (yt && altFor && altFor.y !== x.y ? `<button type="button" class="btn sm rep" data-rep="${i}" title="Usar este video para «${esc(altFor.t)}»">⇄ Reemplazar</button>` : "")
       + (yt && altFor && yaOf(altFor) !== x.y ? `<button type="button" class="btn sm rep" data-aud="${i}" title="Usar este video como versión solo audio de «${esc(altFor.t)}»">🎧 Como audio</button>` : "")
       + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`;
-  return `<div class="row${x.y || file ? "" : " dis"}${on ? " on" : ""}" role="listitem"><button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
+  return `<div class="row${x.y || file ? "" : " dis"}${on ? " on" : ""}${picked && sel.has(x.k) ? " sel" : ""}" role="listitem">${picked ? '<span class="ck" aria-hidden="true"></span>' : ""}<button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
 function renderList(){
   current = songsShown();
@@ -661,10 +689,31 @@ function renderList(){
   $("more").textContent = "Mostrar más (" + (current.length - shown) + " restantes)";
   $("note").hidden = tab !== "all";
   $("sort").hidden = !(tab === "all" || (tab === "pls" && openPl()));
+  $("selbtn").hidden = $("sort").hidden; selBar();
 }
+// Barra de selección (fija al pie): cuántas van, Todas/Ninguna, Agregar a playlist, cancelar
+function selBar(){
+  document.body.classList.toggle("selecting", !!sel); $("selbtn").setAttribute("aria-pressed", !!sel);
+  $("selbar").hidden = !sel; if (!sel) return;
+  const n = sel.size, all = current.length && current.every(x => sel.has(x.k));
+  $("sel-n").textContent = n ? n + (n === 1 ? " seleccionada" : " seleccionadas") : "Toca las canciones que quieras agregar";
+  $("sel-all").textContent = all ? "Ninguna" : "Todas" + (current.length ? " (" + current.length + ")" : "");
+  $("sel-add").disabled = !n;
+}
+function setSel(on){ sel = on ? new Map() : null; shown = Math.max(shown, PAGE); refresh(); }
+$("selbtn").onclick = () => setSel(!sel);
+$("sel-off").onclick = () => setSel(false);
+$("sel-all").onclick = () => { if (!sel) return; if (current.every(x => sel.has(x.k))) current.forEach(x => sel.delete(x.k)); else current.forEach(x => sel.set(x.k, x)); renderList(); };
+$("sel-add").onclick = () => { if (sel?.size) openSheet([...sel.values()]); };
 $("list").addEventListener("click", e => {
   const add = e.target.closest("[data-add]"), rm = e.target.closest("[data-rm]"), pl = e.target.closest(".play");
   if (suppressClick || e.target.closest("[data-grip]")) return;
+  if (sel){ // seleccionando: tocar una fila la marca o desmarca en vez de reproducirla
+    const row = e.target.closest(".row"); if (!row) return;
+    const x = current[+row.querySelector(".play").dataset.i];
+    if (sel.has(x.k)) sel.delete(x.k); else sel.set(x.k, x);
+    row.classList.toggle("sel", sel.has(x.k)); selBar(); return;
+  }
   const rep = e.target.closest("[data-rep]"), aud = e.target.closest("[data-aud]");
   if (rep) return replaceVideo(current[+rep.dataset.rep]);
   if (aud) return setAudio(current[+aud.dataset.aud]);
@@ -1239,8 +1288,8 @@ $("pls").addEventListener("click", e => {
     flash(p.oculta ? "Ocultaste “" + p.name + "”. Toca Ver ocultas para volver a mostrarla." : "“" + p.name + "” vuelve a estar visible.");
     if (act === "hidecur" && p.oculta && !showHidden) openId = null;
   }
-  else if (act === "open"){ openId = p.id; shown = PAGE; window.scrollTo(0, 0); }
-  else if (act === "back") openId = null;
+  else if (act === "open"){ openId = p.id; shown = PAGE; sel = null; window.scrollTo(0, 0); }
+  else if (act === "back"){ openId = null; sel = null; }
   else if (act === "rename"){ const f = $("ren"); f.hidden = !f.hidden; $("ren-name").value = p.name; $("ren-name").focus(); return; }
   refresh();
 });
@@ -1343,14 +1392,27 @@ $("ytbox").addEventListener("submit", e => {
 });
 
 /* ---------- Hoja "Agregar a playlist" ---------- */
-function openSheet(x){
-  sheetSong = x;
-  $("sh-s").textContent = x.t + " · " + x.a;
+function openSheet(x){ // x: una canción, o un array de canciones (selección múltiple)
+  sheetSong = x; shDone = new Set();
+  const many = Array.isArray(x);
+  $("sh-t").textContent = many ? "Agregar " + x.length + (x.length === 1 ? " canción" : " canciones") : "Agregar a playlist";
+  $("sh-s").textContent = many ? x.slice(0, 3).map(s => s.t).join(" · ") + (x.length > 3 ? " y " + (x.length - 3) + " más" : "") : x.t + " · " + x.a;
   renderSheet(); $("sheet").hidden = false; $("sh-name").value = "";
-  setTimeout(() => (mis.length ? $("sh-opts").querySelector("input") : $("sh-name"))?.focus(), 0);
+  setTimeout(() => (mis.length ? $("sh-opts").querySelector("input, button:not(:disabled)") : $("sh-name"))?.focus(), 0);
 }
 function renderSheet(){
-  $("sh-opts").replaceChildren(...mis.filter(p => !p.oculta || p.songs.some(s => s.k === sheetSong.k)).map(p => {
+  const many = Array.isArray(sheetSong), list = many ? sheetSong : [sheetSong];
+  $("sh-opts").replaceChildren(...mis.filter(p => !p.oculta || (!many && p.songs.some(s => s.k === sheetSong.k))).map(p => {
+    if (many){
+      const b = document.createElement("button"); b.type = "button"; b.className = "pl-add";
+      const have = new Set(p.songs.map(s => s.k)), missing = list.filter(s => !have.has(s.k)).length;
+      b.innerHTML = '<span></span><em></em><small></small>';
+      b.querySelector("span").textContent = p.name; b.querySelector("small").textContent = p.songs.length;
+      b.querySelector("em").textContent = shDone.has(p.id) ? "✓ agregadas" : missing ? (missing < list.length ? "faltan " + missing : "") : "ya están todas";
+      b.disabled = !missing;
+      b.onclick = () => { const n = addMany(p, list); shDone.add(p.id); flash(n + (n === 1 ? " canción agregada" : " canciones agregadas") + " a “" + p.name + "”" + (n < list.length ? " (" + (list.length - n) + " ya estaban)." : ".")); renderSheet(); };
+      return b;
+    }
     const l = document.createElement("label");
     l.innerHTML = '<input type="checkbox"><span></span><small></small>';
     l.querySelector("input").checked = p.songs.some(s => s.k === sheetSong.k);
@@ -1360,8 +1422,8 @@ function renderSheet(){
   }));
   fillIdeas($("sh-ideas"), $("sh-name"), n => { $("sh-name").value = n; });
 }
-function closeSheet(){ $("sheet").hidden = true; sheetSong = null; refresh(); }
-$("sh-new").addEventListener("submit", e => { e.preventDefault(); const p = newPl($("sh-name").value); if (p){ toggleSong(p, sheetSong); $("sh-name").value = ""; renderSheet(); } });
+function closeSheet(){ const done = Array.isArray(sheetSong) && shDone.size; $("sheet").hidden = true; sheetSong = null; if (done) sel = null; refresh(); } // si se agregaron, se sale del modo selección
+$("sh-new").addEventListener("submit", e => { e.preventDefault(); const p = newPl($("sh-name").value); if (p){ if (Array.isArray(sheetSong)){ addMany(p, sheetSong); shDone.add(p.id); } else toggleSong(p, sheetSong); $("sh-name").value = ""; renderSheet(); } });
 $("sh-close").onclick = closeSheet;
 $("sheet").addEventListener("click", e => { if (e.target === $("sheet")) closeSheet(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
@@ -1373,7 +1435,7 @@ function fillSrc(){
   $("srcpl").value = keep;
 }
 function setTab(t){
-  tab = t; confirmDel = null; menuOpen = null; shown = PAGE;
+  tab = t; confirmDel = null; menuOpen = null; shown = PAGE; sel = null;
   for (const k of ["all","pls","files"]) $("tab-"+k).setAttribute("aria-pressed", k === t);
   $("sf").hidden = t === "pls" || t === "files"; confirmWipe = false; $("srcpl").hidden = t !== "all"; syncGo();
   flash("");

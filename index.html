@@ -220,7 +220,7 @@ body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 body.dragging .row:not(.dragging),body.dragging .pb-row:not(.dragging){transition:transform .16s ease}
 body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 .row,.pb-row{-webkit-touch-callout:none}
-@media (hover:none){.grip{width:44px;color:var(--ink-2)}}
+@media (hover:none){.grip{display:none}.pb-row .grip+.rowmain{padding-left:12px}}
 .hint{color:var(--ink-3);font-size:12px}
 .more{margin:16px auto 0;display:flex}
 .note{color:var(--ink-3);font-size:13px;margin:16px 0 0;max-width:70ch}
@@ -278,8 +278,10 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 .pb-row .acts{display:flex;gap:2px;align-items:center;opacity:.5;transition:opacity .15s}
 .pb-row:hover .acts,.pb-row .acts:focus-within{opacity:1}
 @media (hover:none){.pb-row .acts{opacity:1}}
-.plhead{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:14px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
-.plhead::before{content:"";position:absolute;z-index:-1;top:-120px;left:-60px;width:340px;height:340px;border-radius:50%;background:radial-gradient(closest-side,var(--accent-glow),transparent 72%);pointer-events:none}
+.plhead{position:relative;display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:14px;padding:16px;background:radial-gradient(circle 170px at 110px 50px,var(--accent-glow),transparent 72%) var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.plmenu{position:relative;display:inline-flex}
+.plmenu .btn{padding-left:12px;padding-right:12px;font-size:16px;line-height:1}
+.plmenu .pop{top:36px;left:0;right:auto;z-index:4}
 .plhead .cover{width:112px;flex:none}
 .plhead .cover.none{font-size:40px}
 .plhead .info{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:8px}
@@ -357,7 +359,7 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .seg small{display:none}
   .go-yt{padding:6px 10px}
   #selbtn{order:3;flex:none;padding:7px 9px}
-  #selbtn .long{display:none}
+  #selbtn .long,.selbar .long{display:none}
   .who{order:0;margin-left:0}
   .avatar{width:34px;height:34px}
   /* El menú Tema se abre como panel al pie de la pantalla (anclado al botón se salía por un lado) */
@@ -447,11 +449,11 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 <div class="list" id="list" role="list"></div>
 <button class="btn more" id="more" type="button" hidden>Mostrar más</button>
 <section id="ytbox" hidden></section>
-<p class="note" id="note">Toca una canción para escucharla; sigue con las demás de la lista. Con ＋ la guardas en una playlist; con Seleccionar marcas varias y las agregas de una vez. Si no está en tu música, con Enter o el botón YouTube la buscas allí y los resultados salen al final de la lista. Las marcadas "dudosa" pueden ser otra versión; las "sin video" abren esa búsqueda. Con "Otras versiones" buscas otro video para la que suena y lo cambias con ⇄ Reemplazar. Dentro de una playlist, arrastra ⠿ para cambiar el orden.</p>
+<p class="note" id="note">Toca una canción para escucharla; sigue con las demás de la lista. Con ＋ la guardas en una playlist; con Seleccionar marcas varias y las agregas de una vez. Si no está en tu música, con Enter o el botón YouTube la buscas allí y los resultados salen al final de la lista. Las marcadas "dudosa" pueden ser otra versión; las "sin video" abren esa búsqueda. Con "Otras versiones" buscas otro video para la que suena y lo cambias con ⇄ Reemplazar. Dentro de una playlist puedes cambiar el orden arrastrando.</p>
 </div>
 </div>
 
-<div class="selbar" id="selbar" hidden><span id="sel-n"></span><button class="btn sm" id="sel-all" type="button">Todas</button><button class="btn sm primary" id="sel-add" type="button">Agregar a playlist</button><button class="btn sm" id="sel-off" type="button" aria-label="Cancelar">✕</button></div>
+<div class="selbar" id="selbar" hidden><span id="sel-n"></span><button class="btn sm" id="sel-all" type="button">Todas</button><button class="btn sm danger" id="sel-rm" type="button" hidden>Quitar</button><button class="btn sm primary" id="sel-add" type="button">Agregar<span class="long"> a playlist</span></button><button class="btn sm" id="sel-off" type="button" aria-label="Cancelar">✕</button></div>
 <div class="sheet-bg" id="sheet" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t">
     <h3 id="sh-t">Agregar a playlist</h3>
@@ -510,7 +512,7 @@ const PAGE = 150;
 let CAT = {all: [], pls: []}, mis = [], loaded = false, catLoaded = false;
 let tab = "all", openId = null, shown = PAGE, current = [];
 let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confirmDel = null, menuOpen = null, sheetSong = null;
-let sel = null, shDone = new Set(); // sel: Map clave → canción mientras se seleccionan varias; shDone: playlists a las que ya se agregaron en la hoja
+let sel = null, shDone = new Set(), rmArm = false, TOUCH = matchMedia("(hover:none)").matches; // sel: Map clave → canción mientras se seleccionan varias; shDone: playlists a las que ya se agregaron en la hoja
 let sortBy = ["t", "a"].includes(store.get("np-sort")) ? store.get("np-sort") : "";
 let yres = [], ytQuery = "", altFor = null; // altFor: canción a la que se le busca otra versión (para "Reemplazar")
 let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = store.get("np-shuffle") === "1";
@@ -572,6 +574,12 @@ function toggleSong(p, x){
   if (i >= 0) p.songs.splice(i, 1); else p.songs.push(song(x));
   const songs = p.songs.slice();
   write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
+}
+function removeMany(p, list){ // quita de la playlist las canciones de `list`; devuelve cuántas salieron
+  const out = new Set(list.map(x => x.k)), n = p.songs.length;
+  p.songs = p.songs.filter(s => !out.has(s.k));
+  if (p.songs.length !== n){ const songs = p.songs.slice(); write(p.id, () => updateDoc(doc(plCol, p.id), {songs})); }
+  return n - p.songs.length;
 }
 function addMany(p, list){ // agrega a la playlist las canciones de `list` que aún no estén; devuelve cuántas entraron
   const have = new Set(p.songs.map(s => s.k)), add = list.filter(x => !have.has(x.k));
@@ -695,16 +703,24 @@ function renderList(){
 function selBar(){
   document.body.classList.toggle("selecting", !!sel); $("selbtn").setAttribute("aria-pressed", !!sel);
   $("selbar").hidden = !sel; if (!sel) return;
-  const n = sel.size, all = current.length && current.every(x => sel.has(x.k));
-  $("sel-n").textContent = n ? n + (n === 1 ? " seleccionada" : " seleccionadas") : "Toca las canciones que quieras agregar";
+  const n = sel.size, all = current.length && current.every(x => sel.has(x.k)), inPl = tab === "pls" && openPl();
+  $("sel-n").textContent = n ? n + (n === 1 ? " seleccionada" : " seleccionadas") : "Toca las canciones que quieras " + (inPl ? "agregar o quitar" : "agregar");
   $("sel-all").textContent = all ? "Ninguna" : "Todas" + (current.length ? " (" + current.length + ")" : "");
   $("sel-add").disabled = !n;
+  const rm = $("sel-rm"); rm.hidden = !inPl; rm.disabled = !n; rm.classList.toggle("ask", rmArm);
+  rm.textContent = rmArm ? "¿Seguro? Quitar " + n : "Quitar";
 }
-function setSel(on){ sel = on ? new Map() : null; shown = Math.max(shown, PAGE); refresh(); }
+function setSel(on){ sel = on ? new Map() : null; rmArm = false; shown = Math.max(shown, PAGE); refresh(); }
 $("selbtn").onclick = () => setSel(!sel);
 $("sel-off").onclick = () => setSel(false);
-$("sel-all").onclick = () => { if (!sel) return; if (current.every(x => sel.has(x.k))) current.forEach(x => sel.delete(x.k)); else current.forEach(x => sel.set(x.k, x)); renderList(); };
+$("sel-all").onclick = () => { if (!sel) return; rmArm = false; if (current.every(x => sel.has(x.k))) current.forEach(x => sel.delete(x.k)); else current.forEach(x => sel.set(x.k, x)); renderList(); };
 $("sel-add").onclick = () => { if (sel?.size) openSheet([...sel.values()]); };
+$("sel-rm").onclick = () => { // dos toques: el primero pide confirmación
+  const p = openPl(); if (!sel?.size || !p) return;
+  if (!rmArm){ rmArm = true; selBar(); return; }
+  const n = removeMany(p, [...sel.values()]); rmArm = false; sel = null;
+  flash("Quitaste " + n + (n === 1 ? " canción" : " canciones") + " de “" + p.name + "”."); refresh();
+};
 $("list").addEventListener("click", e => {
   const add = e.target.closest("[data-add]"), rm = e.target.closest("[data-rm]"), pl = e.target.closest(".play");
   if (suppressClick || e.target.closest("[data-grip]")) return;
@@ -712,7 +728,7 @@ $("list").addEventListener("click", e => {
     const row = e.target.closest(".row"); if (!row) return;
     const x = current[+row.querySelector(".play").dataset.i];
     if (sel.has(x.k)) sel.delete(x.k); else sel.set(x.k, x);
-    row.classList.toggle("sel", sel.has(x.k)); selBar(); return;
+    row.classList.toggle("sel", sel.has(x.k)); rmArm = false; selBar(); return;
   }
   const rep = e.target.closest("[data-rep]"), aud = e.target.closest("[data-aud]");
   if (rep) return replaceVideo(current[+rep.dataset.rep]);
@@ -1222,12 +1238,10 @@ function renderPls(){
   if (op){
     const has = playable(op);
     box.innerHTML = `<div class="plhead">${coverHTML(op)}<div class="info"><h2>${esc(op.name)}</h2>
-      <p class="msg" style="margin:0">${count(op)}${op.songs.length > 1 ? ' <span class="hint">· arrastra ⠿ (o mantén pulsada una canción) para cambiar el orden</span>' : ""}</p>
-      <div class="ctrls"><button class="btn sm" type="button" data-act="back">← Playlists</button>
-      ${has ? `<button class="btn sm primary" type="button" data-act="playall">▶ Reproducir playlist</button>` : ""}
-      <button class="btn sm" type="button" data-act="rename">Renombrar</button>
-      <button class="btn sm" type="button" data-act="hidecur">${op.oculta ? "Mostrar" : "Ocultar"}</button>
-      <button class="btn sm ${confirmDel === op.id ? "ask" : "danger"}" type="button" data-act="del">${confirmDel === op.id ? "¿Seguro? Borrar" : "Borrar"}</button></div>
+      <p class="msg" style="margin:0">${count(op)}${op.songs.length > 1 ? ' <span class="hint">· ' + (TOUCH ? "mantén pulsada una canción" : "arrastra ⠿") + ' para cambiar el orden</span>' : ""}</p>
+      <div class="ctrls">${has ? `<button class="btn sm primary" type="button" data-act="playall">▶ Reproducir playlist</button>` : ""}
+      <span class="plmenu"><button class="btn sm" type="button" data-act="menu" data-id="${op.id}" aria-label="Más opciones" aria-haspopup="menu" aria-expanded="${menuOpen === op.id}">⋯</button>
+      ${menuOpen === op.id ? `<div class="pop"><button type="button" data-act="rename">Renombrar</button><button type="button" class="danger" data-act="del">${confirmDel === op.id ? "¿Seguro? Borrar" : "Borrar"}</button></div>` : ""}</span></div>
       <form class="newform" id="ren" hidden><input id="ren-name" autocomplete="off" aria-label="Nuevo nombre"><button class="btn sm" type="submit">Guardar nombre</button></form></div></div>
       ${op.songs.length ? "" : `<div class="empty"><b>Está vacía</b>Ve a Todas o a Buscar en YouTube y toca ＋ en una canción.</div>`}`;
     return;
@@ -1254,7 +1268,7 @@ function renderPls(){
       <div class="view"><div class="seg" role="group" aria-label="Vista"><button type="button" data-act="view" data-v="a" aria-pressed="${plView === "a"}">Portadas</button><button type="button" data-act="view" data-v="b" aria-pressed="${plView === "b"}">Lista</button></div></div></div>
       <div class="ideas" id="np-ideas"></div></div>
     ${items}
-    ${loaded && vis.length > 1 ? `<p class="hint pls-hint">${plView === "a" ? "Para cambiar el orden toca ⋯ en una playlist y elige Subir o Bajar (o cámbialo arrastrando en la vista Lista)." : "Arrastra ⠿ (o mantén pulsada una playlist) para cambiar el orden."}</p>` : ""}
+    ${loaded && vis.length > 1 ? `<p class="hint pls-hint">${plView === "a" ? "Para cambiar el orden toca ⋯ en una playlist y elige Subir o Bajar (o cámbialo arrastrando en la vista Lista)." : (TOUCH ? "Mantén pulsada una playlist" : "Arrastra ⠿") + " para cambiar el orden."}</p>` : ""}
     ${nHidden ? `<p class="msg"><button class="btn sm" type="button" data-act="showhidden">${showHidden ? "Esconder las ocultas" : "Ver ocultas (" + nHidden + ")"}</button></p>` : ""}`;
   fillIdeas($("np-ideas"), $("np-name"), n => { $("np-name").value = n; });
 }
@@ -1283,14 +1297,12 @@ $("pls").addEventListener("click", e => {
     playFrom(0, p.songs, p.name, {kind: "pl", id: p.id});
     return;
   }
-  if (act === "hide" || act === "hidecur"){
+  if (act === "hide"){
     patch(p, {oculta: !p.oculta});
     flash(p.oculta ? "Ocultaste “" + p.name + "”. Toca Ver ocultas para volver a mostrarla." : "“" + p.name + "” vuelve a estar visible.");
-    if (act === "hidecur" && p.oculta && !showHidden) openId = null;
   }
   else if (act === "open"){ openId = p.id; shown = PAGE; sel = null; window.scrollTo(0, 0); }
-  else if (act === "back"){ openId = null; sel = null; }
-  else if (act === "rename"){ const f = $("ren"); f.hidden = !f.hidden; $("ren-name").value = p.name; $("ren-name").focus(); return; }
+  else if (act === "rename"){ refresh(); const f = $("ren"); f.hidden = false; $("ren-name").value = p.name; $("ren-name").focus(); return; }
   refresh();
 });
 $("pls").addEventListener("submit", e => {

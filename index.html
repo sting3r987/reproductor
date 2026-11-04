@@ -1372,7 +1372,7 @@ async function ytSearch(q){
   refresh();
 }
 // Solo música: descarta lo que por el título no es una canción (entrevistas, shorts, reacciones, podcasts…) y pone primero lo que más parece canción
-const NOT_SONG = /\b(entrevist\\w*|interview|habla|hablan|hablando|opina[rs]?|revela|confiesa|responde|explica|cuenta sobre|reacci|react|podcast|noticia|tutorial|how to|como (tocar|cantar|hacer)|trailer|capitulo|episodio|vlog|q ?& ?a|detras de|behind the|documental|biograf|top ?\d|ranking|shorts?|tiktok|polemica|escandalo|chisme|curiosidades|analisis|review|resena|clase|leccion|karaoke|speaking|funny|mejores momentos|compilation|recopilacion|mix \d|\d+ (canciones|exitos|horas))\b/;
+const NOT_SONG = /\b(entrevist\w*|interview|habla|hablan|hablando|opina[rs]?|revela|confiesa|responde|explica|cuenta sobre|reacci|react|podcast|noticia|tutorial|how to|como (tocar|cantar|hacer)|trailer|capitulo|episodio|vlog|q ?& ?a|detras de|behind the|documental|biograf|top ?\d|ranking|shorts?|tiktok|polemica|escandalo|chisme|curiosidades|analisis|review|resena|clase|leccion|karaoke|speaking|funny|mejores momentos|compilation|recopilacion|mix \d|\d+ (canciones|exitos|horas))\b/;
 function musicRank(x){
   const t = norm(x.t), c = norm(x.a);
   if (NOT_SONG.test(t.replace(/#/g, " "))) return -1;

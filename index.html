@@ -143,6 +143,8 @@ select{border:1px solid var(--line);background:var(--surface);color:var(--ink);b
 .tm-dots button:hover{transform:scale(1.08)}
 .tm-dots button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--sw)}
 .tm-dots button[aria-pressed="true"]::after{content:"";position:absolute;left:50%;top:50%;width:10px;height:5px;border:solid #fff;border-width:0 0 2.5px 2.5px;transform:translate(-50%,-70%) rotate(-45deg)}
+.tm-h .tm-v{float:right;text-transform:none;letter-spacing:0;font-weight:600;color:var(--ink-2)}
+.tm-range{width:100%;margin:2px 0 4px;accent-color:var(--accent)}
 .tm-foot{display:flex;align-items:center;justify-content:space-between;margin-top:4px;padding-top:10px;border-top:1px solid var(--line)}
 .tm-foot #logout{border:0;background:transparent;color:var(--ink-3);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:0}
 /* Canciones */
@@ -396,6 +398,8 @@ body.dragging .row:hover{background:transparent}
         <div class="tm-dots" data-k="color" role="group" aria-label="Color">
           <button type="button" data-v="rumba" style="--sw:#D43A5C" aria-label="Rumba" title="Rumba"></button><button type="button" data-v="oceano" style="--sw:#1C7FA8" aria-label="Océano" title="Océano"></button><button type="button" data-v="selva" style="--sw:#2C8A4F" aria-label="Selva" title="Selva"></button><button type="button" data-v="uva" style="--sw:#7B3FD1" aria-label="Uva" title="Uva"></button><button type="button" data-v="dorado" style="--sw:#B8731A" aria-label="Dorado" title="Dorado"></button>
         </div>
+        <p class="tm-h">Fundido entre canciones <span class="tm-v" id="fade-v"></span></p>
+        <input type="range" class="tm-range" id="fade" min="0" max="8" step="0.5" aria-label="Segundos de fundido">
         <div class="tm-foot"><button type="button" id="logout">Salir</button><button class="btn sm" type="button" id="tm-done">Listo</button></div>
       </div>
     </span>
@@ -871,7 +875,10 @@ au.addEventListener("error", () => { if (mode === "file" && au.src){ log("archiv
 au.addEventListener("loadedmetadata", updatePos);
 au.addEventListener("seeked", updatePos);
 /* ---------- Fundido entre canciones: entra subiendo el volumen y sale bajándolo en los últimos segundos ---------- */
-const FADE = 2500, FADE_RESUME = 600; // ms (al empezar una canción / al reanudar tras pausa)
+let FADE = 2500; const FADE_RESUME = 600; // ms (al empezar una canción / al reanudar tras pausa); FADE se ajusta en el panel del avatar (np-fade, segundos)
+const setFade = s => { FADE = s * 1000; $("fade").value = s; $("fade-v").textContent = s ? s.toString().replace(".", ",") + " s" : "Sin fundido"; };
+{ const f = store.get("np-fade"); setFade(f === null ? 2.5 : +f); }
+$("fade").oninput = e => { setFade(+e.target.value); store.set("np-fade", e.target.value); };
 let vol = 100, fadeTimer = 0, fading = false;
 const setVol = v => { vol = v; try { if (mode === "file") au.volume = v / 100; else player?.setVolume(v); } catch {} };
 function fadeTo(target, ms){

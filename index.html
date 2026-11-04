@@ -527,7 +527,7 @@ let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confi
 let songMenu = null, songEdit = null; // clave de la canción con el menú ⋯ abierto / en edición (pestaña Todas)
 let sel = null, shDone = new Set(), rmArm = false, TOUCH = matchMedia("(hover:none)").matches; // sel: Map clave → canción mientras se seleccionan varias; shDone: playlists a las que ya se agregaron en la hoja
 let sortBy = ["t", "a"].includes(store.get("np-sort")) ? store.get("np-sort") : "";
-let yres = [], ytQuery = "", ytHidden = 0, ytDone = false, altFor = null; // ytDone: la búsqueda de ytQuery ya terminó; // ytHidden: resultados escondidos por estar ya en tu música; // altFor: canción a la que se le busca otra versión (para "Reemplazar")
+let yres = [], ytQuery = "", ytHidden = 0, ytDone = false, altFor = null, altBack = null; // altBack: dónde estaba el usuario al empezar a buscar otra versión (para «Volver») // ytDone: la búsqueda de ytQuery ya terminó; // ytHidden: resultados escondidos por estar ya en tu música; // altFor: canción a la que se le busca otra versión (para "Reemplazar")
 let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = store.get("np-shuffle") === "1";
 
 /* ---------- Firebase ---------- */
@@ -772,17 +772,17 @@ $("list").addEventListener("click", e => {
     if (a === "cancel"){ songEdit = null; return renderList(); }
     if (a === "edit"){ songEdit = x.k; renderList(); $("list").querySelector(".edit-song input")?.focus(); return; }
     if (a === "ok") return markOk(x);
-    if (a === "fix"){ altFor = x; return ytSearch(x.a.split(",")[0] + " " + x.t); }
-    if (a === "paste"){ altFor = x; renderList(); renderYt(); const u = $("yf2-url"); if (u){ u.scrollIntoView({block: "center"}); u.focus(); } return; }
+    if (a === "fix") return startAlt(x);
+    if (a === "paste") return startAlt(x, false);
   }
-  if (fix){ const x = current[+fix.dataset.fix]; songMenu = null; altFor = x; return ytSearch(x.a.split(",")[0] + " " + x.t); }
+  if (fix){ songMenu = null; return startAlt(current[+fix.dataset.fix]); }
   if (songMenu){ songMenu = null; renderList(); } // clic en otra parte: se cierra el menú
   const rep = e.target.closest("[data-rep]"), aud = e.target.closest("[data-aud]");
   if (rep) return replaceVideo(current[+rep.dataset.rep]);
   if (aud) return setAudio(current[+aud.dataset.aud]);
   if (add) return openSheet(current[+add.dataset.add]);
   if (rm){ toggleSong(openPl(), current[+rm.dataset.rm]); return refresh(); }
-  if (pl){ const x = current[+pl.dataset.i]; if (x.y || fileFor(x)) playFrom(+pl.dataset.i); else { altFor = x; ytSearch(x.a.split(",")[0] + " " + x.t); } }
+  if (pl){ const x = current[+pl.dataset.i]; if (x.y || fileFor(x)) playFrom(+pl.dataset.i); else startAlt(x); }
 });
 $("list").addEventListener("submit", e => { // guardar título y artista editados
   const f = e.target.closest(".edit-song"); if (!f) return;
@@ -1269,7 +1269,7 @@ $("aud").onclick = () => {
   applyMode("modo " + MODE_NAME[audioMode]); renderList();
   flash(MODE_TXT[audioMode]);
 };
-$("alt").onclick = () => { const x = queue[cur]; if (x){ altFor = x; ytSearch(x.a.split(",")[0] + " " + x.t); } };
+$("alt").onclick = () => { const x = queue[cur]; if (x) startAlt(x); };
 document.addEventListener("keydown", e => {
   if (["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName) || !$("sheet").hidden) return;
   if (e.key === " " && e.target.tagName !== "BUTTON"){ e.preventDefault(); $("play").click(); }
@@ -1441,6 +1441,22 @@ async function ytSearch(q){
   }
   refresh();
 }
+// Empieza a buscar otra versión de `x` (o solo abre el campo de pegar enlace) recordando dónde estaba el usuario
+function startAlt(x, search = true){
+  altBack = {tab, openId, q: $("q").value, y: window.scrollY, src: $("srcpl").value};
+  altFor = x;
+  if (search) return ytSearch(x.a.split(",")[0] + " " + x.t);
+  renderList(); renderYt(); const u = $("yf2-url"); if (u){ u.scrollIntoView({block: "center"}); u.focus(); }
+}
+// Vuelve a donde estaba el usuario antes de buscar otra versión (se haya reemplazado o no)
+function altReturn(){
+  const b = altBack; altBack = null; altFor = null; yres = []; ytQuery = ""; ytDone = false; ytHidden = 0;
+  if (!b){ refresh(); return; }
+  if (b.tab !== tab){ openId = b.openId; setTab(b.tab); } else if (tab === "pls") openId = b.openId;
+  $("q").value = b.q; if ($("srcpl").value !== b.src) $("srcpl").value = b.src;
+  syncGo(); refresh();
+  requestAnimationFrame(() => window.scrollTo(0, b.y));
+}
 async function ytApiSearch(q){
   const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=20&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
   const d = await r.json();
@@ -1496,7 +1512,8 @@ function notOwned(list){
 const YTI = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.7 2.7 0 0 0-1.9-1.9C18 4.8 12 4.8 12 4.8s-6 0-7.7.5A2.7 2.7 0 0 0 2.4 7.2 28 28 0 0 0 2 12a28 28 0 0 0 .4 4.8 2.7 2.7 0 0 0 1.9 1.9c1.7.5 7.7.5 7.7.5s6 0 7.7-.5a2.7 2.7 0 0 0 1.9-1.9A28 28 0 0 0 22 12a28 28 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg>';
 function renderYt(){
   const box = $("ytbox"), q = $("q").value.trim();
-  const chip = altFor ? `<div class="altchip"><span>Buscando otra versión de <b>${esc(altFor.t)}</b> · ${esc(altFor.a)}</span><button type="button" class="btn sm" data-act="altoff">Dejar de reemplazar</button></div>` : "";
+  const back = `<button type="button" class="btn sm" data-act="altoff">← Volver sin cambiar</button>`;
+  const chip = altFor ? `<div class="altchip"><span>Buscando otra versión de <b>${esc(altFor.t)}</b> · ${esc(altFor.a)}</span>${back}</div>` : "";
   let html = "";
   if (tab === "all" && (q || altFor)){
     const done = ytDone && ytQuery === q; // ya se buscó justo esto (aunque no quedara nada que mostrar)
@@ -1506,6 +1523,7 @@ function renderYt(){
     if (yres.length) html += `<div class="ythead">${YTI}En YouTube · <b>${esc(ytQuery)}</b></div><div class="list" id="ytlist" role="list">${yres.map((x, i) => songRow(x, i, true)).join("")}</div>`;
     if (done && !yres.length) html += `<p class="ytnone">${ytHidden ? "Todo lo que salió en YouTube para «" + esc(ytQuery) + "» ya lo tienes en tu música." : "En YouTube no salieron canciones para «" + esc(ytQuery) + "». Prueba con otras palabras."}</p>`;
     else if (done && ytHidden) html += `<p class="hint" style="margin-top:8px">${ytHidden === 1 ? "1 resultado no se muestra porque ya está" : ytHidden + " resultados no se muestran porque ya están"} en tu música.</p>`;
+    if (altFor && yres.length) html += `<p style="margin:12px 0 0">${back}</p>`;
     if ((done || altFor) && CFG.youtubeKey) html += `<form id="yf2" class="paste"><input id="yf2-url" inputmode="url" placeholder="${altFor ? "¿No aparece? Pega el enlace del video para «" + esc(altFor.t) + "»" : "¿No aparece? Pega aquí el enlace de YouTube"}" autocomplete="off" aria-label="Enlace de YouTube"><button class="btn sm primary" type="submit">Usar</button><p class="err" id="yf2-err" hidden></p></form>`;
   }
   html += tab !== "all" || !q || CFG.youtubeKey ? "" : `<div class="steps">
@@ -1522,7 +1540,7 @@ function renderYt(){
   if (box.dataset.h !== html){ box.dataset.h = html; box.innerHTML = html; } // no se vuelve a pintar si no cambió (conserva lo escrito en el formulario)
 }
 $("ytbox").addEventListener("click", e => {
-  if (e.target.closest('[data-act="altoff"]')){ altFor = null; flash(""); refresh(); }
+  if (e.target.closest('[data-act="altoff"]')){ flash(""); altReturn(); }
   if (e.target.closest('[data-act="yt-go"]')) ytSearch($("q").value);
 });
 // Como audio: la canción `altFor` usa el video de `x` como versión solo audio (solo en el catálogo; las playlists resuelven por clave)
@@ -1531,10 +1549,9 @@ function setAudio(x){
   const c = CAT.all.find(it => it.k === s.k);
   if (c){ c.ya = x.y; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
   YA.set(s.k, x.y); if (s.ya !== undefined) s.ya = x.y;
-  altFor = null;
   flash("Listo: «" + s.t + "» usará este video en modo Solo audio. Se guardó para los dos.");
   if (wantAudio() && ready && mode === "yt" && queue[cur]?.k === s.k) start(x.y, curPos());
-  refresh();
+  altReturn();
 }
 // Quita la versión solo audio de una canción (YouTube la bloqueó fuera de su sitio): vuelve a sonar el clip
 function dropAudio(x){
@@ -1590,10 +1607,9 @@ function adoptVideo(s, id){
 function replaceVideo(x){
   const s = altFor; if (!s || !x?.y) return;
   const prev = s.y; setClip(s, x.y);
-  altFor = null;
   flash("Listo: «" + s.t + "» ahora usa este video" + (prev ? " en vez del anterior" : "") + ". Se guardó para los dos.");
   if (ready && mode === "yt" && queue[cur]?.k === s.k) start(x.y); // si justo sonaba esa canción, sigue ya con el video nuevo
-  refresh();
+  altReturn();
 }
 $("ytbox").addEventListener("submit", async e => {
   if (e.target.id === "yf2"){ // enlace pegado: va a la canción que se estaba corrigiendo, o entra como canción nueva

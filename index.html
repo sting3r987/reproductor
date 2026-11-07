@@ -441,19 +441,9 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .pa-grid{grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:16px 12px}
   .plhead .cover{width:84px}
 }
-/* Celular buscando: el reproductor queda en una sola línea (miniatura · título · ▶ ⏭) para dejar ver los resultados */
+/* Celular buscando: la cabecera deja de ser fija; el reproductor conserva su tamaño y se queda arriba al bajar a los resultados */
 @media (max-width:640px){
-  body.srch .np{padding:8px}
-  body.srch .player,body.srch.big .player{grid-template-columns:88px minmax(0,1fr) auto;grid-template-areas:"video now ctrls";gap:0 10px;align-items:center}
-  body.srch .video{border-radius:6px}
-  body.srch .vbig,body.srch .eyebrow,body.srch #seekrow,body.srch .sub,body.srch #upnext,body.srch #shuf,body.srch #prev,body.srch #aud{display:none}
-  body.srch .now h1{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-wrap:nowrap}
-  body.srch .now .by{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  body.srch .player>.ctrls{margin-top:0;flex-wrap:nowrap}
-  body.srch .transport{grid-template-columns:repeat(2,40px);gap:6px;width:auto}
-  body.srch .transport .btn.go{width:40px;height:40px;padding:0}
-  body.srch .transport .btn.go svg{width:20px;height:20px}
-  body.srch .tools{margin-top:8px}
+  body.srch header.top{position:static} /* el reproductor (tamaño normal) se va con la página al bajar a los resultados */
   body.srch #msg{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:8px;padding:4px 12px;font-size:12.5px}
   body.srch #msg::before{display:inline-block;margin-right:8px;vertical-align:middle}
 }
@@ -1646,7 +1636,8 @@ function parseId(s){
 // Lleva la vista a los resultados de YouTube, justo debajo de la barra fija de arriba
 function toResults(){
   const b = $("ytbox"); if (b.hidden) return;
-  const top = b.getBoundingClientRect().top + scrollY - document.querySelector("header.top").offsetHeight - 8;
+  const hd = document.querySelector("header.top"), fixed = getComputedStyle(hd).position === "sticky";
+  const top = b.getBoundingClientRect().top + scrollY - (fixed ? hd.offsetHeight : 0) - 8;
   window.scrollTo({top: Math.max(0, top), behavior: "smooth"});
 }
 async function ytSearch(q){

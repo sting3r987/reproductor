@@ -441,6 +441,22 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .pa-grid{grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:16px 12px}
   .plhead .cover{width:84px}
 }
+/* Celular buscando: el reproductor queda en una sola línea (miniatura · título · ▶ ⏭) para dejar ver los resultados */
+@media (max-width:640px){
+  body.srch .np{padding:8px}
+  body.srch .player,body.srch.big .player{grid-template-columns:88px minmax(0,1fr) auto;grid-template-areas:"video now ctrls";gap:0 10px;align-items:center}
+  body.srch .video{border-radius:6px}
+  body.srch .vbig,body.srch .eyebrow,body.srch #seekrow,body.srch .sub,body.srch #upnext,body.srch #shuf,body.srch #prev,body.srch #aud{display:none}
+  body.srch .now h1{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-wrap:nowrap}
+  body.srch .now .by{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.srch .player>.ctrls{margin-top:0;flex-wrap:nowrap}
+  body.srch .transport{grid-template-columns:repeat(2,40px);gap:6px;width:auto}
+  body.srch .transport .btn.go{width:40px;height:40px;padding:0}
+  body.srch .transport .btn.go svg{width:20px;height:20px}
+  body.srch .tools{margin-top:8px}
+  body.srch #msg{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:8px;padding:4px 12px;font-size:12.5px}
+  body.srch #msg::before{display:inline-block;margin-right:8px;vertical-align:middle}
+}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -1614,6 +1630,12 @@ function parseId(s){
   const m = s.match(/(?:[?&]v=|youtu\.be\/|\/shorts\/|\/embed\/|\/live\/)([\w-]{11})/);
   return m ? m[1] : (/^[\w-]{11}$/.test(s) ? s : null);
 }
+// Lleva la vista a los resultados de YouTube, justo debajo de la barra fija de arriba
+function toResults(){
+  const b = $("ytbox"); if (b.hidden) return;
+  const top = b.getBoundingClientRect().top + scrollY - document.querySelector("header.top").offsetHeight - 8;
+  window.scrollTo({top: Math.max(0, top), behavior: "smooth"});
+}
 async function ytSearch(q){
   q = q.trim(); if (!q) return;
   if (tab !== "all") setTab("all");
@@ -1632,6 +1654,7 @@ async function ytSearch(q){
     yres = own.filter(x => !curIds.has(x.y)).slice(0, 10); ytHidden = music.length - own.length; ytDone = true;
     flash(yres.length ? yres.length + " opciones para “" + q + "”" + (ytHidden ? " (" + ytHidden + " ya las tienes)" : "") + ". Toca una para escucharla" + (altFor ? ", ⇄ Reemplazar para que «" + altFor.t + "» use ese video" : " o ＋ para guardarla") + "."
       : ytHidden ? "Todo lo que salió para “" + q + "” ya lo tienes en tu música." : "No hubo canciones para “" + q + "”. Prueba con otras palabras.");
+    if (yres.length && matchMedia("(max-width:640px)").matches) setTimeout(toResults, 60);
   } catch (e) {
     flash(String(e.message).includes("quota") ? "Se acabaron las búsquedas de hoy en YouTube. Mañana se renuevan; mientras tanto puedes pegar un enlace." : "No se pudo buscar en YouTube (" + e.message + ").");
   }
@@ -1727,6 +1750,7 @@ function notOwned(list){
 const YTI = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.7 2.7 0 0 0-1.9-1.9C18 4.8 12 4.8 12 4.8s-6 0-7.7.5A2.7 2.7 0 0 0 2.4 7.2 28 28 0 0 0 2 12a28 28 0 0 0 .4 4.8 2.7 2.7 0 0 0 1.9 1.9c1.7.5 7.7.5 7.7.5s6 0 7.7-.5a2.7 2.7 0 0 0 1.9-1.9A28 28 0 0 0 22 12a28 28 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg>';
 function renderYt(){
   const box = $("ytbox"), q = $("q").value.trim();
+  document.body.classList.toggle("srch", tab === "all" && !!(q || altFor));
   const back = `<button type="button" class="btn sm" data-act="altoff">← Volver sin cambiar</button>`;
   const okBtn = altFor?.e === "dudoso" ? `<button type="button" class="btn sm primary" data-act="altok" title="El video actual sí es el correcto: se quita la marca «dudosa»">✓ Es la correcta</button>` : "";
   const chip = altFor ? `<div class="altchip"><span>Buscando otra versión de <b>${esc(altFor.t)}</b> · ${esc(altFor.a)}${altFor.e === "dudoso" ? " · marcada como dudosa" : ""}</span><span class="altbtns">${okBtn}${back}</span></div>` : "";
@@ -1930,7 +1954,7 @@ const setBig = on => { document.body.classList.toggle("big", on); $("big").setAt
 setBig(store.get("np-big") === "1");
 $("big").onclick = () => { const on = !document.body.classList.contains("big"); setBig(on); store.set("np-big", on ? "1" : "0"); };
 $("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set("np-sort", sortBy); shown = PAGE; renderList(); });
-$("sf").addEventListener("submit", e => { e.preventDefault(); if (tab === "all") ytSearch($("q").value); });
+$("sf").addEventListener("submit", e => { e.preventDefault(); if (tab === "all"){ if (matchMedia("(max-width:640px)").matches) $("q").blur(); ytSearch($("q").value); } });
 setTab("all");
 loadFiles();
 </script>

@@ -1204,9 +1204,10 @@ function fadeTo(target, ms){
   }, 50);
 }
 setInterval(() => { // fade out: baja el volumen en los últimos segundos; si no estamos al final, el volumen se mantiene al 100 %
-  if (!playing || fading || armed) return;
+  if (!playing || fading || armed || !started) return; // !started: la nueva aún no suena (su fade in empieza al sonar)
   const d = mode === "file" ? au.duration : (ready ? player.getDuration() : 0), left = d ? d - curPos() : 0;
   if (!d) return;
+  if (left <= FADE / 1000 && canXfade()){ log("fundido cruzado con la siguiente"); crossing = true; step(1); crossing = false; return; }
   if (left <= FADE / 1000) setVol(Math.max(0, Math.round(100 * left / (FADE / 1000))));
   else if (vol < 100) setVol(100);
 }, 100);
@@ -1373,13 +1374,38 @@ function tryResume(){
   load(orderIdx[0], {armed: true, pos: s.pos});
 }
 // Reproductor de reserva: mientras suena una canción, deja preparada (sin sonar) la que sigue; al terminar se cambia al instante.
-let spare = null, spareReady = false, cued = null;
+let spare = null, spareReady = false, cued = null, xfade = null, crossing = false; // xfade: reproductor anterior bajando en el fundido cruzado
 function precue(){
-  if (!spareReady || mode !== "yt" || !queue.length) return;
+  if (!spareReady || mode !== "yt" || !queue.length || xfade) return; // durante el fundido cruzado el de reserva todavía suena
   const nx = queue[orderIdx[(at + 1) % orderIdx.length]];
   const id = nx && !fileFor(nx) ? vid(nx) : null;
   if (!id || id === cued) return;
-  cued = id; spare.cueVideoById(id);
+  cued = id;
+  try { // descarga el inicio en silencio y se pausa apenas empieza (no siempre llega el aviso de YouTube: se mira el tiempo)
+    spare.mute(); spare.loadVideoById(id);
+    const sp = spare; let n = 0;
+    const iv = setInterval(() => {
+      if (sp !== spare || cued !== id || ++n > 100) return clearInterval(iv);
+      let ct = 0; try { ct = sp.getCurrentTime() || 0; } catch {}
+      if (ct > 0){ clearInterval(iv); try { sp.pauseVideo(); sp.seekTo(0, true); } catch {} }
+    }, 150);
+  } catch { spare.cueVideoById(id); }
+}
+// ¿Se puede encadenar con fundido cruzado? (no en iPhone: allí el volumen del video no se puede bajar; no en segundo plano)
+function canXfade(){
+  if (mode !== "yt" || IOS || document.hidden || !FADE || !spareReady || xfade || !cued || queue.length < 2) return false;
+  const nx = queue[orderIdx[(at + 1) % orderIdx.length]];
+  return !!nx && !fileFor(nx) && vid(nx) === cued;
+}
+// Baja el volumen del reproductor anterior hasta 0 y lo detiene; luego ya se puede preparar la siguiente
+function fadeOld(p){
+  let v0 = 100; try { v0 = p.getVolume(); } catch {}
+  const t0 = Date.now(), ms = FADE; xfade = p;
+  const t = setInterval(() => {
+    const k = Math.min(1, (Date.now() - t0) / ms);
+    try { p.setVolume(Math.round(v0 * (1 - k))); } catch {}
+    if (k >= 1 || xfade !== p){ clearInterval(t); try { p.stopVideo(); } catch {} if (xfade === p){ xfade = null; precue(); } }
+  }, 50);
 }
 function start(id, pos){
   loadedId = id; started = false; clearInterval(kick); clearInterval(fadeTimer); fading = false;
@@ -1387,13 +1413,20 @@ function start(id, pos){
   else if (spareReady && cued === id){ // la siguiente ya estaba preparada: se intercambian los reproductores
     const old = player; player = spare; spare = old; cued = null;
     document.querySelector(".video").classList.toggle("swap", player.getIframe().id === "yt2");
-    setVol(0); player.playVideo(); try { spare.stopVideo(); } catch {}
-    log("siguiente ya preparada");
+    setVol(0);
+    try { player.unMute(); player.seekTo(0, true); } catch {} // se precargó en silencio y pudo avanzar un poco
+    player.playVideo(); try { player.seekTo(0, true); } catch {} fadeTo(100, FADE); // ya está descargada: entra de inmediato (sin esperar el aviso de YouTube)
+    if (crossing) fadeOld(old); else { if (xfade) xfade = null; try { old.stopVideo(); } catch {} }
+    log(crossing ? "siguiente ya preparada (fundido cruzado)" : "siguiente ya preparada");
   } else { setVol(0); player.loadVideoById(id); }
   // En segundo plano YouTube a veces carga la canción pero no la arranca: insiste hasta que suene (solo mientras no haya empezado).
-  let tries = 0;
+  let tries = 0, lastT = -1, adv = 0;
   kick = setInterval(() => {
     if (started || ++tries > 30){ if (!started) log("no arrancó tras 30 s"); return clearInterval(kick); }
+    // A veces YouTube no avisa que empezó (pasa con el reproductor de reserva): si el tiempo avanza dos veces seguidas, ya suena
+    let ct = 0; try { ct = player.getCurrentTime() || 0; } catch {}
+    adv = lastT >= 0 && ct > lastT + 0.3 ? adv + 1 : 0; lastT = ct;
+    if (adv >= 2 && mode === "yt"){ log("ya suena (YouTube no avisó)"); started = true; setPlaying(true); fadeTo(100, FADE); precue(); return clearInterval(kick); }
     const s = player.getPlayerState();
     if (s === YT.PlayerState.CUED || s === YT.PlayerState.UNSTARTED || s === YT.PlayerState.PAUSED){ player.playVideo(); if (tries % 5 === 1) log("insisto (estado " + s + ")"); }
   }, 1000);
@@ -1502,7 +1535,7 @@ function initYT(){
         else { spareReady = true; precue(); }
       },
       onStateChange(e){
-        if (e.target !== player){ if (e.data === YT.PlayerState.PLAYING) e.target.pauseVideo(); return; } // el de reserva nunca debe sonar
+        if (e.target !== player){ if (e.data === YT.PlayerState.PLAYING && e.target !== xfade){ e.target.pauseVideo(); e.target.seekTo(0, true); } return; } // el de reserva nunca debe sonar (salvo el que baja en el fundido cruzado)
         if (mode !== "yt") return; // suena un archivo de audio: lo que haga el video detenido no importa
         const wasPlaying = playing, first = !started;
         setPlaying(e.data === YT.PlayerState.PLAYING);

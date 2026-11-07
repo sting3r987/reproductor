@@ -1243,15 +1243,48 @@ function playFrom(i, list, label, src, exact){ // exact: empieza en i aunque est
   queue = full.filter(x => x.y || fileFor(x)); queueLabel = label || listLabel(); queueSrc = src || (list ? null : curSrc());
   if (!queue.length) return;
   let qi = Math.max(0, queue.indexOf(pick));
-  if (shuffle && list && !exact) qi = Math.floor(Math.random() * queue.length);
+  if (shuffle && list && !exact){
+    const fresh = queue.map((_, n) => n).filter(n => !lastPlayed(queue[n]));
+    qi = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)] : oldestOf(queue.map((_, n) => n));
+  }
   orderIdx = order(qi); at = 0;
   load(orderIdx[0]);
 }
 function order(from){ // orden de reproducción a partir de la canción `from` (índices de queue); en aleatorio baraja todo sin repetir
-  if (!shuffle) return queue.map((_, n) => (from + n) % queue.length);
-  const rest = queue.map((_, n) => n).filter(n => n !== from);
-  for (let n = rest.length - 1; n > 0; n--){ const r = Math.floor(Math.random() * (n + 1)); [rest[n], rest[r]] = [rest[r], rest[n]]; }
-  return spread(from, rest);
+  let o;
+  if (!shuffle) o = queue.map((_, n) => (from + n) % queue.length);
+  else {
+    const rest = queue.map((_, n) => n).filter(n => n !== from);
+    for (let n = rest.length - 1; n > 0; n--){ const r = Math.floor(Math.random() * (n + 1)); [rest[n], rest[r]] = [rest[r], rest[n]]; }
+    o = spread(from, rest);
+  }
+  const tail = o.slice(1), lp = n => lastPlayed(queue[n]);
+  return [o[0], ...tail.filter(n => !lp(n)), ...tail.filter(n => lp(n)).sort((a, b) => lp(a) - lp(b))];
+}
+/* ---------- Sin repetir: una canción no vuelve a sonar en 2 horas, salvo que no queden otras en la lista ----------
+   Historial en este dispositivo (np-hist): clave de la canción → cuándo sonó por última vez. */
+const NOREP_MS = 2 * 3600 * 1000;
+const hist = (() => { try { return JSON.parse(store.get("np-hist") || "{}") || {}; } catch { return {}; } })();
+const hkey = x => x ? (x.k || x.y || x.t || "") : "";
+const lastPlayed = x => { const t = hist[hkey(x)] || 0; return Date.now() - t < NOREP_MS ? t : 0; }; // 0: no sonó en las últimas 2 horas
+const oldestOf = ns => ns.reduce((b, n) => lastPlayed(queue[n]) < lastPlayed(queue[b]) ? n : b, ns[0]);
+function markPlayed(x){
+  const k = hkey(x), now = Date.now(); if (!k) return;
+  for (const j in hist) if (now - hist[j] >= NOREP_MS) delete hist[j];
+  hist[k] = now; store.set("np-hist", JSON.stringify(hist));
+}
+// Deja como siguiente la primera de la cola que no sonó en 2 horas; si todas sonaron, la que sonó hace más tiempo.
+function fixNext(){
+  const L = orderIdx.length; if (L < 2) return;
+  let best = -1, bestT = Infinity;
+  for (let k = 1; k < L; k++){
+    const p = (at + k) % L, t = lastPlayed(queue[orderIdx[p]]);
+    if (!t){ best = p; break; }
+    if (t < bestT){ bestT = t; best = p; }
+  }
+  if (best < 0 || best === (at + 1) % L) return;
+  const v = orderIdx.splice(best, 1)[0]; if (best < at) at--;
+  orderIdx.splice(at + 1, 0, v);
 }
 // Separa canciones parecidas en el orden aleatorio: ni el mismo artista en las 4 siguientes ni otra versión de la misma
 // canción (remix, en vivo, acústico…) en las 25 siguientes. Si no queda otra opción, relaja la regla.
@@ -1288,6 +1321,8 @@ function load(i, opt = {}){
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;
   $("ph").hidden = true; $("sub").hidden = false; $("seekrow").hidden = false;
   log((armed ? "retomo " : "canción ") + (i + 1) + ": " + x.t + (resumePos ? " desde " + resumePos + " s" : ""));
+  if (!armed) markPlayed(x);
+  fixNext();
   const f = fileFor(x);
   if (armed){
     $("ph").hidden = false; $("ph").querySelector("span").textContent = "Toca Reproducir para seguir donde ibas";

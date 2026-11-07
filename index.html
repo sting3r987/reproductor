@@ -447,6 +447,19 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   body.srch #msg{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:8px;padding:4px 12px;font-size:12.5px}
   body.srch #msg::before{display:inline-block;margin-right:8px;vertical-align:middle}
 }
+/* Celular: franja pequeña arriba cuando el reproductor quedó fuera de la vista; al tocarla se vuelve al reproductor */
+.mini{position:fixed;z-index:20;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:calc(6px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 6px max(12px,env(safe-area-inset-left,0px));background:var(--surface);border-bottom:1px solid var(--line);box-shadow:var(--shadow);cursor:pointer;animation:minidown .18s ease-out}
+@keyframes minidown{from{transform:translateY(-100%)}}
+.mini img{flex:none;width:64px;height:36px;object-fit:cover;border-radius:5px;background:#0B0B10}
+.mini-t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.mini-t b,.mini-t small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-t b{font-size:14px}
+.mini-t small{font-size:12px;color:var(--ink-2)}
+.mini .btn.go{flex:none;width:40px;height:40px;padding:0}
+.mini .btn.go svg{width:20px;height:20px}
+.mini .i-pause,body.playing .mini .i-play{display:none}
+body.playing .mini .i-pause{display:block}
+@media (min-width:641px){.mini{display:none!important}}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -530,6 +543,7 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   <p class="msg" id="msg" hidden></p>
   <pre id="dbg" hidden></pre>
 </header>
+<div class="mini" id="mini" hidden title="Volver al reproductor"><img id="mini-img" alt=""><span class="mini-t"><b id="mini-t"></b><small id="mini-a"></small></span><button class="btn go primary" id="mini-play" type="button" aria-label="Reproducir o pausar"><svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg><svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5h4.4v15H6zM13.6 4.5H18v15h-4.4z"/></svg></button><button class="btn go" id="mini-next" type="button" aria-label="Siguiente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.6 5H19v14h-2.4zM5 5.6v12.8L15 12z"/></svg></button></div>
 <section id="pls" hidden></section>
 <section id="filebox" hidden></section>
 <section id="imp" hidden></section>
@@ -1276,7 +1290,7 @@ function load(i, opt = {}){
   const f = fileFor(x);
   if (armed){
     $("ph").hidden = false; $("ph").querySelector("span").textContent = "Toca Reproducir para seguir donde ibas";
-    setMedia(x); renderList(); saveResume(resumePos); renderNext(); paintSeek(); return;
+    setMedia(x); renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini(); return;
   }
   if (f){
     mode = "file"; clearInterval(kick); pendingId = null; selfSilentAt = Date.now(); silent.pause();
@@ -1288,7 +1302,7 @@ function load(i, opt = {}){
     if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; }
     recordPlayed(x);
   }
-  renderList(); saveResume(resumePos); renderNext(); paintSeek();
+  renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini();
 }
 // Guarda qué suena (origen, canción y segundo) para retomarlo al volver a abrir la app.
 function saveResume(pos){
@@ -1633,11 +1647,26 @@ function parseId(s){
   const m = s.match(/(?:[?&]v=|youtu\.be\/|\/shorts\/|\/embed\/|\/live\/)([\w-]{11})/);
   return m ? m[1] : (/^[\w-]{11}$/.test(s) ? s : null);
 }
+// Franja pequeña del reproductor (celular): aparece cuando la tarjeta del reproductor sale de la vista
+var npOut = false;
+function paintMini(){
+  const m = $("mini"), x = queue[cur];
+  m.hidden = !(npOut && x && matchMedia("(max-width:640px)").matches);
+  if (m.hidden) return;
+  $("mini-t").textContent = x.t || ""; $("mini-a").textContent = x.a || "";
+  const img = $("mini-img"), y = mode === "yt" ? (loadedId || x.y) : null;
+  const src = y ? "https://i.ytimg.com/vi/" + y + "/mqdefault.jpg" : (!$("art").hidden && $("art").src) || "";
+  img.hidden = !src; if (src && img.getAttribute("src") !== src) img.src = src;
+}
+new IntersectionObserver(([e]) => { npOut = !e.isIntersecting; paintMini(); }).observe(document.querySelector("header.top .np"));
+$("mini").onclick = e => { if (!e.target.closest("button")) window.scrollTo({top: 0, behavior: "smooth"}); };
+$("mini-play").onclick = () => $("play").click();
+$("mini-next").onclick = () => $("next").click();
 // Lleva la vista a los resultados de YouTube, justo debajo de la barra fija de arriba
 function toResults(){
   const b = $("ytbox"); if (b.hidden) return;
   const hd = document.querySelector("header.top"), fixed = getComputedStyle(hd).position === "sticky";
-  const top = b.getBoundingClientRect().top + scrollY - (fixed ? hd.offsetHeight : 0) - 8;
+  const top = b.getBoundingClientRect().top + scrollY - (fixed ? hd.offsetHeight : 56) - 8; // 56: la franja pequeña de arriba
   window.scrollTo({top: Math.max(0, top), behavior: "smooth"});
 }
 async function ytSearch(q){

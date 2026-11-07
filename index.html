@@ -606,7 +606,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const thumb = y => y ? `<img alt="" loading="lazy" src="https://i.ytimg.com/vi/${y}/mqdefault.jpg">` : "";
 const PAGE = 150;
 
-let CAT = {all: [], pls: []}, mis = [], loaded = false, catLoaded = false;
+let CAT = {all: [], pls: [], rep: []}, mis = [], loaded = false, catLoaded = false;
 let tab = "all", openId = null, shown = PAGE, current = [];
 let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confirmDel = null, menuOpen = null, sheetSong = null;
 let songMenu = null, songEdit = null; // clave de la canción con el menú ⋯ abierto / en edición (pestaña Todas)
@@ -637,7 +637,7 @@ onAuthStateChanged(auth, u => {
   unsub.push(onSnapshot(doc(db, "catalog", "main"), s => {
     catLoaded = true;
     const v = s.exists() ? s.data() : null;
-    CAT = v ? {all: v.all || [], pls: v.pls || []} : {all: [], pls: []};
+    CAT = v ? {all: v.all || [], pls: v.pls || [], rep: v.rep || []} : {all: [], pls: [], rep: []}; // rep: canciones reproducidas que no estaban en el catálogo ni en una playlist
     YA = new Map(CAT.all.filter(c => c.ya).map(c => [c.k, c.ya]));
     fillSrc(); refresh(); rematch(); tryResume();
   }, denied));
@@ -725,7 +725,7 @@ function renderImport(){
       const d = JSON.parse(await f.text());
       if (!Array.isArray(d.catalog?.all) || !Array.isArray(d.playlists)) throw new Error("formato");
       const b = writeBatch(db);
-      b.set(doc(db, "catalog", "main"), {all: d.catalog.all, pls: d.catalog.pls || []});
+      b.set(doc(db, "catalog", "main"), {all: d.catalog.all, pls: d.catalog.pls || [], rep: d.catalog.rep || []});
       for (const p of d.playlists) b.set(doc(plCol, p.id), {name: p.name, orden: p.orden ?? 0, oculta: !!p.oculta, songs: p.songs || []});
       await b.commit();
       flash("Listo: " + d.catalog.all.length + " canciones y " + d.playlists.length + " playlists cargadas.");
@@ -768,6 +768,8 @@ function renderAudioImport(){
 function allSongs(){
   const base = new Set(CAT.all.map(x => x.k)), seen = new Set(), extra = [];
   for (const p of mis) for (const s of p.songs)
+    if (!base.has(s.k) && !seen.has(s.k)){ seen.add(s.k); extra.push({...s, pl: [], nueva: true}); }
+  for (const s of CAT.rep || [])
     if (!base.has(s.k) && !seen.has(s.k)){ seen.add(s.k); extra.push({...s, pl: [], nueva: true}); }
   return CAT.all.concat(extra, fileSongs());
 }
@@ -1164,7 +1166,7 @@ const setFade = s => { FADE = s * 1000; $("fade").value = s; $("fade-v").textCon
 { const f = store.get("np-fade"); setFade(f === null ? 2.5 : +f); }
 $("fade").oninput = e => { setFade(+e.target.value); store.set("np-fade", e.target.value); };
 $("backup").onclick = () => {
-  const data = {exportado: new Date().toISOString(), catalog: {all: CAT.all, pls: CAT.pls || []}, playlists: mis.map(p => ({id: p.id, name: p.name, orden: p.orden, oculta: p.oculta, songs: p.songs}))};
+  const data = {exportado: new Date().toISOString(), catalog: {all: CAT.all, pls: CAT.pls || [], rep: CAT.rep || []}, playlists: mis.map(p => ({id: p.id, name: p.name, orden: p.orden, oculta: p.oculta, songs: p.songs}))};
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type: "application/json"}));
   a.download = "playlists-" + new Date().toISOString().slice(0, 10) + ".json"; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
@@ -1264,6 +1266,16 @@ function spread(from, pool){
 }
 // opt.armed: deja la canción cargada en el reproductor sin sonar (al volver a abrir la app); opt.pos: segundo desde el que seguir.
 let armed = false, resumePos = 0;
+// Toda canción de YouTube que se reproduce queda guardada en Todas, aunque no esté en ninguna playlist (catálogo: campo rep)
+function recordPlayed(x){
+  if (!x || !x.y || !x.k || !catLoaded || !loaded) return;
+  const k = x.k;
+  if (CAT.all.some(c => c.k === k) || (CAT.rep || []).some(c => c.k === k) || mis.some(p => p.songs.some(s => s.k === k))) return;
+  if (!CAT.rep) CAT.rep = [];
+  CAT.rep.push(song(x));
+  const rep = CAT.rep.slice();
+  write("catalog", () => updateDoc(doc(db, "catalog", "main"), {rep}));
+}
 function load(i, opt = {}){
   const x = queue[i]; if (!x) return;
   cur = i; armed = !!opt.armed; resumePos = opt.pos || 0;
@@ -1284,6 +1296,7 @@ function load(i, opt = {}){
     mode = "yt"; au.pause(); $("art").hidden = true;
     keepAlive(); setMedia(x);
     if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; }
+    recordPlayed(x);
   }
   renderList(); saveResume(resumePos); renderNext(); paintSeek();
 }

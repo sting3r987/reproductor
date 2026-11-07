@@ -441,9 +441,9 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .pa-grid{grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:16px 12px}
   .plhead .cover{width:84px}
 }
-/* Celular buscando: la cabecera deja de ser fija; el reproductor conserva su tamaño y se queda arriba al bajar a los resultados */
+/* Celular: la cabecera no es fija (en ningún momento); al bajar queda la franja pequeña del reproductor */
 @media (max-width:640px){
-  body.srch header.top{position:static} /* el reproductor (tamaño normal) se va con la página al bajar a los resultados */
+  header.top{position:static} /* el reproductor no queda fijo: al bajar se va con la página y aparece la franja pequeña (.mini) */
   body.srch #msg{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:8px;padding:4px 12px;font-size:12.5px}
   body.srch #msg::before{display:inline-block;margin-right:8px;vertical-align:middle}
 }

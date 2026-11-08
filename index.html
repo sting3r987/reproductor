@@ -1227,7 +1227,7 @@ function setMedia(x){
   try {
     navigator.mediaSession.metadata = new MediaMetadata({title: x.t, artist: x.a, album: queueLabel, artwork: x.y ? [{src: "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg"}] : []});
     const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => { log("lock: play"); sysPause = 0; if (armed) $("play").click(); else if (mode === "file") au.play(); else { keepAlive(); player?.playVideo(); } });
+    ms.setActionHandler("play", () => { log("lock: play"); sysPause = 0; if (armed) $("play").click(); else if (mode === "file") au.play(); else resumeYt("pantalla de bloqueo"); });
     ms.setActionHandler("pause", () => { log("lock: pausa"); if (mode === "file") au.pause(); else { started = true; clearInterval(kick); player?.pauseVideo(); } });
     ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
     ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
@@ -1466,6 +1466,24 @@ function start(id, pos){
     if (s === YT.PlayerState.CUED || s === YT.PlayerState.UNSTARTED || s === YT.PlayerState.PAUSED){ player.playVideo(); if (tries % 5 === 1) log("insisto (estado " + s + ")"); }
   }, 1000);
 }
+// Reanuda el video tras una pausa (botón, pantalla de bloqueo, intercomunicador o audífonos). En segundo plano YouTube a veces
+// ignora la primera orden: se insiste cada segundo hasta 30 s, mientras nadie vuelva a pausar (pausar limpia `kick`).
+function resumeYt(why){
+  if (!ready || mode !== "yt") return;
+  keepAlive(); clearInterval(kick);
+  try { player.playVideo(); } catch {}
+  let tries = 0, lastT = -1, adv = 0;
+  const first = !started; // la canción aún no había arrancado: al sonar es su comienzo, no una reanudación
+  kick = setInterval(() => {
+    if (playing || ++tries > 30){ if (!playing) log("no reanudó tras 30 s (" + why + ")"); return clearInterval(kick); }
+    if (silent.paused && Date.now() - selfSilentAt > 1500){ log("el sistema tomó el audio: dejo de insistir"); return clearInterval(kick); } // llamada, intercomunicador…
+    let ct = 0; try { ct = player.getCurrentTime() || 0; } catch {}
+    adv = lastT >= 0 && ct > lastT + 0.3 ? adv + 1 : 0; lastT = ct;
+    if (adv >= 2){ log("ya suena otra vez (YouTube no avisó)"); started = true; setPlaying(true); fadeTo(100, first ? FADE : FADE_RESUME); precue(); return clearInterval(kick); }
+    let s = -1; try { s = player.getPlayerState(); } catch {}
+    if (s === YT.PlayerState.CUED || s === YT.PlayerState.UNSTARTED || s === YT.PlayerState.PAUSED){ try { player.playVideo(); } catch {} if (tries % 5 === 1) log("insisto en reanudar (estado " + s + ")"); }
+  }, 1000);
+}
 function step(d){
   if (!queue.length) return playFrom(0, current, listLabel());
   // Con la pantalla bloqueada YouTube no arranca: si hay canciones con archivo, salta a la próxima que tenga.
@@ -1506,7 +1524,7 @@ function btResume(why, guard){
   if (ago > 3 * 3600e3){ sysPause = 0; return; } // demasiado tiempo: ya no se retoma sola
   if (guard && ago < 4000) return; // el aviso de cambio de dispositivo de la propia desconexión llega casi a la vez
   sysPause = 0; log("audio conectado (" + why + "): sigue");
-  if (mode === "file") au.play().catch(() => {}); else { keepAlive(); try { player?.playVideo(); } catch {} }
+  if (mode === "file") au.play().catch(() => {}); else resumeYt(why);
 }
 silent.addEventListener("pause", () => {
   if (Date.now() - selfSilentAt < 1500) return; // la pausamos nosotros (pasó a un archivo de audio)
@@ -1523,7 +1541,7 @@ $("play").onclick = () => {
   if (armed) return load(cur, {pos: resumePos}); // retoma la canción que quedó cargada al abrir la app
   if (mode === "file"){ if (au.paused) au.play(); else au.pause(); return; }
   if (!ready) return;
-  if (playing){ started = true; clearInterval(kick); player.pauseVideo(); } else { keepAlive(); player.playVideo(); }
+  if (playing){ started = true; clearInterval(kick); player.pauseVideo(); } else resumeYt("botón");
 };
 $("shuf").onclick = () => {
   shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle); store.set("np-shuffle", shuffle ? "1" : "0");

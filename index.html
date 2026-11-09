@@ -1148,7 +1148,7 @@ const silent = (() => {
 let stoppedAt = 0;
 function setPlaying(on){
   if (playing && !on) stoppedAt = Date.now();
-  if (playing && !on && BTD) setTimeout(() => { if (!playing) btWatch(); }, 50); // se pausó: a vigilar el Bluetooth (tras los manejadores de la pausa)
+  if (playing && !on && BTD) setTimeout(() => { if (!playing && Date.now() - btT0 > 2000) btWatch(); }, 50); // se pausó: a vigilar el Bluetooth (si la pausa no lo puso ya a vigilar)
   playing = on; document.body.classList.toggle("playing", on); $("play").title = $("play").ariaLabel = on ? "Pausa" : "Reproducir";
   if ("mediaSession" in navigator) navigator.mediaSession.playbackState = on ? "playing" : "paused";
 }
@@ -1529,23 +1529,31 @@ $("btdetect").onchange = async e => {
     if (BTD) log("dispositivos: " + (await btList()).join(" | "));
   } else BTD = false;
   box.checked = BTD; box.disabled = false; store.set("np-btmic", BTD ? "1" : "0");
-  if (BTD && sysPause) btWatch(); else if (!BTD){ clearInterval(btPoll); btUnkeep(); }
+  if (BTD && !playing) btWatch(); else if (!BTD){ clearInterval(btPoll); btUnkeep(); }
 };
 async function btList(){ // nombres de las entradas de audio (vacíos sin permiso)
   try { return (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput").map(d => d.label || "?"); } catch { return []; }
 }
+let btBusy = false, btAutoAt = 0;
 async function btCheck(why){
-  if (!BTD) return;
-  const ep = btEp, names = await btList(), has = names.some(n => /bluetooth|\bbt\b|hands.?free/i.test(n));
+  if (!BTD || btBusy) return; // una consulta a la vez: dos avisos seguidos no deben dar dos «clics»
+  btBusy = true; const ep = btEp; let names = [];
+  try { names = await btList(); } finally { btBusy = false; }
+  const has = names.some(n => /bluetooth|\bbt\b|hands.?free/i.test(n));
   if (ep !== btEp) return; // mientras se consultaba empezó otra pausa: esta lectura ya no vale
+  if (!BT){ btSeen = has; return; } // «Carro y Bluetooth» apagado: solo se observa, no se reproduce solo
   if (btSeen === null && names.length && names.every(n => n === "?")) log("micrófono sin permiso: no se puede detectar el Bluetooth");
   if (btSeen !== null && has !== btSeen) log("bluetooth " + (has ? "conectado" : "desconectado") + " (" + why + "): " + names.join(" | "));
   // El carro a veces manda «pausa» (como si la tocaras tú) y luego corta el Bluetooth: si se va en el minuto y medio siguiente, fue el carro
   if (btSeen === true && !has && !sysPause && !playing && Date.now() - lockPauseAt < 90e3){ sysPause = lockPauseAt; log("la pausa vino del carro: se sigue al volver el Bluetooth"); }
   // Volvió el Bluetooth y no suena nada: se sigue. Si la pausa la hizo el sistema, por la vía normal; si no (app recién abierta
   // con la canción solo cargada, pausa tuya…), como si tocaras Reproducir.
-  if (btSeen === false && has && !playing){
-    if (sysPause && !armed) btResume("bluetooth detectado");
+  if (btSeen === false && has && !playing && Date.now() - btAutoAt > 5000){
+    // Si la app aún está cargando lo guardado (o YouTube no está listo), se espera: la transición queda pendiente para la próxima consulta
+    const listo = cur >= 0 ? (armed || mode === "file" || ready) : resumed;
+    if (!listo){ log("bluetooth detectado: espero a que cargue"); return; }
+    btAutoAt = Date.now();
+    if (sysPause && !armed && Date.now() - sysPause < 3 * 3600e3) btResume("bluetooth detectado");
     else { sysPause = 0; log("bluetooth detectado: reproduzco"); $("play").click(); }
   }
   btSeen = has;
@@ -1561,9 +1569,10 @@ function btKeep(){
   silent.play().then(() => log("vigilando el Bluetooth")).catch(e => log("no se pudo vigilar: " + e.name));
 }
 function btUnkeep(){ if (kept && !playing && !silent.paused){ selfSilentAt = Date.now(); silent.pause(); } kept = false; } // ya no hace falta mantener la pestaña activa
+let btT0 = 0;
 function btWatch(){
   clearInterval(btPoll); btSeen = null; btEp++; kept = false; if (!BTD) return;
-  const t0 = Date.now(); btCheck("inicio");
+  const t0 = btT0 = Date.now(); btCheck("inicio");
   btPoll = setInterval(() => {
     if (!BTD || playing) return clearInterval(btPoll); // ya suena (o se está reanudando): el audio silencioso sigue, keepAlive lo necesita
     if (Date.now() - t0 > 3 * 3600e3){ if (kept) btUnkeep(); } // demasiado tiempo: ya no se mantiene la pestaña activa

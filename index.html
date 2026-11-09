@@ -1148,6 +1148,7 @@ const silent = (() => {
 let stoppedAt = 0;
 function setPlaying(on){
   if (playing && !on) stoppedAt = Date.now();
+  if (playing && !on && BTD) setTimeout(() => { if (!playing) btWatch(); }, 50); // se pausó: a vigilar el Bluetooth (tras los manejadores de la pausa)
   playing = on; document.body.classList.toggle("playing", on); $("play").title = $("play").ariaLabel = on ? "Pausa" : "Reproducir";
   if ("mediaSession" in navigator) navigator.mediaSession.playbackState = on ? "playing" : "paused";
 }
@@ -1541,11 +1542,16 @@ async function btCheck(why){
   if (btSeen !== null && has !== btSeen) log("bluetooth " + (has ? "conectado" : "desconectado") + " (" + why + "): " + names.join(" | "));
   // El carro a veces manda «pausa» (como si la tocaras tú) y luego corta el Bluetooth: si se va en el minuto y medio siguiente, fue el carro
   if (btSeen === true && !has && !sysPause && !playing && Date.now() - lockPauseAt < 90e3){ sysPause = lockPauseAt; log("la pausa vino del carro: se sigue al volver el Bluetooth"); }
-  if (btSeen === false && has && sysPause) btResume("bluetooth detectado");
+  // Volvió el Bluetooth y no suena nada: se sigue. Si la pausa la hizo el sistema, por la vía normal; si no (app recién abierta
+  // con la canción solo cargada, pausa tuya…), como si tocaras Reproducir.
+  if (btSeen === false && has && !playing){
+    if (sysPause && !armed) btResume("bluetooth detectado");
+    else { sysPause = 0; log("bluetooth detectado: reproduzco"); $("play").click(); }
+  }
   btSeen = has;
 }
-// Vigila los dispositivos tras una pausa (del sistema o de la pantalla de bloqueo). Termina al volver a sonar, cuando ya no hay
-// pausa que retomar, o a las 3 h (después ya no se retoma sola). Nota: en segundo plano el navegador frena los temporizadores.
+// Vigila los dispositivos mientras no suena nada (desde que se abre la app, y tras cada pausa). Termina al volver a sonar.
+// A las 3 h deja de mantener la pestaña activa, pero sigue consultando. Nota: en segundo plano el navegador frena los temporizadores.
 let keepAt = 0, kept = false; // keepAt: cuándo rearrancamos nosotros el audio silencioso; kept: lo rearrancamos en esta pausa
 // Pausada y oculta, la pestaña se frena o se congela y la vigilancia no correría: el audio silencioso la mantiene activa
 // (es silencio de verdad: no se oye nada aunque salga por el altavoz del teléfono mientras no hay Bluetooth).
@@ -1559,12 +1565,13 @@ function btWatch(){
   clearInterval(btPoll); btSeen = null; btEp++; kept = false; if (!BTD) return;
   const t0 = Date.now(); btCheck("inicio");
   btPoll = setInterval(() => {
-    if (!BTD || Date.now() - t0 > 3 * 3600e3){ clearInterval(btPoll); btUnkeep(); return; } // se dejó de vigilar sin reanudar
-    if (playing || (!sysPause && Date.now() - lockPauseAt > 90e3)) return clearInterval(btPoll); // ya suena, o se está reanudando: el audio silencioso sigue (keepAlive lo necesita)
-    if (Date.now() - t0 > 2500) btKeep(); // tras un momento, por si el sistema sigue pausando
+    if (!BTD || playing) return clearInterval(btPoll); // ya suena (o se está reanudando): el audio silencioso sigue, keepAlive lo necesita
+    if (Date.now() - t0 > 3 * 3600e3){ if (kept) btUnkeep(); } // demasiado tiempo: ya no se mantiene la pestaña activa
+    else if (Date.now() - t0 > 2500) btKeep(); // tras un momento, por si el sistema sigue pausando
     btCheck("consulta");
   }, 4000);
 }
+if (BTD) btWatch(); // desde que se abre la app: si llega el Bluetooth del carro, que suene
 function btPause(why){
   if (!BT || sysPause) return;
   sysPause = Date.now(); log("audio desconectado (" + why + "): pausa");

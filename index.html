@@ -1128,10 +1128,12 @@ const au = new Audio(); au.preload = "auto";
 let auUrl = null;
 // Registro de diagnóstico: se ve añadiendo ?debug a la dirección (y guarda lo último para poder leerlo tras recargar).
 const LOG = (store.get("np-log") || "").split("\n").filter(Boolean);
-const dbg = $("dbg"); dbg.hidden = !location.search.includes("debug"); dbg.textContent = LOG.join("\n");
+const dbg = $("dbg"); dbg.hidden = !location.search.includes("debug");
+const paintLog = () => { dbg.textContent = LOG.slice().reverse().join("\n"); }; // lo más reciente arriba: se ve sin bajar
+paintLog();
 function log(m){
   LOG.push(new Date().toTimeString().slice(0, 8) + (document.hidden ? " [oculta] " : " ") + m); if (LOG.length > 80) LOG.shift();
-  store.set("np-log", LOG.join("\n")); dbg.textContent = LOG.join("\n");
+  store.set("np-log", LOG.join("\n")); paintLog();
 }
 // Audio silencioso en bucle en nuestra página: mantiene la pestaña "sonando" para que el navegador no la congele
 // en segundo plano y para que los controles de la pantalla de bloqueo sean los nuestros (Media Session).

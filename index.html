@@ -534,6 +534,7 @@ body.playing .mini .i-pause{display:block}
         <p class="tm-h">Fundido entre canciones <span class="tm-v" id="fade-v"></span></p>
         <input type="range" class="tm-range" id="fade" min="0" max="8" step="0.5" aria-label="Segundos de fundido">
         <label class="tm-chk"><input type="checkbox" id="btauto"><span>Carro y Bluetooth: pausar al desconectar y seguir al conectar</span></label>
+        <label class="tm-chk"><input type="checkbox" id="btdetect"><span>Detectar cuándo vuelve el Bluetooth (pide permiso de micrófono: es la única forma que da el navegador de ver los dispositivos; la app no graba nada)</span></label>
         <p class="tm-h">Copia de seguridad</p>
         <button class="btn sm" type="button" id="backup" title="Descarga el catálogo y todas las playlists en un archivo .json">Descargar copia</button>
         <div class="tm-foot"><button type="button" id="logout">Salir</button><button class="btn sm" type="button" id="tm-done">Listo</button></div>
@@ -1228,7 +1229,7 @@ function setMedia(x){
     navigator.mediaSession.metadata = new MediaMetadata({title: x.t, artist: x.a, album: queueLabel, artwork: x.y ? [{src: "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg"}] : []});
     const ms = navigator.mediaSession;
     ms.setActionHandler("play", () => { log("lock: play"); sysPause = 0; if (armed) $("play").click(); else if (mode === "file") au.play(); else resumeYt("pantalla de bloqueo"); });
-    ms.setActionHandler("pause", () => { log("lock: pausa"); if (mode === "file") au.pause(); else { started = true; clearInterval(kick); player?.pauseVideo(); } });
+    ms.setActionHandler("pause", () => { log("lock: pausa"); if (mode === "file") au.pause(); else { started = true; clearInterval(kick); player?.pauseVideo(); } lockPauseAt = Date.now(); btWatch(); });
     ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
     ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
     // Solo "seekto" (barra de avance). Con seekforward/seekbackward el iPhone cambiaría ⏮ ⏭ por saltos de 10 s.
@@ -1512,11 +1513,50 @@ document.addEventListener("visibilitychange", () => {
 let BT = store.get("np-bt") !== "0", sysPause = 0, selfSilentAt = 0; // sysPause: cuándo pausó el sistema (0 = no hay)
 $("btauto").checked = BT;
 $("btauto").onchange = e => { BT = e.target.checked; store.set("np-bt", BT ? "1" : "0"); sysPause = 0; };
+/* Detección del Bluetooth: ni el carro ni el casco avisan siempre a la página cuando vuelven a conectarse. Con permiso de
+   micrófono, el navegador enumera los dispositivos de audio con nombre (en Android aparece «Bluetooth headset» mientras hay un
+   carro o casco conectado). Tras una pausa del sistema se consulta cada 4 s: si el Bluetooth desapareció y vuelve, se sigue. */
+let BTD = store.get("np-btmic") === "1", btPoll = 0, btSeen = null, btEp = 0, lockPauseAt = 0; // btSeen: ¿había Bluetooth en la última consulta?; btEp: episodio de pausa
+$("btdetect").checked = BTD;
+$("btdetect").onchange = async e => {
+  const box = e.target, want = box.checked; box.disabled = true;
+  if (want){
+    try { const s = await navigator.mediaDevices.getUserMedia({audio: true}); s.getTracks().forEach(t => t.stop()); BTD = true; }
+    catch (err){ BTD = false; flash("Sin permiso de micrófono no se puede detectar el Bluetooth."); log("micrófono: " + err.name); }
+    if (BTD) log("dispositivos: " + (await btList()).join(" | "));
+  } else BTD = false;
+  box.checked = BTD; box.disabled = false; store.set("np-btmic", BTD ? "1" : "0");
+  if (BTD && sysPause) btWatch(); else if (!BTD) clearInterval(btPoll);
+};
+async function btList(){ // nombres de las entradas de audio (vacíos sin permiso)
+  try { return (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput").map(d => d.label || "?"); } catch { return []; }
+}
+async function btCheck(why){
+  if (!BTD) return;
+  const ep = btEp, names = await btList(), has = names.some(n => /bluetooth|\bbt\b|hands.?free/i.test(n));
+  if (ep !== btEp) return; // mientras se consultaba empezó otra pausa: esta lectura ya no vale
+  if (btSeen === null && names.length && names.every(n => n === "?")) log("micrófono sin permiso: no se puede detectar el Bluetooth");
+  if (btSeen !== null && has !== btSeen) log("bluetooth " + (has ? "conectado" : "desconectado") + " (" + why + "): " + names.join(" | "));
+  // El carro a veces manda «pausa» (como si la tocaras tú) y luego corta el Bluetooth: si se va en el minuto y medio siguiente, fue el carro
+  if (btSeen === true && !has && !sysPause && !playing && Date.now() - lockPauseAt < 90e3){ sysPause = lockPauseAt; log("la pausa vino del carro: se sigue al volver el Bluetooth"); }
+  if (btSeen === false && has && sysPause) btResume("bluetooth detectado");
+  btSeen = has;
+}
+// Vigila los dispositivos tras una pausa (del sistema o de la pantalla de bloqueo). Termina al volver a sonar, cuando ya no hay
+// pausa que retomar, o a las 3 h (después ya no se retoma sola). Nota: en segundo plano el navegador frena los temporizadores.
+function btWatch(){
+  clearInterval(btPoll); btSeen = null; btEp++; if (!BTD) return;
+  const t0 = Date.now(); btCheck("inicio");
+  btPoll = setInterval(() => {
+    if (!BTD || playing || Date.now() - t0 > 3 * 3600e3 || (!sysPause && Date.now() - lockPauseAt > 90e3)) return clearInterval(btPoll);
+    btCheck("consulta");
+  }, 4000);
+}
 function btPause(why){
   if (!BT || sysPause) return;
   sysPause = Date.now(); log("audio desconectado (" + why + "): pausa");
   if (mode === "file") au.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} }
-  saveResume(curPos());
+  saveResume(curPos()); btWatch();
 }
 function btResume(why, guard){
   if (!BT || !sysPause || armed) return;
@@ -1531,7 +1571,7 @@ silent.addEventListener("pause", () => {
   if (playing || Date.now() - stoppedAt < 2000){ log("audio de fondo pausado por el sistema"); btPause("sistema"); }
 });
 silent.addEventListener("play", () => { if (sysPause) btResume("sistema"); }); // el sistema devolvió el audio (fin de llamada, aviso corto…)
-navigator.mediaDevices?.addEventListener?.("devicechange", () => { log("cambió el dispositivo de audio"); if (!playing) btResume("bluetooth", true); });
+navigator.mediaDevices?.addEventListener?.("devicechange", () => { log("cambió el dispositivo de audio"); if (BTD) btCheck("aviso"); if (!playing) btResume("bluetooth", true); });
 if (location.search.includes("debug")) window.__np = {silent, btState: () => ({BT, sysPause, playing, mode})};
 $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);

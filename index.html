@@ -1526,7 +1526,7 @@ $("btdetect").onchange = async e => {
     if (BTD) log("dispositivos: " + (await btList()).join(" | "));
   } else BTD = false;
   box.checked = BTD; box.disabled = false; store.set("np-btmic", BTD ? "1" : "0");
-  if (BTD && sysPause) btWatch(); else if (!BTD) clearInterval(btPoll);
+  if (BTD && sysPause) btWatch(); else if (!BTD){ clearInterval(btPoll); btUnkeep(); }
 };
 async function btList(){ // nombres de las entradas de audio (vacíos sin permiso)
   try { return (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput").map(d => d.label || "?"); } catch { return []; }
@@ -1544,19 +1544,22 @@ async function btCheck(why){
 }
 // Vigila los dispositivos tras una pausa (del sistema o de la pantalla de bloqueo). Termina al volver a sonar, cuando ya no hay
 // pausa que retomar, o a las 3 h (después ya no se retoma sola). Nota: en segundo plano el navegador frena los temporizadores.
-let keepAt = 0; // cuándo rearrancamos nosotros el audio silencioso (para no confundirlo con que el sistema devolvió el audio)
+let keepAt = 0, kept = false; // keepAt: cuándo rearrancamos nosotros el audio silencioso; kept: lo rearrancamos en esta pausa
+// Pausada y oculta, la pestaña se frena o se congela y la vigilancia no correría: el audio silencioso la mantiene activa
+// (es silencio de verdad: no se oye nada aunque salga por el altavoz del teléfono mientras no hay Bluetooth).
+function btKeep(){
+  if (kept || !sysPause || playing || mode !== "yt" || !silent.paused) return;
+  kept = true; keepAt = Date.now();
+  silent.play().then(() => log("vigilando el Bluetooth")).catch(e => log("no se pudo vigilar: " + e.name));
+}
+function btUnkeep(){ if (kept && !playing && !silent.paused){ selfSilentAt = Date.now(); silent.pause(); } kept = false; } // ya no hace falta mantener la pestaña activa
 function btWatch(){
-  clearInterval(btPoll); btSeen = null; btEp++; if (!BTD) return;
-  const t0 = Date.now(), ep = btEp; btCheck("inicio");
-  // Pausada y oculta, la pestaña se frena o se congela y la vigilancia no correría: el audio silencioso la mantiene activa
-  // (es silencio de verdad: no se oye nada aunque salga por el altavoz del teléfono mientras no hay Bluetooth).
-  setTimeout(() => { if (ep === btEp && sysPause && !playing && silent.paused){ keepAt = Date.now(); silent.play().then(() => log("vigilando el Bluetooth")).catch(e => log("no se pudo vigilar: " + e.name)); } }, 2500);
+  clearInterval(btPoll); btSeen = null; btEp++; kept = false; if (!BTD) return;
+  const t0 = Date.now(); btCheck("inicio");
   btPoll = setInterval(() => {
-    if (!BTD || playing || Date.now() - t0 > 3 * 3600e3 || (!sysPause && Date.now() - lockPauseAt > 90e3)){
-      clearInterval(btPoll);
-      if (!playing && !silent.paused){ selfSilentAt = Date.now(); silent.pause(); } // se deja de vigilar: ya no hace falta mantener la pestaña activa
-      return;
-    }
+    if (!BTD || Date.now() - t0 > 3 * 3600e3){ clearInterval(btPoll); btUnkeep(); return; } // se dejó de vigilar sin reanudar
+    if (playing || (!sysPause && Date.now() - lockPauseAt > 90e3)) return clearInterval(btPoll); // ya suena, o se está reanudando: el audio silencioso sigue (keepAlive lo necesita)
+    if (Date.now() - t0 > 2500) btKeep(); // tras un momento, por si el sistema sigue pausando
     btCheck("consulta");
   }, 4000);
 }
@@ -1578,7 +1581,8 @@ silent.addEventListener("pause", () => {
   if (Date.now() - selfSilentAt < 1500) return; // la pausamos nosotros (pasó a un archivo de audio)
   if (playing || Date.now() - stoppedAt < 2000){ log("audio de fondo pausado por el sistema"); btPause("sistema"); }
 });
-silent.addEventListener("play", () => { if (sysPause && Date.now() - keepAt > 1500) btResume("sistema"); }); // el sistema devolvió el audio (fin de llamada, aviso corto…); no si lo rearrancamos nosotros
+// El sistema devolvió el audio (fin de llamada, aviso corto…): se sigue. No si lo rearrancamos nosotros, ni mientras la detección sabe que no hay Bluetooth.
+silent.addEventListener("play", () => { if (sysPause && Date.now() - keepAt > 1500 && !(BTD && btSeen === false)) btResume("sistema"); });
 navigator.mediaDevices?.addEventListener?.("devicechange", () => { log("cambió el dispositivo de audio"); if (BTD) btCheck("aviso"); if (!playing) btResume("bluetooth", true); });
 if (location.search.includes("debug")) window.__np = {silent, btState: () => ({BT, sysPause, playing, mode})};
 $("next").onclick = () => step(1);

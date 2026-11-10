@@ -625,7 +625,20 @@ if (!CFG.firebase){ $("gate-msg").textContent = "Falta configurar Firebase (conf
 const fb = initializeApp(CFG.firebase), auth = getAuth(fb), db = getFirestore(fb);
 const plCol = collection(db, "playlists");
 let unsub = [];
-$("login").onclick = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e => { $("gate-msg").textContent = "No se pudo entrar (" + (e.code || e.message) + "). Intenta de nuevo."; });
+// Un segundo toque mientras la ventana de Google sigue abierta cancela la primera (auth/cancelled-popup-request): se ignora.
+let logging = false;
+$("login").onclick = () => {
+  if (logging) return; logging = true; $("login").disabled = true;
+  $("gate-msg").textContent = "Se abrió la ventana de Google: elige tu cuenta ahí.";
+  signInWithPopup(auth, new GoogleAuthProvider()).catch(e => {
+    const c = e.code || e.message;
+    $("gate-msg").textContent = c === "auth/popup-blocked"
+      ? "El navegador bloqueó la ventana de Google. En Brave: Ajustes → Shields y privacidad → desactiva «Bloquear ventanas emergentes» (o abre la página en Safari) y vuelve a intentar."
+      : c === "auth/popup-closed-by-user" || c === "auth/cancelled-popup-request"
+      ? "Se cerró la ventana de Google antes de terminar. Toca el botón una sola vez y completa el inicio de sesión en la ventana que se abre."
+      : "No se pudo entrar (" + c + "). Intenta de nuevo.";
+  }).finally(() => { logging = false; $("login").disabled = false; });
+};
 $("logout").onclick = () => signOut(auth);
 onAuthStateChanged(auth, u => {
   unsub.forEach(f => f()); unsub = [];

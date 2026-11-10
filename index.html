@@ -1146,11 +1146,14 @@ const silent = (() => {
   const a = new Audio(URL.createObjectURL(new Blob([b], {type: "audio/wav"}))); a.loop = true; a.volume = 0.01; return a;
 })();
 let stoppedAt = 0;
+let lockHeld = 0, lockHeldT = 0;
+function lockRelease(){ lockHeld = 0; clearTimeout(lockHeldT); }
 function setPlaying(on){
+  if (on) lockRelease();
   if (playing && !on) stoppedAt = Date.now();
   if (playing && !on && BTD) setTimeout(() => { if (!playing && Date.now() - btT0 > 2000) btWatch(); }, 50); // se pausó: a vigilar el Bluetooth (si la pausa no lo puso ya a vigilar)
   playing = on; document.body.classList.toggle("playing", on); $("play").title = $("play").ariaLabel = on ? "Pausa" : "Reproducir";
-  if ("mediaSession" in navigator) navigator.mediaSession.playbackState = on ? "playing" : "paused";
+  if ("mediaSession" in navigator) navigator.mediaSession.playbackState = on || lockHeld ? "playing" : "paused";
 }
 // Posición para la barra de progreso de la pantalla de bloqueo. Con playbackRate 1 el sistema la hace avanzar solo
 // entre actualizaciones, así que sigue moviéndose aunque la página esté en segundo plano y los temporizadores vayan lentos.
@@ -1231,8 +1234,22 @@ function setMedia(x){
   try {
     navigator.mediaSession.metadata = new MediaMetadata({title: x.t, artist: x.a, album: queueLabel, artwork: x.y ? [{src: "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg"}] : []});
     const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => { log("lock: play"); sysPause = 0; if (armed) $("play").click(); else if (mode === "file") au.play(); else resumeYt("pantalla de bloqueo"); });
-    ms.setActionHandler("pause", () => { log("lock: pausa"); if (mode === "file") au.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} setPlaying(false); } lockPauseAt = Date.now(); btWatch(); });
+    ms.setActionHandler("play", () => { log("lock: play"); lockRelease(); sysPause = 0; if (armed) $("play").click(); else if (mode === "file") au.play(); else resumeYt("pantalla de bloqueo"); });
+    ms.setActionHandler("pause", () => {
+      if (lockHeld && !playing && !armed){ // segundo toque del mismo botón (fin del intercomunicador): se sigue
+        log("lock: pausa otra vez → sigo"); lockRelease(); sysPause = 0;
+        if (mode === "file") au.play().catch(() => {}); else resumeYt("segundo toque");
+        return;
+      }
+      log("lock: pausa");
+      lockRelease();
+      const hold = mode === "yt" && !armed; // con archivos de audio la pestaña no tiene cómo mantenerse viva: pausa normal
+      if (hold) lockHeld = Date.now();
+      if (hold) lockHeldT = setTimeout(() => { if (lockHeld && !playing){ lockRelease(); if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; } }, 30 * 60e3);
+      if (mode === "file") au.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} setPlaying(false); keepAlive(); }
+      if (hold && "mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
+      lockPauseAt = Date.now(); btWatch();
+    });
     try { ms.setActionHandler("stop", () => log("lock: stop (no hago nada)")); } catch {} // solo para ver en el registro qué manda el casco
     ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
     ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
@@ -1609,7 +1626,7 @@ if (location.search.includes("debug")) window.__np = {silent, btState: () => ({B
 $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);
 $("play").onclick = () => {
-  sysPause = 0;
+  sysPause = 0; lockRelease();
   if (cur < 0) return step(1);
   if (armed) return load(cur, {pos: resumePos}); // retoma la canción que quedó cargada al abrir la app
   if (mode === "file"){ if (au.paused) au.play(); else au.pause(); return; }

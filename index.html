@@ -1233,6 +1233,7 @@ function setMedia(x){
     const ms = navigator.mediaSession;
     ms.setActionHandler("play", () => { log("lock: play"); sysPause = 0; if (armed) $("play").click(); else if (mode === "file") au.play(); else resumeYt("pantalla de bloqueo"); });
     ms.setActionHandler("pause", () => { log("lock: pausa"); if (mode === "file") au.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} setPlaying(false); } lockPauseAt = Date.now(); btWatch(); });
+    try { ms.setActionHandler("stop", () => log("lock: stop (no hago nada)")); } catch {} // solo para ver en el registro qué manda el casco
     ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
     ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
     // Solo "seekto" (barra de avance). Con seekforward/seekbackward el iPhone cambiaría ⏮ ⏭ por saltos de 10 s.

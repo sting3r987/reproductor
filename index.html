@@ -1146,8 +1146,8 @@ const silent = (() => {
   const a = new Audio(URL.createObjectURL(new Blob([b], {type: "audio/wav"}))); a.loop = true; a.volume = 0.01; return a;
 })();
 let stoppedAt = 0;
-let lockHeld = 0, lockHeldT = 0;
-function lockRelease(){ lockHeld = 0; clearTimeout(lockHeldT); }
+let lockHeld = 0, lockHeldT = 0, lockResumeT = 0;
+function lockRelease(){ lockHeld = 0; clearTimeout(lockHeldT); clearTimeout(lockResumeT); }
 function setPlaying(on){
   if (on) lockRelease();
   if (playing && !on) stoppedAt = Date.now();
@@ -1237,8 +1237,9 @@ function setMedia(x){
     ms.setActionHandler("play", () => { log("lock: play"); lockRelease(); sysPause = 0; if (armed) $("play").click(); else if (mode === "file") au.play(); else resumeYt("pantalla de bloqueo"); });
     ms.setActionHandler("pause", () => {
       if (lockHeld && !playing && !armed){ // segundo toque del mismo botón (fin del intercomunicador): se sigue
-        log("lock: pausa otra vez → sigo"); lockRelease(); sysPause = 0;
-        if (mode === "file") au.play().catch(() => {}); else resumeYt("segundo toque");
+        // El casco tarda en cerrar el intercomunicador: si la música vuelve antes, la deja muda. Se espera un poco.
+        log("lock: pausa otra vez → sigo en 3 s"); lockRelease(); sysPause = 0;
+        lockResumeT = setTimeout(() => { if (playing || armed) return; log("sigo tras el intercomunicador"); if (mode === "file") au.play().catch(() => {}); else resumeYt("segundo toque"); }, 3000);
         return;
       }
       log("lock: pausa");
@@ -1338,6 +1339,7 @@ function recordPlayed(x){
 }
 function load(i, opt = {}){
   const x = queue[i]; if (!x) return;
+  clearTimeout(lockResumeT); // otra canción: ya no se espera para retomar la anterior
   cur = i; armed = !!opt.armed; resumePos = opt.pos || 0;
   $("nt").textContent = x.t; $("na").textContent = x.a;
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;

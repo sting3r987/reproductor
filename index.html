@@ -1232,7 +1232,7 @@ function setMedia(x){
     navigator.mediaSession.metadata = new MediaMetadata({title: x.t, artist: x.a, album: queueLabel, artwork: x.y ? [{src: "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg"}] : []});
     const ms = navigator.mediaSession;
     ms.setActionHandler("play", () => { log("lock: play"); sysPause = 0; if (armed) $("play").click(); else if (mode === "file") au.play(); else resumeYt("pantalla de bloqueo"); });
-    ms.setActionHandler("pause", () => { log("lock: pausa"); if (mode === "file") au.pause(); else { started = true; clearInterval(kick); player?.pauseVideo(); } lockPauseAt = Date.now(); btWatch(); });
+    ms.setActionHandler("pause", () => { log("lock: pausa"); if (mode === "file") au.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} setPlaying(false); } lockPauseAt = Date.now(); btWatch(); });
     ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
     ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
     // Solo "seekto" (barra de avance). Con seekforward/seekbackward el iPhone cambiaría ⏮ ⏭ por saltos de 10 s.
@@ -1473,14 +1473,15 @@ function start(id, pos){
 // Reanuda el video tras una pausa (botón, pantalla de bloqueo, intercomunicador o audífonos). En segundo plano YouTube a veces
 // ignora la primera orden: se insiste cada segundo hasta 30 s, mientras nadie vuelva a pausar (pausar limpia `kick`).
 function resumeYt(why){
-  if (!ready || mode !== "yt") return;
+  if (!ready || mode !== "yt"){ log("no puedo reanudar (" + why + "): " + (mode !== "yt" ? "modo " + mode : "YouTube no está listo")); return; }
+  const t0 = Date.now();
   keepAlive(); clearInterval(kick);
   try { player.playVideo(); } catch {}
   let tries = 0, lastT = -1, adv = 0;
   const first = !started; // la canción aún no había arrancado: al sonar es su comienzo, no una reanudación
   kick = setInterval(() => {
     if (playing || ++tries > 30){ if (!playing) log("no reanudó tras 30 s (" + why + ")"); return clearInterval(kick); }
-    if (silent.paused && Date.now() - selfSilentAt > 1500){ log("el sistema tomó el audio: dejo de insistir"); return clearInterval(kick); } // llamada, intercomunicador…
+    if (silent.paused && silentLostAt > t0){ log("el sistema tomó el audio: dejo de insistir"); return clearInterval(kick); } // llamada, intercomunicador…
     let ct = 0; try { ct = player.getCurrentTime() || 0; } catch {}
     adv = lastT >= 0 && ct > lastT + 0.3 ? adv + 1 : 0; lastT = ct;
     if (adv >= 2){ log("ya suena otra vez (YouTube no avisó)"); started = true; setPlaying(true); fadeTo(100, first ? FADE : FADE_RESUME); precue(); return clearInterval(kick); }
@@ -1513,7 +1514,7 @@ document.addEventListener("visibilitychange", () => {
    página («audio becoming noisy»); entonces se pausa también la canción. Al volver a conectar, el carro manda «play» a la
    notificación (Media Session) o el sistema avisa del cambio de dispositivo: se sigue donde iba. Solo si la pausa la causó el
    sistema y fue hace menos de 3 horas; si la pausaste tú, no arranca sola. Necesita la app abierta en una pestaña (Android). */
-let BT = store.get("np-bt") !== "0", sysPause = 0, selfSilentAt = 0; // sysPause: cuándo pausó el sistema (0 = no hay)
+let BT = store.get("np-bt") !== "0", sysPause = 0, selfSilentAt = 0, silentLostAt = 0; // sysPause: cuándo pausó el sistema (0 = no hay)
 $("btauto").checked = BT;
 $("btauto").onchange = e => { BT = e.target.checked; store.set("np-bt", BT ? "1" : "0"); sysPause = 0; };
 /* Detección del Bluetooth: ni el carro ni el casco avisan siempre a la página cuando vuelven a conectarse. Con permiso de
@@ -1597,6 +1598,7 @@ function btResume(why, guard){
 }
 silent.addEventListener("pause", () => {
   if (Date.now() - selfSilentAt < 1500) return; // la pausamos nosotros (pasó a un archivo de audio)
+  silentLostAt = Date.now();
   if (playing || Date.now() - stoppedAt < 2000){ log("audio de fondo pausado por el sistema"); btPause("sistema"); }
 });
 // El sistema devolvió el audio (fin de llamada, aviso corto…): se sigue. No si lo rearrancamos nosotros, ni mientras la detección sabe que no hay Bluetooth.

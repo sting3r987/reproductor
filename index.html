@@ -1359,12 +1359,13 @@ function recordPlayed(x){
 function load(i, opt = {}){
   const x = queue[i]; if (!x) return;
   clearTimeout(lockResumeT); // otra canción: ya no se espera para retomar la anterior
+  if (!opt.auto) autoTry = 0; // otra canción o retomar a mano: se olvida el intento de arrancar sola
   cur = i; armed = !!opt.armed; resumePos = opt.pos || 0;
   $("nt").textContent = x.t; $("na").textContent = x.a;
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;
   $("ph").hidden = true; $("sub").hidden = false; $("seekrow").hidden = false;
   log((armed ? "retomo " : "canción ") + (i + 1) + ": " + x.t + (resumePos ? " desde " + resumePos + " s" : ""));
-  if (!armed) markPlayed(x);
+  if (!armed && !opt.auto) markPlayed(x);
   fixNext();
   const f = fileFor(x);
   if (armed){
@@ -1379,13 +1380,14 @@ function load(i, opt = {}){
     mode = "yt"; au.pause(); $("art").hidden = true;
     keepAlive(); setMedia(x);
     if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; }
-    recordPlayed(x);
+    if (!opt.auto) recordPlayed(x);
   }
   renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini();
 }
 // Guarda qué suena (origen, canción y segundo) para retomarlo al volver a abrir la app.
 function saveResume(pos){
   const x = queue[cur]; if (!x) return;
+  if (autoTry && !started) pos = resumePos; // aún intentando arrancar sola al abrir: la posición real todavía es 0
   store.set("np-resume", JSON.stringify({src: queueSrc, label: queueLabel, song: {t: x.t, a: x.a, k: x.k, y: x.y || null}, pos: Math.max(0, Math.floor(pos || 0)), when: Date.now()}));
 }
 const curPos = () => mode === "file" ? au.currentTime : (ready ? player.getCurrentTime() : 0);
@@ -1434,7 +1436,7 @@ $("qlist").onclick = e => {
   if (pl){ at = +pl.dataset.p; load(orderIdx[at]); }
 };
 document.addEventListener("visibilitychange", () => { if (document.hidden && cur >= 0 && !armed) saveResume(curPos()); });
-let filesDone = false, resumed = false;
+let filesDone = false, resumed = false, autoTry = 0; // autoTry: intento de arrancar sola al abrir (0 = ninguno)
 function tryResume(){
   if (resumed || !catLoaded || !loaded || !filesDone || cur >= 0) return;
   resumed = true;
@@ -1449,7 +1451,20 @@ function tryResume(){
   queue = list.filter(x => x.y || fileFor(x)); queueLabel = label; queueSrc = src.kind ? src : null;
   const qi = queue.findIndex(x => x.k === s.song.k); if (qi < 0){ queue = []; return; }
   orderIdx = order(qi); at = 0;
-  load(orderIdx[0], {armed: true, pos: s.pos});
+  const i0 = orderIdx[0], x0 = queue[i0], tok = ++autoTry;
+  log("al abrir: intento seguir sola");
+  load(i0, {pos: s.pos, auto: true});
+  const check = (late) => {
+    if (autoTry !== tok || queue[cur] !== x0 || playing || started) return; // ya suena, o tocaste algo
+    let st = -1; try { st = mode === "yt" && ready ? player.getPlayerState() : -1; } catch {}
+    if (!late && ((mode === "yt" && !ready) || st === 3)) return setTimeout(() => check(true), 15000); // todavía cargando: un poco más
+    autoTry = 0; log("el navegador no dejó sonar sin un toque: queda lista");
+    clearInterval(kick); pendingId = null;
+    if (mode === "file") au.pause(); else { try { player.pauseVideo(); } catch {} }
+    if (!silent.paused){ selfSilentAt = Date.now(); silent.pause(); }
+    load(i0, {armed: true, pos: s.pos});
+  };
+  setTimeout(() => check(false), 32000); // start() insiste 30 s: se espera a que termine
 }
 // Reproductor de reserva: mientras suena una canción, deja preparada (sin sonar) la que sigue; al terminar se cambia al instante.
 let spare = null, spareReady = false, cued = null, xfade = null, crossing = false; // xfade: reproductor anterior bajando en el fundido cruzado
@@ -1647,7 +1662,7 @@ if (location.search.includes("debug")) window.__np = {silent, btState: () => ({B
 $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);
 $("play").onclick = () => {
-  sysPause = 0; lockRelease();
+  sysPause = 0; lockRelease(); autoTry = 0;
   if (cur < 0) return step(1);
   if (armed) return load(cur, {pos: resumePos}); // retoma la canción que quedó cargada al abrir la app
   if (mode === "file"){ if (au.paused) au.play(); else au.pause(); return; }
@@ -1710,7 +1725,7 @@ function initYT(){
         log("estado " + ({"-1": "sin empezar", 0: "terminó", 1: "sonando", 2: "pausa", 3: "cargando", 5: "lista"}[e.data] ?? e.data));
         if (playing && !wasPlaying) precue();
         if (e.data === YT.PlayerState.ENDED) step(1);
-        if (e.data === YT.PlayerState.CUED && !started) player.playVideo(); // cargó pero no arrancó (pasa en segundo plano)
+        if (e.data === YT.PlayerState.CUED && !started && !armed) player.playVideo(); // cargó pero no arrancó (pasa en segundo plano)
         if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000) setTimeout(() => { if (document.hidden && !playing) player.playVideo(); }, 400);
       },
       onError(e){

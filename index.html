@@ -164,7 +164,9 @@ body.playing .btn.go.play-main .i-pause{display:block}
 .go-yt svg{width:15px;height:15px;fill:currentColor;color:inherit}
 .ythead{display:flex;align-items:center;gap:8px;margin:22px 0 4px;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
 .ythead svg{width:16px;height:16px;fill:#FF0000}
-.ythead b{color:var(--ink-2);text-transform:none;letter-spacing:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ythead b{color:var(--ink-2);text-transform:none;letter-spacing:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.ythead .yh{flex:none;white-space:nowrap}
+.row > .btn.sm{align-self:center;flex:none;margin-right:6px} /* «Quitar audio»: botón normal, no estirado a lo alto de la fila */
 .ytgo{margin:18px auto 0;display:flex;align-items:center;gap:7px;max-width:100%}
 .ytgo svg{width:16px;height:16px;fill:currentColor;flex:none}
 .ytgo span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -269,6 +271,10 @@ body.selecting{padding-bottom:76px}
   .row:has(.rep) .play{flex-basis:100%}
   .row:has(.rep) .rep,.row:has(.rep) .add{margin-top:-2px}
   .row:has(.rep) .add{height:30px;margin-right:6px}
+  .row:has([data-dropaud]){flex-wrap:wrap;justify-content:flex-end;padding-bottom:6px}
+  .row:has([data-dropaud]) .play{flex-basis:100%}
+  .row:has([data-dropaud]) [data-dropaud]{margin-top:-2px}
+  .meta .tag.cur{white-space:normal;text-align:center}
 }
 .grip{flex:none;width:36px;align-self:stretch;margin:4px 0;display:grid;place-items:center;border:0;border-radius:var(--r-sm);background:transparent;color:var(--ink-3);cursor:grab;touch-action:none;transition:color .12s,background .12s}
 .grip svg{width:12px;height:18px;fill:currentColor}
@@ -1986,7 +1992,7 @@ function renderYt(){
     html += chip;
     const n0 = altCur.length;
     if (altFor && n0) html += `<div class="ythead">Las que tiene ahora</div><div class="list" id="ytcur" role="list">${altCur.map((x, i) => songRow(x, i, true)).join("")}</div>`;
-    if (yres.length) html += `<div class="ythead">${YTI}${altFor ? "Otras versiones en YouTube" : "En YouTube"} · <b>${esc(ytQuery)}</b></div><div class="list" id="ytlist" role="list">${yres.map((x, i) => songRow(x, n0 + i, true)).join("")}</div>`;
+    if (yres.length) html += `<div class="ythead">${YTI}<span class="yh">${altFor ? "Otras versiones en YouTube" : "En YouTube"} ·</span><b>${esc(ytQuery)}</b></div><div class="list" id="ytlist" role="list">${yres.map((x, i) => songRow(x, n0 + i, true)).join("")}</div>`;
     if (done && !yres.length) html += `<p class="ytnone">${ytHidden ? "Todo lo que salió en YouTube para «" + esc(ytQuery) + "» ya lo tienes en tu música." : "En YouTube no salieron canciones para «" + esc(ytQuery) + "». Prueba con otras palabras."}</p>`;
     else if (done && ytHidden) html += `<p class="hint" style="margin-top:8px">${ytHidden === 1 ? "1 resultado no se muestra porque ya está" : ytHidden + " resultados no se muestran porque ya están"} en tu música.</p>`;
     if (altFor && yres.length) html += `<p style="margin:12px 0 0">${back}</p>`;

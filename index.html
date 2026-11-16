@@ -124,6 +124,7 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .qmore{padding:6px 10px 8px 38px;font-size:12px;color:var(--ink-3)}
 #backup{align-self:flex-start;margin-bottom:6px}
 .tm-chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.35;color:var(--ink-2);margin:2px 0 10px;cursor:pointer}
+.tm-heard{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2);margin:0 0 12px}
 .tm-chk input{flex:none;margin:2px 0 0;accent-color:var(--accent);width:16px;height:16px}
 #aud[data-mode="auto"] svg{margin-top:-7px}
 #aud[data-mode="auto"]::after{content:"auto";width:auto;height:auto;margin:0;bottom:4px;transform:translateX(-50%);border-radius:0;background:none;font-size:8.5px;font-weight:800;letter-spacing:.04em;line-height:1;text-transform:uppercase}
@@ -541,6 +542,9 @@ body.playing .mini .i-pause{display:block}
         <input type="range" class="tm-range" id="fade" min="0" max="8" step="0.5" aria-label="Segundos de fundido">
         <label class="tm-chk"><input type="checkbox" id="btauto"><span>Carro y Bluetooth: pausar al desconectar y seguir al conectar</span></label>
         <label class="tm-chk"><input type="checkbox" id="btdetect"><span>Detectar cuándo vuelve el Bluetooth (pide permiso de micrófono: es la única forma que da el navegador de ver los dispositivos; la app no graba nada)</span></label>
+        <p class="tm-h">Sin repetir</p>
+        <label class="tm-chk"><input type="checkbox" id="norep"><span>No repetir lo ya escuchado: en aleatorio y al pasar a la siguiente suenan primero las que no has oído en los últimos 60 días (en todos tus dispositivos). Cuando ya sonaron todas, vuelve a empezar por las más antiguas.</span></label>
+        <div class="tm-heard"><span id="heard-n"></span><button class="btn sm" type="button" id="heard-reset" title="Olvida lo ya escuchado: todas vuelven a contar como nuevas">Reiniciar historial</button></div>
         <p class="tm-h">Copia de seguridad</p>
         <button class="btn sm" type="button" id="backup" title="Descarga el catálogo y todas las playlists en un archivo .json">Descargar copia</button>
         <div class="tm-foot"><button type="button" id="logout">Salir</button><button class="btn sm" type="button" id="tm-done">Listo</button></div>
@@ -649,7 +653,7 @@ $("logout").onclick = () => signOut(auth);
 onAuthStateChanged(auth, u => {
   unsub.forEach(f => f()); unsub = [];
   $("gate").hidden = !!u; $("app").hidden = !u;
-  if (!u){ mis = []; loaded = catLoaded = false; return; }
+  if (!u){ mis = []; loaded = catLoaded = false; heardRef = null; return; }
   $("who").textContent = u.email; $("who-name").textContent = u.displayName || "";
   const img = $("who-img"), ini = $("who-ini"); ini.textContent = (u.displayName || u.email)[0].toUpperCase();
   img.hidden = !u.photoURL; ini.hidden = !!u.photoURL; if (u.photoURL) img.src = u.photoURL;
@@ -658,6 +662,7 @@ onAuthStateChanged(auth, u => {
     if (e.code === "permission-denied"){ $("gate").hidden = false; $("app").hidden = true; $("gate-msg").textContent = "La cuenta " + u.email + " no tiene acceso a estas playlists. Entra con otra cuenta."; $("login").textContent = "Entrar con otra cuenta"; signOut(auth); }
     else flash("No se pudieron cargar los datos (" + e.code + "). Revisa tu conexión.");
   };
+  unsub.push(heardSync(u)); // lo ya escuchado (Sin repetir), por cuenta
   unsub.push(onSnapshot(doc(db, "catalog", "main"), s => {
     catLoaded = true;
     const v = s.exists() ? s.data() : null;
@@ -1182,6 +1187,7 @@ function lockRelease(){ lockHeld = 0; clearTimeout(lockHeldT); clearTimeout(lock
 function setPlaying(on){
   if (on) lockRelease();
   if (playing && !on) stoppedAt = Date.now();
+  if (on && !listenFrom) listenFrom = Date.now(); else if (!on && listenFrom){ listenAcc += Date.now() - listenFrom; listenFrom = 0; } // tiempo escuchado (Sin repetir)
   if (playing && !on && BTD) setTimeout(() => { if (!playing && Date.now() - btT0 > 2000) btWatch(); }, 50); // se pausó: a vigilar el Bluetooth (si la pausa no lo puso ya a vigilar)
   playing = on; document.body.classList.toggle("playing", on); $("play").title = $("play").ariaLabel = on ? "Pausa" : "Reproducir";
   if ("mediaSession" in navigator) navigator.mediaSession.playbackState = on || lockHeld ? "playing" : "paused";
@@ -1315,17 +1321,84 @@ function order(from){ // orden de reproducción a partir de la canción `from` (
   const tail = o.slice(1), lp = n => lastPlayed(queue[n]);
   return [o[0], ...tail.filter(n => !lp(n)), ...tail.filter(n => lp(n)).sort((a, b) => lp(a) - lp(b))];
 }
-/* ---------- Sin repetir: una canción no vuelve a sonar en 2 horas, salvo que no queden otras en la lista ----------
-   Historial en este dispositivo (np-hist): clave de la canción → cuándo sonó por última vez. */
-const NOREP_MS = 2 * 3600 * 1000;
-const hist = (() => { try { return JSON.parse(store.get("np-hist") || "{}") || {}; } catch { return {}; } })();
+/* ---------- Sin repetir ----------
+   Dos registros, clave de la canción → cuándo sonó:
+   - np-hist (este dispositivo, 2 horas): se anota al empezar cada canción, aunque la saltes.
+   - Lo ya escuchado (np-heard aquí y historial/<uid> en Firestore, para todos tus dispositivos; 60 días y máx. 2000):
+     se anota cuando la canción sonó de verdad (30 s o la mitad). Con «No repetir lo ya escuchado» (activo por defecto)
+     el aleatorio y «siguiente» van primero por las que no sonaron en esos días; cuando ya sonaron todas las de la lista,
+     empieza otra vuelta por las que sonaron hace más tiempo. Lo que tocas a mano y la canción donde ibas suenan igual. */
+var NOREP_MS = 2 * 3600 * 1000, HEARD_MS = 60 * 86400 * 1000, HEARD_MAX = 2000, HEARD_MIN = 30;
+var noRep = store.get("np-norep") !== "0";
+var hist = (() => { try { return JSON.parse(store.get("np-hist") || "{}") || {}; } catch { return {}; } })();
+var heard = (() => { try { return JSON.parse(store.get("np-heard") || "{}") || {}; } catch { return {}; } })();
+var heardReset = +store.get("np-heard-reset") || 0, heardRef = null;
 const hkey = x => x ? (x.k || x.y || x.t || "") : "";
-const lastPlayed = x => { const t = hist[hkey(x)] || 0; return Date.now() - t < NOREP_MS ? t : 0; }; // 0: no sonó en las últimas 2 horas
+function lastPlayed(x){ // 0: se puede repetir; si no, cuándo sonó (para ir primero por la más antigua)
+  const k = hkey(x), now = Date.now();
+  let t = hist[k] || 0; if (now - t >= NOREP_MS) t = 0;
+  if (noRep){ const h = heard[k] || 0; if (now - h < HEARD_MS && h > t) t = h; }
+  return t;
+}
 const oldestOf = ns => ns.reduce((b, n) => lastPlayed(queue[n]) < lastPlayed(queue[b]) ? n : b, ns[0]);
 function markPlayed(x){
   const k = hkey(x), now = Date.now(); if (!k) return;
   for (const j in hist) if (now - hist[j] >= NOREP_MS) delete hist[j];
   hist[k] = now; store.set("np-hist", JSON.stringify(hist));
+}
+function pruneHeard(){ // fuera lo de hace más de 60 días y, si pasa del tope, lo más viejo
+  const now = Date.now(); let ch = false;
+  for (const j in heard) if (!(now - heard[j] < HEARD_MS)){ delete heard[j]; ch = true; }
+  const ks = Object.keys(heard);
+  if (ks.length > HEARD_MAX){ ks.sort((a, b) => heard[a] - heard[b]).slice(0, ks.length - HEARD_MAX).forEach(j => delete heard[j]); ch = true; }
+  return ch;
+}
+const heardCloud = (data, merge) => { if (heardRef) setDoc(heardRef, data, merge ? {merge: true} : {}).catch(e => log("historial: no se guardó en la nube (" + (e.code || e.message) + ")")); };
+function markHeard(x){
+  const k = hkey(x), now = Date.now(); if (!k) return;
+  heard[k] = now; pruneHeard(); store.set("np-heard", JSON.stringify(heard)); paintHeard();
+  log("escuchada: " + x.t);
+  heardCloud({h: {[k]: now}}, true);
+}
+// Lo que llega de la nube (otros dispositivos) se junta con lo de aquí: gana la fecha más reciente; un reinicio borra lo anterior.
+function heardSync(u){
+  heardRef = u ? doc(db, "historial", u.uid) : null;
+  if (!u) return () => {};
+  let first = true;
+  return onSnapshot(heardRef, s => {
+    const v = s.exists() ? s.data() : {}, rh = v.h || {}, rr = +v.reset || 0;
+    if (rr > heardReset){ heardReset = rr; store.set("np-heard-reset", String(rr)); for (const j in heard) if (heard[j] <= rr) delete heard[j]; }
+    for (const j in rh) if (rh[j] > heardReset && rh[j] > (heard[j] || 0)) heard[j] = rh[j];
+    const pruned = pruneHeard(); store.set("np-heard", JSON.stringify(heard)); paintHeard();
+    if (first){ // primera lectura: sube lo que solo estaba aquí; si la nube tenía de más (viejas o pasadas del tope), la deja recortada
+      first = false;
+      const mine = {}; for (const j in heard) if (heard[j] !== rh[j]) mine[j] = heard[j];
+      if (pruned || Object.keys(rh).some(j => !(j in heard))) heardCloud({h: {...heard}, reset: heardReset}, false);
+      else if (Object.keys(mine).length) heardCloud({h: mine}, true);
+    }
+    if (cur >= 0 && !s.metadata?.hasPendingWrites){ fixNext(); renderNext(); }
+  }, e => log("historial: no se pudo leer (" + (e.code || e.message) + ")"));
+}
+function resetHeard(){
+  const now = Date.now();
+  for (const j in heard) delete heard[j]; for (const j in hist) delete hist[j];
+  heardReset = now; store.set("np-heard-reset", String(now)); store.set("np-heard", "{}"); store.set("np-hist", "{}");
+  heardCloud({h: {}, reset: now}, false);
+  paintHeard(); rearm();
+}
+function rearm(){ if (cur >= 0 && queue.length){ orderIdx = order(cur); at = 0; cued = null; precue(); renderNext(); } } // rearma lo que sigue a partir de la actual
+// Cuánto sonó de verdad la canción actual (se suma solo mientras suena)
+var listenAcc = 0, listenFrom = 0, heardDone = false;
+const listened = () => (listenAcc + (listenFrom ? Date.now() - listenFrom : 0)) / 1000;
+function checkHeard(){
+  if (heardDone || armed || cur < 0 || !queue[cur]) return;
+  const s = listened(), d = curDur();
+  if (s >= HEARD_MIN || (d > 0 && s >= d / 2)){ heardDone = true; markHeard(queue[cur]); }
+}
+setInterval(checkHeard, 2000);
+function paintHeard(){
+  const n = Object.keys(heard).length, el = document.getElementById("heard-n");
+  if (el) el.textContent = n ? n + (n === 1 ? " canción escuchada" : " canciones escuchadas") + " en los últimos 60 días" : "Todavía no hay canciones escuchadas";
 }
 // Deja como siguiente la primera de la cola que no sonó en 2 horas; si todas sonaron, la que sonó hace más tiempo.
 function fixNext(){
@@ -1370,6 +1443,7 @@ function recordPlayed(x){
 }
 function load(i, opt = {}){
   const x = queue[i]; if (!x) return;
+  checkHeard(); listenAcc = 0; listenFrom = playing ? Date.now() : 0; heardDone = false; // la que se deja: ¿alcanzó a sonar? La nueva empieza en cero
   clearTimeout(lockResumeT); // otra canción: ya no se espera para retomar la anterior
   if (!opt.auto) autoTry = 0; // otra canción o retomar a mano: se olvida el intento de arrancar sola
   cur = i; armed = !!opt.armed; resumePos = opt.pos || 0;
@@ -1581,6 +1655,16 @@ document.addEventListener("visibilitychange", () => {
    notificación (Media Session) o el sistema avisa del cambio de dispositivo: se sigue donde iba. Solo si la pausa la causó el
    sistema y fue hace menos de 3 horas; si la pausaste tú, no arranca sola. Necesita la app abierta en una pestaña (Android). */
 let BT = store.get("np-bt") !== "0", sysPause = 0, selfSilentAt = 0, silentLostAt = 0; // sysPause: cuándo pausó el sistema (0 = no hay)
+$("norep").checked = noRep;
+$("norep").onchange = e => { noRep = e.target.checked; store.set("np-norep", noRep ? "1" : "0"); rearm(); };
+let resetArm = 0;
+$("heard-reset").onclick = e => { // pide un segundo toque
+  const b = e.currentTarget;
+  if (!resetArm){ b.textContent = "¿Seguro? Toca otra vez"; resetArm = setTimeout(() => { resetArm = 0; b.textContent = "Reiniciar historial"; }, 4000); return; }
+  clearTimeout(resetArm); resetArm = 0; b.textContent = "Reiniciar historial";
+  resetHeard(); flash("Historial reiniciado: todas las canciones vuelven a contar como nuevas.");
+};
+paintHeard();
 $("btauto").checked = BT;
 $("btauto").onchange = e => { BT = e.target.checked; store.set("np-bt", BT ? "1" : "0"); sysPause = 0; };
 /* Detección del Bluetooth: ni el carro ni el casco avisan siempre a la página cuando vuelven a conectarse. Con permiso de
@@ -1683,7 +1767,7 @@ $("play").onclick = () => {
 };
 $("shuf").onclick = () => {
   shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle); store.set("np-shuffle", shuffle ? "1" : "0");
-  if (cur >= 0){ orderIdx = order(cur); at = 0; cued = null; precue(); renderNext(); } // rearma lo que sigue a partir de la canción actual
+  rearm();
 };
 $("addcur").onclick = () => { if (queue[cur]) openSheet(queue[cur]); };
 const MODES = ["video", "audio", "auto"], MODE_KEY = {video: "0", audio: "1", auto: "auto"}, MODE_NAME = {video: "Video", audio: "Solo audio", auto: "Automático"};

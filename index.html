@@ -557,7 +557,7 @@ body.playing .mini .i-pause{display:block}
 <div class="list" id="list" role="list"></div>
 <button class="btn more" id="more" type="button" hidden>Mostrar más</button>
 <section id="ytbox" hidden></section>
-<p class="note" id="note">Toca una canción para escucharla; sigue con las demás de la lista. Con ＋ la guardas en una playlist; con Seleccionar marcas varias y las agregas de una vez. Si no está en tu música, con Enter o el botón YouTube la buscas allí y los resultados salen al final de la lista. Las marcadas "dudosa" pueden ser otra versión; las "sin video" abren esa búsqueda. Con "Otras versiones" buscas otro video para la que suena y lo cambias con ⇄ Reemplazar. Dentro de una playlist puedes cambiar el orden arrastrando.</p>
+<p class="note" id="note">Toca una canción para escucharla; sigue con las demás de la lista. Con ＋ la guardas en una playlist; con Seleccionar marcas varias y las agregas de una vez. Si no está en tu música, con Enter o el botón YouTube la buscas allí y los resultados salen al final de la lista. Las marcadas "dudosa" pueden ser otra versión; las "sin video" abren esa búsqueda. Con "Otras versiones" buscas otro video para la que suena y lo cambias con ⇄ Reemplazar; con ⋯ en una canción buscas o cambias su video o su versión solo audio (🎧 Como audio). Dentro de una playlist puedes cambiar el orden arrastrando.</p>
 </div>
 </div>
 
@@ -623,7 +623,7 @@ let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confi
 let songMenu = null, songEdit = null; // clave de la canción con el menú ⋯ abierto / en edición (pestaña Todas)
 let sel = null, shDone = new Set(), rmArm = false, TOUCH = matchMedia("(hover:none)").matches; // sel: Map clave → canción mientras se seleccionan varias; shDone: playlists a las que ya se agregaron en la hoja
 let sortBy = ["t", "a"].includes(store.get("np-sort")) ? store.get("np-sort") : "";
-let yres = [], ytQuery = "", ytHidden = 0, ytDone = false, altFor = null, altBack = null, altCur = [], dropArm = false; // altCur: versiones que ya tiene la canción (clip y solo audio) al buscar otra; dropArm: «Quitar audio» pide segundo toque // altBack: dónde estaba el usuario al empezar a buscar otra versión (para «Volver») // ytDone: la búsqueda de ytQuery ya terminó; // ytHidden: resultados escondidos por estar ya en tu música; // altFor: canción a la que se le busca otra versión (para "Reemplazar")
+let yres = [], ytQuery = "", ytHidden = 0, ytDone = false, altFor = null, altBack = null, altCur = [], dropArm = false, altWant = "video"; // altWant: qué se busca para altFor ("video" = el clip, "audio" = la versión solo audio); altCur: versiones que ya tiene la canción (clip y solo audio) al buscar otra; dropArm: «Quitar audio» pide segundo toque // altBack: dónde estaba el usuario al empezar a buscar otra versión (para «Volver») // ytDone: la búsqueda de ytQuery ya terminó; // ytHidden: resultados escondidos por estar ya en tu música; // altFor: canción a la que se le busca otra versión (para "Reemplazar")
 let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing = false, shuffle = store.get("np-shuffle") === "1";
 
 /* ---------- Firebase ---------- */
@@ -662,14 +662,14 @@ onAuthStateChanged(auth, u => {
     catLoaded = true;
     const v = s.exists() ? s.data() : null;
     CAT = v ? {all: v.all || [], pls: v.pls || [], rep: v.rep || []} : {all: [], pls: [], rep: []}; // rep: canciones reproducidas que no estaban en el catálogo ni en una playlist
-    YA = new Map(CAT.all.filter(c => c.ya).map(c => [c.k, c.ya]));
+    rebuildYA();
     fillSrc(); refresh(); rematch(); tryResume();
   }, denied));
   unsub.push(onSnapshot(plCol, s => {
     loaded = true;
     mis = s.docs.map(d => { const v = d.data(); return {id: d.id, name: v.name || "Sin nombre", orden: v.orden ?? 0, oculta: !!v.oculta, songs: Array.isArray(v.songs) ? v.songs.slice() : []}; })
       .sort((a, b) => a.orden - b.orden);
-    refresh(); tryResume();
+    rebuildYA(); refresh(); tryResume();
   }, denied));
 });
 const chains = {};
@@ -684,7 +684,14 @@ let YA = new Map(), audioMode = ({"1": "audio", "auto": "auto"})[store.get("np-a
 const wantAudio = () => audioMode === "audio" || (audioMode === "auto" && document.hidden);
 const yaOf = x => x.ya || YA.get(x.k) || null;
 const BAD = new Set(); // videos que YouTube no dejó insertar en esta sesión (error 100/101/150)
-const vid = x => { const a = wantAudio() && yaOf(x); return a && !BAD.has(a) ? a : x.y; };
+const vid = x => { const a = wantAudio() && yaOf(x); return a && !BAD.has(a) ? a : x.y || yaOf(x); }; // sin clip suena la versión de audio
+const hasSrc = x => !!(x.y || yaOf(x) || fileFor(x)); // se puede reproducir: clip, versión solo audio o archivo
+// La versión solo audio vive en el catálogo; las canciones que no están en él (agregadas desde YouTube) la guardan en rep y en sus playlists
+function rebuildYA(){
+  YA = new Map();
+  for (const s of [...(CAT.rep || []), ...mis.flatMap(p => p.songs)]) if (s.ya) YA.set(s.k, s.ya);
+  for (const c of CAT.all) if (c.ya) YA.set(c.k, c.ya);
+}
 let loadedId = null; // último id cargado en el reproductor principal
 const HP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-9 9v7a3 3 0 0 0 3 3h3v-8H5v-2a7 7 0 0 1 14 0v2h-4v8h3a3 3 0 0 0 3-3v-7a9 9 0 0 0-9-9z"/></svg>';
 const inMis = k => mis.filter(p => p.songs.some(s => s.k === k));
@@ -839,12 +846,16 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
   const btn = picked ? "" : mode === "pl"
     ? mv + `<button type="button" class="add" data-rm="${i}" title="Quitar de esta playlist" aria-label="Quitar de esta playlist">×</button>`
     : x.cur ? (x.cur === "audio" ? `<button type="button" class="btn sm${dropArm ? " danger" : ""}" data-dropaud="1" title="La canción dejará de tener versión solo audio (volverá a sonar el video también en Solo audio)">${dropArm ? "¿Seguro? Quitar" : "Quitar audio"}</button>` : "")
-    : (yt && altFor && altFor.y !== x.y ? `<button type="button" class="btn sm rep" data-rep="${i}" title="Usar este video para «${esc(altFor.t)}»">⇄ Reemplazar</button>` : "")
-      + (yt && altFor && yaOf(altFor) !== x.y ? `<button type="button" class="btn sm rep" data-aud="${i}" title="Usar este video como versión solo audio de «${esc(altFor.t)}»">🎧 Como audio</button>` : "")
+    : (() => { // buscando versiones: usar el resultado como clip o como audio (primero lo que se busca)
+        if (!yt || !altFor) return "";
+        const v = altFor.y !== x.y ? `<button type="button" class="btn sm rep" data-rep="${i}" title="Usar este video para «${esc(altFor.t)}»">${altFor.y ? "⇄ Reemplazar" : "🎬 Como video"}</button>` : "";
+        const a = yaOf(altFor) !== x.y ? `<button type="button" class="btn sm rep" data-aud="${i}" title="Usar este video como versión solo audio de «${esc(altFor.t)}»">🎧 Como audio</button>` : "";
+        return altWant === "audio" ? a + v : v + a;
+      })()
       + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`
-      + (yt || fileFor(x) && !x.y ? "" : `<button type="button" class="add more" data-menu="${i}" title="Más opciones" aria-label="Más opciones" aria-expanded="${songMenu === x.k}">⋯</button>`
-        + (songMenu === x.k ? `<div class="pop" role="menu"><button type="button" data-act="fix" data-i="${i}">Buscar otro video</button><button type="button" data-act="paste" data-i="${i}">Pegar enlace de YouTube</button>${x.e === "dudoso" ? `<button type="button" data-act="ok" data-i="${i}">Está bien así (quitar «dudosa»)</button>` : ""}<button type="button" data-act="edit" data-i="${i}">Editar título y artista</button></div>` : ""));
-  return `<div class="row${x.y || file ? "" : " dis"}${on ? " on" : ""}${picked && sel.has(x.k) ? " sel" : ""}" role="listitem">${picked ? '<span class="ck" aria-hidden="true"></span>' : ""}<button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
+      + (yt || String(x.k).startsWith("f:") ? "" : `<button type="button" class="add more" data-menu="${i}" title="Más opciones" aria-label="Más opciones" aria-expanded="${songMenu === x.k}">⋯</button>`
+        + (songMenu === x.k ? `<div class="pop" role="menu"><button type="button" data-act="fix" data-i="${i}">${x.y ? "🎬 Cambiar video" : "🎬 Buscar video"}</button><button type="button" data-act="fixaud" data-i="${i}">${yaOf(x) ? "🎧 Cambiar audio" : "🎧 Buscar audio"}</button><button type="button" data-act="paste" data-i="${i}">Pegar enlace de YouTube</button>${x.e === "dudoso" ? `<button type="button" data-act="ok" data-i="${i}">Está bien así (quitar «dudosa»)</button>` : ""}<button type="button" data-act="edit" data-i="${i}">Editar título y artista</button></div>` : ""));
+  return `<div class="row${hasSrc(x) ? "" : " dis"}${on ? " on" : ""}${picked && sel.has(x.k) ? " sel" : ""}" role="listitem">${picked ? '<span class="ck" aria-hidden="true"></span>' : ""}<button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
 function renderList(){
   current = songsShown();
@@ -896,6 +907,7 @@ $("list").addEventListener("click", e => {
     if (a === "edit"){ songEdit = x.k; renderList(); $("list").querySelector(".edit-song input")?.focus(); return; }
     if (a === "ok") return markOk(x);
     if (a === "fix") return startAlt(x);
+    if (a === "fixaud") return startAlt(x, true, "audio");
     if (a === "paste") return startAlt(x, false);
   }
   if (fix){ songMenu = null; return startAlt(current[+fix.dataset.fix]); }
@@ -905,7 +917,7 @@ $("list").addEventListener("click", e => {
   if (aud) return setAudio(current[+aud.dataset.aud]);
   if (add) return openSheet(current[+add.dataset.add]);
   if (rm){ toggleSong(openPl(), current[+rm.dataset.rm]); return refresh(); }
-  if (pl){ const x = current[+pl.dataset.i]; if (x.y || fileFor(x)) playFrom(+pl.dataset.i); else startAlt(x); }
+  if (pl){ const x = current[+pl.dataset.i]; if (hasSrc(x)) playFrom(+pl.dataset.i); else startAlt(x); }
 });
 $("list").addEventListener("submit", e => { // guardar título y artista editados
   const f = e.target.closest(".edit-song"); if (!f) return;
@@ -1282,7 +1294,7 @@ const curSrc = () => tab === "pls" ? {kind: "pl", id: openId} : tab === "all" ? 
 let queueSrc = null;
 function playFrom(i, list, label, src, exact){ // exact: empieza en i aunque esté activo Aleatorio
   const full = list || current, pick = full[i];
-  queue = full.filter(x => x.y || fileFor(x)); queueLabel = label || listLabel(); queueSrc = src || (list ? null : curSrc());
+  queue = full.filter(hasSrc); queueLabel = label || listLabel(); queueSrc = src || (list ? null : curSrc());
   if (!queue.length) return;
   let qi = Math.max(0, queue.indexOf(pick));
   if (shuffle && list && !exact){
@@ -1448,7 +1460,7 @@ function tryResume(){
   else if (src.kind === "all"){ $("srcpl").value = src.pl || ""; if ($("srcpl").selectedIndex < 0) $("srcpl").value = ""; $("q").value = src.q || ""; setTab("all"); list = songsShown(); label = listLabel(); }
   else if (src.kind === "files") list = filesList();
   if (!list || !list.some(x => x.k === s.song.k)) list = [s.song];
-  queue = list.filter(x => x.y || fileFor(x)); queueLabel = label; queueSrc = src.kind ? src : null;
+  queue = list.filter(hasSrc); queueLabel = label; queueSrc = src.kind ? src : null;
   const qi = queue.findIndex(x => x.k === s.song.k); if (qi < 0){ queue = []; return; }
   orderIdx = order(qi); at = 0;
   const i0 = orderIdx[0], x0 = queue[i0], tok = ++autoTry;
@@ -1759,7 +1771,7 @@ if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = init
 const EYE_OFF = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.1M6.1 6.1C3.9 7.6 2.5 9.8 2 12c1 2.5 5 7 10 7 1.8 0 3.4-.5 4.8-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
 const EYE = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const vids = p => [...new Set(p.songs.filter(s => s.y).map(s => s.y))];
-const playable = p => p.songs.some(s => s.y || fileFor(s));
+const playable = p => p.songs.some(hasSrc);
 const hue = s => [...s].reduce((h, c) => (h * 31 + c.codePointAt(0)) % 360, 7); // color estable por nombre para portadas sin video
 function coverHTML(p){
   const ids = vids(p).slice(0, 4);
@@ -1897,7 +1909,7 @@ async function ytSearch(q){
     const music = await musicOnly(all), own = altFor ? music : notOwned(music); // buscando otra versión sí interesan las que ya tienes
     const curIds = new Set(altCur.map(r => r.y));
     yres = own.filter(x => !curIds.has(x.y)).slice(0, 10); ytHidden = music.length - own.length; ytDone = true;
-    flash(yres.length ? yres.length + " opciones para “" + q + "”" + (ytHidden ? " (" + ytHidden + " ya las tienes)" : "") + ". Toca una para escucharla" + (altFor ? ", ⇄ Reemplazar para que «" + altFor.t + "» use ese video" : " o ＋ para guardarla") + "."
+    flash(yres.length ? yres.length + " opciones para “" + q + "”" + (ytHidden ? " (" + ytHidden + " ya las tienes)" : "") + ". Toca una para escucharla" + (altFor ? (altWant === "audio" ? ", 🎧 Como audio para que «" + altFor.t + "» lo use en Solo audio" : ", " + (altFor.y ? "⇄ Reemplazar" : "🎬 Como video") + " para que «" + altFor.t + "» use ese video") : " o ＋ para guardarla") + "."
       : ytHidden ? "Todo lo que salió para “" + q + "” ya lo tienes en tu música." : "No hubo canciones para “" + q + "”. Prueba con otras palabras.");
     if (yres.length && matchMedia("(max-width:640px)").matches) setTimeout(toResults, 60);
   } catch (e) {
@@ -1906,11 +1918,16 @@ async function ytSearch(q){
   refresh();
 }
 // Empieza a buscar otra versión de `x` (o solo abre el campo de pegar enlace) recordando dónde estaba el usuario
-function startAlt(x, search = true){
-  altBack = {tab, openId, q: $("q").value, y: window.scrollY, src: $("srcpl").value, shown, k: x.k}; // shown: cuántas filas había desplegadas (Mostrar más)
-  altFor = x; loadAltCur(x);
-  if (search){ const a1 = x.a.split(",")[0].trim(); return ytSearch(norm(x.t).includes(norm(a1)) ? x.t : a1 + " " + x.t); }
+// want: "video" busca un clip para reemplazar el actual; "audio", una versión solo audio (se agrega «audio» a la búsqueda)
+function startAlt(x, search = true, want = "video"){
+  if (!altFor) altBack = {tab, openId, q: $("q").value, y: window.scrollY, src: $("srcpl").value, shown, k: x.k}; // shown: cuántas filas había desplegadas (Mostrar más)
+  altFor = x; altWant = want; loadAltCur(x);
+  if (search) return ytSearch(altQuery(x));
   renderList(); renderYt(); const u = $("yf2-url"); if (u){ u.scrollIntoView({block: "center"}); u.focus(); }
+}
+function altQuery(x){
+  const a1 = x.a.split(",")[0].trim(), q = norm(x.t).includes(norm(a1)) ? x.t : a1 + " " + x.t;
+  return altWant === "audio" ? q + " audio" : q;
 }
 // Filas «actual»: el clip y la versión solo audio que la canción ya tiene; se completan con el título y canal reales de YouTube
 async function loadAltCur(x){
@@ -1927,7 +1944,7 @@ async function loadAltCur(x){
 }
 // Vuelve a donde estaba el usuario antes de buscar otra versión (se haya reemplazado o no)
 function altReturn(){
-  const b = altBack; altBack = null; altFor = null; altCur = []; dropArm = false; yres = []; ytQuery = ""; ytDone = false; ytHidden = 0;
+  const b = altBack; altBack = null; altFor = null; altWant = "video"; altCur = []; dropArm = false; yres = []; ytQuery = ""; ytDone = false; ytHidden = 0;
   if (!b){ refresh(); return; }
   if (b.tab !== tab){ openId = b.openId; setTab(b.tab); } else if (tab === "pls") openId = b.openId;
   $("q").value = b.q; if ($("srcpl").value !== b.src) $("srcpl").value = b.src;
@@ -1998,7 +2015,9 @@ function renderYt(){
   document.body.classList.toggle("srch", tab === "all" && !!(q || altFor));
   const back = `<button type="button" class="btn sm" data-act="altoff">← Volver sin cambiar</button>`;
   const okBtn = altFor?.e === "dudoso" ? `<button type="button" class="btn sm primary" data-act="altok" title="El video actual sí es el correcto: se quita la marca «dudosa»">✓ Es la correcta</button>` : "";
-  const chip = altFor ? `<div class="altchip"><span>Buscando otra versión de <b>${esc(altFor.t)}</b> · ${esc(altFor.a)}${altFor.e === "dudoso" ? " · marcada como dudosa" : ""}</span><span class="altbtns">${okBtn}${back}</span></div>` : "";
+  const swap = altFor ? `<button type="button" class="btn sm" data-act="altswap" title="${altWant === "audio" ? "Buscar un video (clip) para esta canción" : "Buscar una versión solo audio para esta canción"}">${altWant === "audio" ? "🎬 Buscar video" : "🎧 Buscar audio"}</button>` : "";
+  const what = !altFor ? "" : altWant === "audio" ? (yaOf(altFor) ? "Buscando otro audio para" : "Buscando audio para") : (altFor.y ? "Buscando otro video para" : "Buscando video para");
+  const chip = altFor ? `<div class="altchip"><span>${what} <b>${esc(altFor.t)}</b> · ${esc(altFor.a)}${altFor.e === "dudoso" ? " · marcada como dudosa" : ""}</span><span class="altbtns">${okBtn}${swap}${back}</span></div>` : "";
   let html = "";
   if (tab === "all" && (q || altFor)){
     const done = ytDone && ytQuery === q; // ya se buscó justo esto (aunque no quedara nada que mostrar)
@@ -2011,7 +2030,7 @@ function renderYt(){
     if (done && !yres.length) html += `<p class="ytnone">${ytHidden ? "Todo lo que salió en YouTube para «" + esc(ytQuery) + "» ya lo tienes en tu música." : "En YouTube no salieron canciones para «" + esc(ytQuery) + "». Prueba con otras palabras."}</p>`;
     else if (done && ytHidden) html += `<p class="hint" style="margin-top:8px">${ytHidden === 1 ? "1 resultado no se muestra porque ya está" : ytHidden + " resultados no se muestran porque ya están"} en tu música.</p>`;
     if (altFor && yres.length) html += `<p style="margin:12px 0 0">${back}</p>`;
-    if ((done || altFor) && CFG.youtubeKey) html += `<form id="yf2" class="paste"><input id="yf2-url" inputmode="url" placeholder="${altFor ? "¿No aparece? Pega el enlace del video para «" + esc(altFor.t) + "»" : "¿No aparece? Pega aquí el enlace de YouTube"}" autocomplete="off" aria-label="Enlace de YouTube"><button class="btn sm primary" type="submit">Usar</button><p class="err" id="yf2-err" hidden></p></form>`;
+    if ((done || altFor) && CFG.youtubeKey) html += `<form id="yf2" class="paste"><input id="yf2-url" inputmode="url" placeholder="${altFor ? "¿No aparece? Pega el enlace " + (altWant === "audio" ? "del audio" : "del video") + " para «" + esc(altFor.t) + "»" : "¿No aparece? Pega aquí el enlace de YouTube"}" autocomplete="off" aria-label="Enlace de YouTube"><button class="btn sm primary" type="submit">Usar</button><p class="err" id="yf2-err" hidden></p></form>`;
   }
   html += tab !== "all" || !q || CFG.youtubeKey ? "" : `<div class="steps">
     <div class="step"><h3>1 · Búscala en YouTube</h3><p>Escribe arriba y toca Buscar para abrir los resultados. Elige el video y copia su enlace.</p>
@@ -2030,22 +2049,39 @@ $("ytbox").addEventListener("click", e => {
   if (e.target.closest('[data-act="altoff"]')){ flash(""); altReturn(); }
   if (e.target.closest('[data-act="altok"]') && altFor){ markOk(altFor); altReturn(); } // la actual es la buena: fuera la marca y de vuelta
   if (e.target.closest('[data-act="yt-go"]')) ytSearch($("q").value);
+  if (e.target.closest('[data-act="altswap"]') && altFor){ altWant = altWant === "audio" ? "video" : "audio"; ytSearch(altQuery(altFor)); } // cambiar entre buscar clip y buscar audio
 });
 // Como audio: la canción `altFor` usa el video de `x` como versión solo audio (solo en el catálogo; las playlists resuelven por clave)
 function setAudio(x){
   const s = altFor; if (!s || !x?.y) return;
-  const c = CAT.all.find(it => it.k === s.k);
-  if (c){ c.ya = x.y; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
-  YA.set(s.k, x.y); if (s.ya !== undefined) s.ya = x.y;
-  flash("Listo: «" + s.t + "» usará este video en modo Solo audio. Se guardó para los dos.");
+  const prev = yaOf(s);
+  saveYa(s, x.y); if (s.ya !== undefined) s.ya = x.y;
+  flash("Listo: «" + s.t + "» usará este video en modo Solo audio" + (prev ? " en vez del anterior" : "") + ". Se guardó para los dos.");
   if (wantAudio() && ready && mode === "yt" && queue[cur]?.k === s.k) start(x.y, curPos());
   altReturn();
 }
 // Quita la versión solo audio de una canción (YouTube la bloqueó fuera de su sitio): vuelve a sonar el clip
 function dropAudio(x){
-  const c = CAT.all.find(it => it.k === x.k); if (!c || !c.ya) return;
-  delete c.ya; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all}));
-  YA.delete(x.k); if (x.ya) delete x.ya;
+  if (!yaOf(x)) return;
+  saveYa(x, null); if (x.ya) delete x.ya;
+}
+// Guarda (id) o quita (null) la versión solo audio de `s`: en el catálogo si está ahí; si no, en rep y en las playlists donde esté
+function saveYa(s, id){
+  const set = it => { if (id) it.ya = id; else delete it.ya; };
+  const c = CAT.all.find(it => it.k === s.k);
+  if (c){ set(c); const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
+  else {
+    let r = (CAT.rep || []).find(it => it.k === s.k);
+    const inPl = mis.some(p => p.songs.some(it => it.k === s.k));
+    if (!r && !inPl && id){ if (!CAT.rep) CAT.rep = []; r = song(s); CAT.rep.push(r); } // no estaba guardada en ningún lado
+    if (r){ set(r); const rep = CAT.rep.slice(); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {rep})); }
+    for (const p of mis){
+      const hit = p.songs.filter(it => it.k === s.k && (id || it.ya)); if (!hit.length) continue;
+      hit.forEach(set); const songs = p.songs.slice();
+      write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
+    }
+  }
+  if (id) YA.set(s.k, id); else YA.delete(s.k);
 }
 // Reemplazar: la canción `altFor` pasa a usar el video de `x` (en el catálogo y en todas las playlists donde esté)
 // La canción `s` pasa a usar el video `id` como clip: catálogo, playlists donde esté y cola. Si su versión de audio estaba bloqueada, también se quita.
@@ -2054,6 +2090,7 @@ function setClip(s, id){
   const c = CAT.all.find(it => it.k === s.k);
   delete s.bl;
   if (c){ c.y = id; delete c.e; delete c.bl; if (c.ya && BAD.has(c.ya)) delete c.ya; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
+  else { const r = (CAT.rep || []).find(it => it.k === s.k); if (r){ r.y = id; const rep = CAT.rep.slice(); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {rep})); } } // agregada desde YouTube: también en rep
   if (BAD.has(yaOf(s))){ YA.delete(s.k); if (s.ya) delete s.ya; }
   for (const p of mis){
     const hit = p.songs.filter(it => it.k === s.k); if (!hit.length) continue;
@@ -2112,7 +2149,7 @@ $("ytbox").addEventListener("submit", async e => {
     e.preventDefault();
     const id = parseId($("yf2-url").value), err = m => { $("yf2-err").hidden = false; $("yf2-err").textContent = m; };
     if (!id) return err("Ese enlace no parece de un video de YouTube. Cópialo desde Compartir en YouTube.");
-    if (altFor) return replaceVideo({y: id});
+    if (altFor) return altWant === "audio" ? setAudio({y: id}) : replaceVideo({y: id});
     let t = $("q").value.trim() || "Video de YouTube", a = "YouTube";
     try { const d = await (await fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" + id + "&key=" + CFG.youtubeKey)).json(); const s = d.items?.[0]?.snippet; if (s){ t = decodeHtml(s.title); a = decodeHtml(s.channelTitle); } } catch {}
     const x = {t, a, k: "yt:" + id, y: id};

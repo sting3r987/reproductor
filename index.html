@@ -467,6 +467,30 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 .mini .i-pause,body.playing .mini .i-play{display:none}
 body.playing .mini .i-pause{display:block}
 @media (min-width:641px){.mini{display:none!important}}
+/* 👥 Ver juntos: franja con quién está conectado, solicitudes y la hoja para invitar */
+.vjz{position:absolute;top:6px;left:6px;z-index:3;height:30px;padding:0 10px 0 8px;border:0;border-radius:99px;background:var(--chip-dark);color:#fff;display:flex;align-items:center;gap:5px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.vjz svg{width:16px;height:16px;fill:currentColor}
+body.jz-on .vjz{background:var(--accent);color:var(--accent-ink)}
+.jz{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:10px;padding:10px 12px;background:var(--accent-bg);border:1px solid var(--line);border-radius:var(--r-md)}
+.jz-ic{font-size:20px;line-height:1}
+.jz-t{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.jz-t b{font-size:14px}
+.jz-t small{font-size:12.5px;color:var(--ink-2);overflow-wrap:anywhere}
+.jz-reqs{flex:1 1 100%;display:flex;flex-direction:column;gap:6px}
+.jz-req{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border-radius:var(--r-sm);font-size:13.5px}
+.jz-req span{flex:1 1 160px;min-width:0;overflow-wrap:anywhere}
+.jz-link{display:flex;gap:8px;flex-wrap:wrap}
+.jz-link input,.jz-mail input{flex:1 1 200px;min-width:0;font:inherit;font-size:13px;padding:8px 12px;border:1px solid var(--line);border-radius:99px;background:var(--surface);color:var(--ink)}
+.jz-mail{display:flex;gap:8px;flex-wrap:wrap}
+.jz-list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none;font-size:13.5px}
+.jz-list li{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);overflow-wrap:anywhere}
+.jz-h{margin:4px 0 -4px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+.jz-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+/* Invitado: solo el reproductor (sin la música ni las playlists del dueño) */
+body.jz-guest .tools,body.jz-guest #list,body.jz-guest #more,body.jz-guest #note,body.jz-guest #pls,body.jz-guest #filebox,body.jz-guest #imp,body.jz-guest #ytbox,body.jz-guest #addcur,body.jz-guest #alt,body.jz-guest #shuf,body.jz-guest #aud,body.jz-guest #jzbtn,body.jz-guest .vbig{display:none!important}
+body.jz-guest .sub{grid-template-columns:minmax(0,1fr)}
+/* Solo el anfitrión controla: el invitado ve los botones, apagados */
+body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body.jz-lock #mini-play,body.jz-lock #mini-next,body.jz-lock #qlist button{opacity:.4;pointer-events:none}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -485,7 +509,7 @@ body.playing .mini .i-pause{display:block}
 <div id="app" hidden>
 <header class="top">
   <div class="np"><div class="player">
-    <div class="video"><div id="yt"></div><div id="yt2"></div><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden><button class="vbig" id="big" type="button" aria-pressed="false" aria-label="Video grande" title="Video grande a todo el ancho"><svg class="i-out" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10z"/></svg><svg class="i-in" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3.41 16.71 8.7 20 12h-8V4l3.29 3.29L20.59 2 22 3.41zM3.41 22l5.29-5.29L12 20v-8H4l3.29 3.29L2 20.59 3.41 22z"/></svg></button></div>
+    <div class="video"><div id="yt"></div><div id="yt2"></div><button class="vjz" id="jzbtn" type="button" aria-label="Ver juntos" title="👥 Ver juntos: comparte un enlace y lo que suene aquí suena también allá, al mismo tiempo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Juntos</span></button><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden><button class="vbig" id="big" type="button" aria-pressed="false" aria-label="Video grande" title="Video grande a todo el ancho"><svg class="i-out" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10z"/></svg><svg class="i-in" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3.41 16.71 8.7 20 12h-8V4l3.29 3.29L20.59 2 22 3.41zM3.41 22l5.29-5.29L12 20v-8H4l3.29 3.29L2 20.59 3.41 22z"/></svg></button></div>
     <div class="now">
       <p class="eyebrow" id="pos">Nuestras playlists</p>
       <h1 id="nt">Elige una canción</h1>
@@ -551,6 +575,7 @@ body.playing .mini .i-pause{display:block}
       </div>
     </span>
   </div>
+  <div class="jz" id="jz" hidden><span class="jz-ic" aria-hidden="true">👥</span><span class="jz-t"><b id="jz-h">Viendo juntos</b><small id="jz-w"></small></span><button class="btn sm primary" id="jz-go" type="button" hidden>▶ Escuchar</button><button class="btn sm" id="jz-more" type="button" hidden>Invitar</button><button class="btn sm" id="jz-out" type="button">Salir</button><div class="jz-reqs" id="jz-reqs" hidden></div></div>
   <p class="msg" id="msg" hidden></p>
   <pre id="dbg" hidden></pre>
 </header>
@@ -577,11 +602,26 @@ body.playing .mini .i-pause{display:block}
   </div>
 </div>
 
+<div class="sheet-bg" id="jzsheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="jz-st">
+    <h3 id="jz-st">👥 Ver juntos</h3>
+    <p class="s">Comparte este enlace. Quien lo abra entra con su cuenta de Google y tú lo aceptas aquí. Lo que suene en tu reproductor (reproducir, pausar, adelantar, otra canción) le suena también a esa persona, al mismo tiempo.</p>
+    <div class="jz-link"><input id="jz-url" readonly aria-label="Enlace para invitar"><button class="btn sm primary" id="jz-copy" type="button">Copiar</button><button class="btn sm" id="jz-share" type="button" hidden>Compartir</button></div>
+    <p class="jz-h">Invitar por correo (entra sin pedir permiso)</p>
+    <form class="jz-mail" id="jz-mailf"><input id="jz-mail" type="email" placeholder="correo@gmail.com" autocomplete="off" aria-label="Correo de Google de la persona"><button class="btn sm" type="submit">Agregar</button></form>
+    <ul class="jz-list" id="jz-inv"></ul>
+    <p class="jz-h" id="jz-ph" hidden>Quieren unirse</p>
+    <div class="jz-reqs" id="jz-preqs"></div>
+    <label class="tm-chk"><input type="checkbox" id="jz-solo"><span>Solo yo controlo (los invitados ven y escuchan, pero no pueden pausar ni cambiar)</span></label>
+    <div class="jz-foot"><button class="btn sm danger" id="jz-end" type="button">Terminar sesión</button><button class="btn" id="jz-done" type="button">Listo</button></div>
+  </div>
+</div>
+
 <script src="config.js?v=2"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -653,12 +693,14 @@ $("logout").onclick = () => signOut(auth);
 onAuthStateChanged(auth, u => {
   unsub.forEach(f => f()); unsub = [];
   $("gate").hidden = !!u; $("app").hidden = !u;
-  if (!u){ mis = []; loaded = catLoaded = false; heardRef = null; return; }
+  if (!u){ mis = []; loaded = catLoaded = false; heardRef = null; jzStop(true); return; }
+  jzAuth(u);
   $("who").textContent = u.email; $("who-name").textContent = u.displayName || "";
   const img = $("who-img"), ini = $("who-ini"); ini.textContent = (u.displayName || u.email)[0].toUpperCase();
   img.hidden = !u.photoURL; ini.hidden = !!u.photoURL; if (u.photoURL) img.src = u.photoURL;
   img.onerror = () => { img.hidden = true; ini.hidden = false; };
   const denied = e => {
+    if (e.code === "permission-denied" && JZ_ID){ jzGuestMode(u); return; }
     if (e.code === "permission-denied"){ $("gate").hidden = false; $("app").hidden = true; $("gate-msg").textContent = "La cuenta " + u.email + " no tiene acceso a estas playlists. Entra con otra cuenta."; $("login").textContent = "Entrar con otra cuenta"; signOut(auth); }
     else flash("No se pudieron cargar los datos (" + e.code + "). Revisa tu conexión.");
   };
@@ -689,7 +731,7 @@ let YA = new Map(), audioMode = ({"1": "audio", "auto": "auto"})[store.get("np-a
 const wantAudio = () => audioMode === "audio" || (audioMode === "auto" && document.hidden);
 const yaOf = x => x.ya || YA.get(x.k) || null;
 const BAD = new Set(); // videos que YouTube no dejó insertar en esta sesión (error 100/101/150)
-const vid = x => { const a = wantAudio() && yaOf(x); return a && !BAD.has(a) ? a : x.y || yaOf(x); }; // sin clip suena la versión de audio
+const vid = x => { if (JZ && JZ.on) return x.y || yaOf(x); const a = wantAudio() && yaOf(x); return a && !BAD.has(a) ? a : x.y || yaOf(x); }; // sin clip suena la versión de audio
 const hasSrc = x => !!(x.y || yaOf(x) || fileFor(x)); // se puede reproducir: clip, versión solo audio o archivo
 // La versión solo audio vive en el catálogo; las canciones que no están en él (agregadas desde YouTube) la guardan en rep y en sus playlists
 function rebuildYA(){
@@ -1456,7 +1498,7 @@ function load(i, opt = {}){
   const f = fileFor(x);
   if (armed){
     $("ph").hidden = false; $("ph").querySelector("span").textContent = "Toca Reproducir para seguir donde ibas";
-    setMedia(x); renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini(); return;
+    setMedia(x); renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini(); jzLoaded(i, opt); return;
   }
   if (f){
     mode = "file"; clearInterval(kick); pendingId = null; selfSilentAt = Date.now(); silent.pause();
@@ -1468,7 +1510,7 @@ function load(i, opt = {}){
     if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; }
     if (!opt.auto) recordPlayed(x);
   }
-  renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini();
+  renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini(); jzLoaded(i, opt);
 }
 // Guarda qué suena (origen, canción y segundo) para retomarlo al volver a abrir la app.
 function saveResume(pos){
@@ -1493,7 +1535,7 @@ $("seek").oninput = e => { seeking = true; $("t-cur").textContent = fmt(+e.targe
 $("seek").onchange = e => {
   const s = +e.target.value; seeking = false;
   if (mode === "file") au.currentTime = s; else if (ready) player.seekTo(s, true);
-  log("adelanto a " + fmt(s)); setTimeout(() => { updatePos(); paintSeek(); }, 300);
+  log("adelanto a " + fmt(s)); setTimeout(() => { updatePos(); paintSeek(); }, 300); jzSeeked(s);
 };
 /* ---------- A continuación: lo que viene en la cola (en el orden real, también con Aleatorio) ---------- */
 let qOpen = false;
@@ -1524,7 +1566,7 @@ $("qlist").onclick = e => {
 document.addEventListener("visibilitychange", () => { if (document.hidden && cur >= 0 && !armed) saveResume(curPos()); });
 let filesDone = false, resumed = false, autoTry = 0; // autoTry: intento de arrancar sola al abrir (0 = ninguno)
 function tryResume(){
-  if (resumed || !catLoaded || !loaded || !filesDone || cur >= 0) return;
+  if (resumed || !catLoaded || !loaded || !filesDone || cur >= 0 || (JZ && JZ.on)) return;
   resumed = true;
   let s; try { s = JSON.parse(store.get("np-resume") || "null"); } catch { s = null; }
   if (!s || !s.song) return;
@@ -1572,7 +1614,7 @@ function precue(){
 }
 // ¿Se puede encadenar con fundido cruzado? (no en iPhone: allí el volumen del video no se puede bajar; no en segundo plano)
 function canXfade(){
-  if (mode !== "yt" || IOS || document.hidden || !FADE || !spareReady || xfade || !cued || queue.length < 2) return false;
+  if ((JZ && JZ.on) || mode !== "yt" || IOS || document.hidden || !FADE || !spareReady || xfade || !cued || queue.length < 2) return false;
   const nx = queue[orderIdx[(at + 1) % orderIdx.length]];
   return !!nx && !fileFor(nx) && vid(nx) === cued;
 }
@@ -1820,7 +1862,8 @@ function initYT(){
         if (playing || e.data === YT.PlayerState.PAUSED) updatePos(); // barra de progreso de la pantalla de bloqueo
         log("estado " + ({"-1": "sin empezar", 0: "terminó", 1: "sonando", 2: "pausa", 3: "cargando", 5: "lista"}[e.data] ?? e.data));
         if (playing && !wasPlaying) precue();
-        if (e.data === YT.PlayerState.ENDED) step(1);
+        jzYtState(e.data);
+        if (e.data === YT.PlayerState.ENDED && !jzHoldEnd()) step(1);
         if (e.data === YT.PlayerState.CUED && !started && !armed) player.playVideo(); // cargó pero no arrancó (pasa en segundo plano)
         if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000) setTimeout(() => { if (document.hidden && !playing) player.playVideo(); }, 400);
       },
@@ -1982,6 +2025,15 @@ async function ytSearch(q){
   if (tab !== "all") setTab("all");
   $("q").value = q; ytQuery = q; yres = []; ytHidden = 0; ytDone = false; shown = PAGE; syncGo();
   if (!CFG.youtubeKey){ renderYt(); return; }
+  const pid = !altFor && /youtu/i.test(q) ? parseId(q) : null;
+  if (pid){ // enlace pegado: ese video tal cual, aunque no sea música ni salga en la búsqueda (oculto), p. ej. los cuentos de Pepa la Loca
+    let it = null;
+    try { const r = await fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" + pid + "&key=" + CFG.youtubeKey); it = (await r.json()).items?.[0] || null; } catch {}
+    yres = [{t: it ? decodeHtml(it.snippet.title) : "Video de YouTube", a: it ? decodeHtml(it.snippet.channelTitle) : "", y: pid, k: "yt:" + pid}]; ytDone = true;
+    flash("Video del enlace: tócalo para verlo o ＋ para guardarlo en una playlist."); refresh();
+    if (matchMedia("(max-width:640px)").matches) setTimeout(toResults, 60);
+    return;
+  }
   flash("Buscando “" + q + "” en YouTube…"); refresh();
   try {
     let all = [], tried = [];
@@ -2287,6 +2339,305 @@ $("sh-new").addEventListener("submit", e => { e.preventDefault(); const p = newP
 $("sh-close").onclick = closeSheet;
 $("sheet").addEventListener("click", e => { if (e.target === $("sheet")) closeSheet(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
+
+/* ---------- 👥 Ver juntos ----------
+   Sesión compartida en Firestore juntos/<id>. Quien la abre (una de las cuentas permitidas) comparte ?juntos=<id>; el invitado
+   entra con Google y pide unirse (juntos/<id>/pedidos/<uid>, el anfitrión acepta o rechaza) o ya está en `invitados` (correos).
+   El documento lleva la cola (cola: [{t, a, k, y}]) y estado = {i, videoId, playing, pos, at, by, sid}: `at` es la hora del
+   servidor estimada (Date.now() + desfase medido con la presencia), así que lo que va sonando es pos + (ahora − at).
+   Lo que hace cada uno (reproducir, pausar, adelantar con la barra, otra canción) se publica; lo que llega de otro se aplica sin
+   volver a publicarlo (sid propio = eco). Cada segundo se corrige solo si la diferencia pasa de 1,5 s. */
+var JZ = null;
+const JZ_ID = (new URLSearchParams(location.search).get("juntos") || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 40) || null;
+const JZ_SID = Math.random().toString(36).slice(2, 10), JZ_HORAS = 6, JZ_MAX = 1500, JZ_DRIFT = 1.5;
+let jzOff = 0, jzUser = null, jzGuest = false, jzUnsub = [], jzHb = 0, jzLoop = 0, jzTries = 0, jzNeedShown = false;
+const jzNow = () => Date.now() + jzOff;
+const jzRef = id => doc(db, "juntos", id);
+const jzItem = x => ({t: x.t || "", a: x.a || "", k: x.k || "", y: x.y || yaOf(x) || null});
+const jzWant = st => st.playing ? st.pos + Math.max(0, jzNow() - st.at) / 1000 : st.pos;
+const jzIsHost = () => !!(JZ && JZ.d && jzUser && JZ.d.host === jzUser.uid);
+const jzCanCtl = () => !!(JZ && JZ.d && (!JZ.d.soloHost || jzIsHost()));
+const jzHostName = () => ((JZ && JZ.d && JZ.d.hostNombre) || "el anfitrión").split(" ")[0];
+const jzLink = id => location.origin + location.pathname + "?juntos=" + id;
+const jzCut = () => { // más de JZ_MAX canciones: la cola queda en la actual y las que siguen (en el orden en que van a sonar)
+  const L = orderIdx.length, ids = [];
+  for (let k = 0; k < Math.min(JZ_MAX, L); k++) ids.push(orderIdx[(at + k) % L]);
+  queue = ids.map(n => queue[n]); orderIdx = queue.map((_, n) => n); at = 0; cur = 0;
+};
+if (JZ_ID){
+  document.querySelector("#gate .eyebrow").textContent = "👥 Ver juntos";
+  $("gate-msg").textContent = "Te invitaron a ver y escuchar juntos. Entra con tu cuenta de Google y, cuando te acepten, suena lo mismo para los dos.";
+  document.querySelector("#gate .fine").textContent = "Solo verás lo que esté sonando en esa sesión.";
+}
+function jzAuth(u){
+  jzUser = u;
+  const id = JZ_ID || store.get("np-juntos");
+  if (id && !(JZ && JZ.id === id)) jzAttach(id, !JZ_ID);
+}
+// Escucha la sesión. resume: es la que este dispositivo abrió antes (se retoma solo si sigue viva y es suya)
+function jzAttach(id, resume){
+  jzStop();
+  const me = JZ = {id, on: false, d: null, st: null, applied: "", applying: false, quiet: 0, need: 0, lastFix: 0, colaRev: 0, queue: null, pedidos: [], hbT0: 0, hbSeen: 0};
+  jzUnsub.push(onSnapshot(jzRef(id), s => {
+    if (JZ !== me) return;
+    const d = s.exists() ? s.data() : null;
+    const vivo = d && !d.fin && (d.expira?.toMillis?.() || 0) > Date.now();
+    if (!vivo || (resume && d.host !== jzUser.uid)){
+      if (resume){ store.set("np-juntos", ""); jzStop(); return; }
+      return jzEnd(!d ? "Ese enlace de «Ver juntos» ya no existe." : d.fin ? (d.hostNombre || "El anfitrión") + " terminó la sesión de «Ver juntos»." : "Esta sesión de «Ver juntos» venció.");
+    }
+    const first = !me.on; me.d = d; me.on = true; jzTries = 0;
+    jzClock(d);
+    if (first) jzStart();
+    jzCola(d);
+    document.body.classList.toggle("jz-lock", !jzCanCtl());
+    if (d.estado) jzApply(d.estado);
+    jzPaint();
+  }, e => {
+    if (JZ !== me) return;
+    if (e.code !== "permission-denied") return flash("Ver juntos: no se pudo conectar (" + e.code + ").");
+    if (me.on) jzEnd("La sesión de «Ver juntos» terminó o ya no tienes acceso.");
+    else if (resume){ store.set("np-juntos", ""); jzStop(); }
+    else jzRequest(id);
+  }));
+}
+function jzStart(){
+  const host = jzIsHost();
+  if (host) store.set("np-juntos", JZ.id);
+  document.body.classList.add("jz-on");
+  if (host){
+    const me = JZ;
+    jzUnsub.push(onSnapshot(collection(db, "juntos", JZ.id, "pedidos"), s => {
+      if (JZ !== me) return;
+      me.pedidos = s.docs.map(d => ({uid: d.id, ...d.data()})).filter(p => p.estado === "pendiente");
+      jzPaint();
+    }, e => log("juntos: pedidos (" + e.code + ")")));
+  }
+  jzBeat(); jzHb = setInterval(() => { jzBeat(); jzPaint(); }, 30000);
+  jzLoop = setInterval(jzTick, 1000);
+  if (!JZ.d.estado) $("ph").querySelector("span").textContent = "Esperando a que " + jzHostName() + " ponga algo a sonar…";
+}
+// Presencia (cada 30 s) y, de paso, el desfase con la hora del servidor; el anfitrión estira la sesión 6 h desde ahora
+function jzBeat(){
+  if (!JZ || !JZ.on || !jzUser) return;
+  const f = {["conectados." + jzUser.uid]: {n: jzUser.displayName || jzUser.email || "Invitado", f: jzUser.photoURL || "", t: serverTimestamp()}};
+  if (jzIsHost()) f.expira = new Date(Date.now() + JZ_HORAS * 3600e3);
+  JZ.hbT0 = Date.now();
+  updateDoc(jzRef(JZ.id), f).catch(e => log("juntos: presencia (" + e.code + ")"));
+}
+function jzClock(d){
+  const t = d.conectados?.[jzUser.uid]?.t?.toMillis?.();
+  if (!t || !JZ.hbT0 || t === JZ.hbSeen) return;
+  JZ.hbSeen = t; const t1 = Date.now();
+  if (t1 - JZ.hbT0 < 3000){ jzOff = t - (JZ.hbT0 + t1) / 2; log("juntos: desfase con el servidor " + Math.round(jzOff) + " ms"); }
+  JZ.hbT0 = 0;
+}
+// La cola de la sesión pasa a ser la cola de aquí (invitados, la otra cuenta, o el anfitrión al volver a abrir)
+function jzCola(d){
+  if (!Array.isArray(d.cola) || d.colaRev === JZ.colaRev) return;
+  JZ.colaRev = d.colaRev;
+  queue = d.cola.map(x => ({...x})); orderIdx = queue.map((_, n) => n); at = 0; cur = -1;
+  queueLabel = jzIsHost() ? "👥 Juntos" : "👥 Con " + jzHostName(); queueSrc = null; JZ.queue = queue; JZ.applied = "";
+}
+function jzApply(st, force){
+  JZ.st = st;
+  const key = st.sid + ":" + st.at;
+  if (!force && (st.sid === JZ_SID || key === JZ.applied)) return;
+  JZ.applied = key;
+  if (!queue[st.i]) return;
+  const want = jzWant(st);
+  JZ.applying = true; JZ.quiet = Date.now() + 1500; if (st.playing) JZ.need = Date.now();
+  try {
+    const ix = orderIdx.indexOf(st.i); if (ix >= 0) at = ix;
+    if (st.i !== cur){
+      load(st.i, st.playing ? {pos: want} : {armed: true, pos: want});
+      if (!st.playing) $("ph").querySelector("span").textContent = "En pausa · cuando alguien le dé play, suena para todos";
+    } else if (armed){ if (st.playing) load(cur, {pos: want}); else { resumePos = want; paintSeek(); } }
+    else if (mode === "yt" && ready){
+      if (Math.abs(curPos() - want) > JZ_DRIFT) player.seekTo(want, true);
+      if (st.playing && !playing) resumeYt("ver juntos");
+      if (!st.playing && playing){ started = true; clearInterval(kick); player.pauseVideo(); }
+    }
+  } finally { JZ.applying = false; }
+  jzPaint();
+}
+// Lo de aquí se publica para los demás
+function jzPublish(p){
+  if (!JZ || !JZ.on) return;
+  if (!jzCanCtl()){ flash("Solo " + jzHostName() + " controla la reproducción en esta sesión."); if (JZ.st) setTimeout(() => JZ && JZ.st && jzApply(JZ.st, true), 300); return; }
+  const f = {};
+  if (queue !== JZ.queue){
+    if (!jzIsHost()){ flash("En «Ver juntos» suena la lista de " + jzHostName() + "."); setTimeout(jzResync, 0); return; }
+    if (queue.length > JZ_MAX){ jzCut(); p.i = 0; }
+    f.cola = queue.map(jzItem); f.colaRev = Date.now(); JZ.queue = queue; JZ.colaRev = f.colaRev;
+  }
+  const x = queue[p.i];
+  const st = f.estado = {i: p.i, videoId: x ? jzItem(x).y : null, playing: !!p.playing, pos: Math.max(0, +p.pos || 0), at: jzNow(), by: jzUser.uid, sid: JZ_SID};
+  JZ.st = st; JZ.applied = st.sid + ":" + st.at;
+  updateDoc(jzRef(JZ.id), f).catch(e => flash("Ver juntos: no se pudo avisar a los demás (" + (e.code || e.message) + ")."));
+  jzPaint();
+}
+function jzResync(){ if (!JZ || !JZ.d) return; JZ.colaRev = 0; jzCola(JZ.d); if (JZ.d.estado) jzApply(JZ.d.estado, true); }
+function jzLoaded(i, opt){ if (JZ && JZ.on && !JZ.applying && !opt.auto && !opt.armed) jzPublish({i, playing: true, pos: opt.pos || 0}); }
+function jzSeeked(s){ if (JZ && JZ.on && !JZ.applying && cur >= 0 && !armed) jzPublish({i: cur, playing, pos: s}); }
+function jzYtState(s){
+  if (!JZ || !JZ.on || JZ.applying || Date.now() < JZ.quiet || mode !== "yt" || cur < 0 || armed) return;
+  if (s !== YT.PlayerState.PLAYING && s !== YT.PlayerState.PAUSED) return; // cargando o terminó: no es una orden de nadie
+  if (s === YT.PlayerState.PAUSED && (document.hidden || Date.now() - hiddenAt < 3000)) return; // pausó el sistema (pantalla bloqueada u otra app)
+  const on = s === YT.PlayerState.PLAYING, st = JZ.st;
+  if (st && st.i === cur && st.playing === on) return; // ya es lo compartido (o lo que acabamos de aplicar)
+  jzPublish({i: cur, playing: on, pos: curPos()});
+}
+// Al terminar el video pasa a la siguiente el anfitrión; el invitado espera su aviso (o, si no llega en 4 s, pasa él)
+function jzHoldEnd(){
+  if (!JZ || !JZ.on || jzIsHost()) return false;
+  const st0 = JZ.st;
+  setTimeout(() => { if (JZ && JZ.on && JZ.st === st0 && jzCanCtl() && !playing) step(1); }, 4000);
+  return true;
+}
+function jzTick(){
+  if (!JZ || !JZ.on || !JZ.st || JZ.applying || seeking) return;
+  const st = JZ.st;
+  if (st.i !== cur || mode !== "yt" || !ready){ jzNeed(false); return; }
+  if (armed){ jzNeed(st.playing && Date.now() - JZ.need > 2500); return; }
+  if (st.playing && !playing){ jzNeed(Date.now() - JZ.need > 4000); return; } // el navegador no dejó sonar sin un toque
+  jzNeed(false);
+  if (!st.playing && playing && Date.now() > JZ.quiet){ JZ.quiet = Date.now() + 1500; started = true; clearInterval(kick); player.pauseVideo(); return; }
+  if (!st.playing || !playing) return;
+  let ps = -1; try { ps = player.getPlayerState(); } catch {}
+  if (ps === YT.PlayerState.BUFFERING) return;
+  const want = jzWant(st), d = curDur(), drift = curPos() - want;
+  if (Math.abs(drift) > JZ_DRIFT && Date.now() - JZ.lastFix > 4000 && (!d || want < d - 1)){
+    JZ.lastFix = Date.now(); JZ.quiet = Date.now() + 1500;
+    log("juntos: corrijo " + drift.toFixed(1) + " s"); player.seekTo(want, true);
+  }
+}
+function jzNeed(on){ if (on !== jzNeedShown){ jzNeedShown = on; $("jz-go").hidden = !on; } }
+$("jz-go").onclick = () => { if (JZ && JZ.st){ JZ.need = Date.now(); jzApply(JZ.st, true); } };
+// Invitado que aún no está en la lista: deja su pedido y espera la respuesta
+async function jzRequest(id){
+  const me = JZ, ref = doc(db, "juntos", id, "pedidos", jzUser.uid);
+  if (++jzTries > 2) return jzEnd("Ya no tienes acceso a esta sesión de «Ver juntos».");
+  jzWait("Pidiendo permiso para unirte…");
+  try {
+    const s = await getDoc(ref);
+    if (!s.exists()) await setDoc(ref, {email: (jzUser.email || "").toLowerCase(), nombre: jzUser.displayName || "", foto: jzUser.photoURL || "", estado: "pendiente", t: Date.now()});
+  } catch (e) { if (JZ === me) jzEnd(e.code === "permission-denied" ? "Ese enlace de «Ver juntos» ya no existe o venció." : "No se pudo pedir permiso (" + (e.code || e.message) + ")."); return; }
+  if (JZ !== me) return;
+  jzWait("Listo: le avisamos a quien te invitó. Espera a que te acepte (no cierres esta página)…");
+  jzUnsub.push(onSnapshot(ref, s => {
+    if (JZ !== me) return;
+    const v = s.data() || {};
+    if (v.estado === "aceptado") jzAttach(id, false);
+    else if (v.estado === "rechazado") jzEnd("No aceptaron tu solicitud para ver juntos.");
+  }, () => {}));
+}
+function jzWait(t){ $("jz").hidden = false; $("jz-h").textContent = "👥 Ver juntos"; $("jz-w").textContent = t; $("jz-more").hidden = true; $("jz-reqs").hidden = true; $("ph").querySelector("span").textContent = t; }
+// Cuenta que no está en la lista de las playlists y llegó con un enlace: solo el reproductor
+function jzGuestMode(){
+  if (jzGuest) return; jzGuest = true;
+  document.body.classList.add("jz-guest");
+  if (!JZ || !JZ.on) $("ph").querySelector("span").textContent = "Conectando con «Ver juntos»…";
+}
+function jzHush(){ try { clearInterval(kick); player?.pauseVideo(); } catch {} au.pause(); }
+function jzBye(){ if (JZ && JZ.on && jzUser) updateDoc(jzRef(JZ.id), {["conectados." + jzUser.uid]: deleteField()}).catch(() => {}); }
+window.addEventListener("pagehide", jzBye);
+function jzStop(){
+  jzUnsub.forEach(f => f()); jzUnsub = []; clearInterval(jzHb); clearInterval(jzLoop);
+  JZ = null; jzNeed(false);
+  document.body.classList.remove("jz-on", "jz-lock");
+  $("jz").hidden = true; $("jzsheet").hidden = true;
+}
+function jzEnd(msg){
+  jzBye(); jzStop();
+  if (jzGuest){ jzHush(); $("app").hidden = true; $("gate").hidden = false; $("gate-msg").textContent = msg; $("login").hidden = true; document.querySelector("#gate .fine").textContent = "Puedes cerrar esta página."; return; }
+  if (JZ_ID) history.replaceState(null, "", location.pathname + location.hash); // al recargar ya no vuelve a entrar
+  flash(msg);
+}
+const jzVivos = () => Object.entries((JZ && JZ.d && JZ.d.conectados) || {})
+  .filter(([, c]) => { const t = c?.t?.toMillis?.(); return !t || jzNow() - t < 75000; })
+  .map(([uid, c]) => uid === jzUser?.uid ? "tú" : String(c.n || "alguien").split(" ")[0]);
+function jzPaint(){
+  if (!JZ || !JZ.on) return;
+  const host = jzIsHost(), d = JZ.d, vivos = jzVivos(), st = JZ.st;
+  $("jz").hidden = false; $("jz-more").hidden = !host; $("jz-out").textContent = host ? "Terminar" : "Salir";
+  $("jz-h").textContent = host ? "Viendo juntos" : "Viendo juntos con " + jzHostName();
+  $("jz-w").textContent = "Conectados: " + (vivos.join(", ") || "nadie más") + (vivos.length < 2 && host ? " · toca Invitar para compartir el enlace" : "")
+    + (d.soloHost ? " · solo " + (host ? "tú controlas" : jzHostName() + " controla") : "") + (st && !st.playing ? " · en pausa" : "");
+  const reqs = host ? JZ.pedidos : [];
+  const row = p => `<div class="jz-req"><span><b>${esc(p.nombre || p.email)}</b> quiere unirse${p.nombre ? " · " + esc(p.email) : ""}</span><button class="btn sm primary" type="button" data-jok="${esc(p.uid)}">Aceptar</button><button class="btn sm" type="button" data-jno="${esc(p.uid)}">Rechazar</button></div>`;
+  $("jz-reqs").hidden = !reqs.length; $("jz-reqs").innerHTML = reqs.map(row).join("");
+  $("jz-ph").hidden = !reqs.length; $("jz-preqs").innerHTML = reqs.map(row).join("");
+  if (host){
+    $("jz-url").value = jzLink(JZ.id);
+    $("jz-solo").checked = !!d.soloHost;
+    $("jz-inv").innerHTML = (d.invitados || []).map(m => `<li><span>${esc(m)}</span><button class="btn sm" type="button" data-jrm="${esc(m)}" aria-label="Quitar a ${esc(m)}">Quitar</button></li>`).join("");
+  }
+}
+function jzSheet(){ $("jzsheet").hidden = false; $("jz-share").hidden = !navigator.share; }
+async function jzCreate(){
+  if (!jzUser || jzGuest) return;
+  const x = queue[cur];
+  if (!x || !jzItem(x).y) return flash("«Ver juntos» funciona con videos de YouTube: pon uno a sonar y vuelve a tocar 👥.");
+  if (queue.length > JZ_MAX) jzCut();
+  const ref = doc(collection(db, "juntos")), now = Date.now();
+  const estado = {i: cur, videoId: jzItem(queue[cur]).y, playing: !!playing && !armed, pos: armed ? resumePos : curPos(), at: jzNow(), by: jzUser.uid, sid: JZ_SID};
+  const body = {host: jzUser.uid, hostNombre: jzUser.displayName || jzUser.email, creada: now, expira: new Date(now + JZ_HORAS * 3600e3), fin: false, soloHost: false, invitados: [], cola: queue.map(jzItem), colaRev: now, estado, conectados: {}};
+  $("jzbtn").disabled = true;
+  try { await setDoc(ref, body); }
+  catch (e) { flash("No se pudo abrir «Ver juntos» (" + (e.code || e.message) + ")."); return; }
+  finally { $("jzbtn").disabled = false; }
+  store.set("np-juntos", ref.id);
+  jzAttach(ref.id, false);
+  Object.assign(JZ, {colaRev: now, queue, st: estado, applied: JZ_SID + ":" + estado.at}); // lo de aquí ya es lo compartido
+  $("jz-url").value = jzLink(ref.id); $("jz-inv").innerHTML = ""; $("jz-solo").checked = false;
+  jzSheet();
+}
+$("jzbtn").onclick = () => { if (JZ && !JZ.on) return; if (!JZ) return jzCreate(); if (jzIsHost()){ jzPaint(); jzSheet(); } else flash("Estás viendo juntos con " + jzHostName() + "."); };
+$("jz-more").onclick = () => { jzPaint(); jzSheet(); };
+$("jz-done").onclick = () => { $("jzsheet").hidden = true; };
+$("jzsheet").onclick = e => { if (e.target === $("jzsheet")) $("jzsheet").hidden = true; };
+$("jz-copy").onclick = async () => {
+  const u = $("jz-url").value;
+  try { await navigator.clipboard.writeText(u); } catch { $("jz-url").select(); try { document.execCommand("copy"); } catch {} }
+  $("jz-copy").textContent = "¡Copiado!"; setTimeout(() => { $("jz-copy").textContent = "Copiar"; }, 2000);
+};
+$("jz-share").onclick = () => navigator.share({title: "Ver juntos", text: "Ven a ver esto conmigo (entra con tu cuenta de Google):", url: $("jz-url").value}).catch(() => {});
+$("jz-mailf").onsubmit = e => {
+  e.preventDefault();
+  const m = $("jz-mail").value.trim().toLowerCase();
+  if (!JZ || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m)) return flash("Escribe un correo de Google válido.");
+  updateDoc(jzRef(JZ.id), {invitados: arrayUnion(m)}).then(() => { $("jz-mail").value = ""; }).catch(err => flash("No se pudo agregar (" + err.code + ")."));
+};
+$("jz-solo").onchange = e => { if (JZ) updateDoc(jzRef(JZ.id), {soloHost: e.target.checked}).catch(err => flash("No se pudo cambiar (" + err.code + ").")); };
+document.addEventListener("click", e => {
+  const ok = e.target.closest("[data-jok]"), no = e.target.closest("[data-jno]"), rm = e.target.closest("[data-jrm]");
+  if (!(ok || no || rm) || !JZ || !jzIsHost()) return;
+  if (ok){
+    const p = JZ.pedidos.find(q => q.uid === ok.dataset.jok); if (!p) return;
+    const b = writeBatch(db); b.update(jzRef(JZ.id), {invitados: arrayUnion(p.email)}); b.update(doc(db, "juntos", JZ.id, "pedidos", p.uid), {estado: "aceptado"});
+    b.commit().catch(err => flash("No se pudo aceptar (" + err.code + ")."));
+  }
+  if (no) updateDoc(doc(db, "juntos", JZ.id, "pedidos", no.dataset.jno), {estado: "rechazado"}).catch(err => flash("No se pudo rechazar (" + err.code + ")."));
+  if (rm) updateDoc(jzRef(JZ.id), {invitados: arrayRemove(rm.dataset.jrm)}).catch(err => flash("No se pudo quitar (" + err.code + ")."));
+});
+let jzEndArm = 0;
+function jzFinish(btn){
+  if (!JZ) return;
+  if (!jzIsHost()){
+    if (jzGuest) return jzEnd("Saliste de «Ver juntos». Para volver, abre otra vez el enlace.");
+    jzEnd("Saliste de «Ver juntos»."); return;
+  }
+  const label = btn.id === "jz-end" ? "Terminar sesión" : "Terminar";
+  if (!jzEndArm){ btn.textContent = "¿Terminar para todos?"; jzEndArm = setTimeout(() => { jzEndArm = 0; btn.textContent = label; }, 4000); return; }
+  clearTimeout(jzEndArm); jzEndArm = 0; btn.textContent = label;
+  updateDoc(jzRef(JZ.id), {fin: true, expira: new Date(Date.now() + 120e3)}).catch(() => {}); // 2 min más para que los invitados vean el aviso
+  store.set("np-juntos", ""); jzStop();
+  if (JZ_ID) history.replaceState(null, "", location.pathname + location.hash);
+  flash("Terminaste «Ver juntos». Lo que suena sigue solo aquí.");
+}
+$("jz-out").onclick = e => jzFinish(e.currentTarget);
+$("jz-end").onclick = e => jzFinish(e.currentTarget);
 
 /* ---------- Pestañas ---------- */
 function fillSrc(){

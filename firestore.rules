@@ -6,8 +6,40 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && request.auth.token.email in ['dsdx987@gmail.com', 'vivianfernandez144@gmail.com'];
     }
+    // Las dos cuentas de siempre: todo (playlists, catálogo, historial y las sesiones de Ver juntos)
     match /{document=**} {
       allow read, write: if permitido();
+    }
+
+    // 👥 Ver juntos: un invitado (cuenta de Google que no está en la lista) solo ve SU sesión y solo cambia
+    // lo que suena (si el anfitrión no puso «solo yo controlo») y su propia presencia. Nada más de la app.
+    function verificado() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function invitado(d) {
+      return verificado()
+        && request.auth.token.email.lower() in d.invitados
+        && request.time < d.expira;
+    }
+    match /juntos/{jid} {
+      allow read: if invitado(resource.data);
+      allow update: if invitado(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'conectados'])
+        && (!('estado' in request.resource.data.diff(resource.data).affectedKeys())
+            || (resource.data.soloHost != true && request.resource.data.estado.by == request.auth.uid))
+        && (!('conectados' in request.resource.data.diff(resource.data).affectedKeys())
+            || request.resource.data.conectados.diff(resource.data.conectados).affectedKeys().hasOnly([request.auth.uid]));
+
+      // Pedido para unirse: lo crea el invitado con su propio correo; lo acepta o rechaza el anfitrión
+      match /pedidos/{uid} {
+        allow read: if verificado() && request.auth.uid == uid;
+        allow create: if verificado() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['email', 'nombre', 'foto', 'estado', 't'])
+          && request.resource.data.email == request.auth.token.email.lower()
+          && request.resource.data.estado == 'pendiente'
+          && exists(/databases/$(database)/documents/juntos/$(jid))
+          && request.time < get(/databases/$(database)/documents/juntos/$(jid)).data.expira;
+      }
     }
   }
 }

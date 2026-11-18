@@ -85,7 +85,7 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .btn.go.side[aria-pressed="true"]::after{content:"";position:absolute;left:50%;bottom:5px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--accent)}
 /* Fila secundaria: iconos con una palabra debajo (en el celular no hay tooltip) y volumen desplegable */
 /* Fila secundaria: tres píldoras iguales (icono + texto), mismo estilo que ⏮ ⏭; el volumen se despliega a todo el ancho debajo */
-.sub{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;flex:none;width:480px;max-width:100%} /* mismo ancho que el transporte */
+.sub{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;flex:none;width:480px;max-width:100%} /* mismo ancho que el transporte */
 .btn.go.side.cap{width:auto;min-width:0;height:44px;border-radius:99px;flex-direction:row;gap:7px;padding:0 10px;background:var(--surface);border-color:var(--line);box-shadow:var(--shadow-sm);color:var(--ink);justify-self:stretch}
 .btn.go.side.cap:hover{background:var(--surface-2)}
 .btn.go.side.cap[aria-expanded="true"]{background:var(--accent-bg);color:var(--accent)}
@@ -420,7 +420,7 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .btn{padding:7px 12px;font-size:13px}
   /* En el celular el transporte ocupa toda una fila: ⏮ ▶ ⏭ grandes, debajo los botones pequeños */
   .transport{width:100%;min-width:0;gap:8px;grid-template-columns:40px repeat(3,minmax(0,1fr)) 40px}
-  .sub{width:100%;flex-basis:100%}
+  .sub{width:100%;flex-basis:100%;grid-template-columns:repeat(2,minmax(0,1fr))}
   .btn.go.side.cap{height:42px;padding:0 8px;gap:6px}
   .btn.go.side.cap small{font-size:12.5px}
   .btn.go.side{width:40px;height:40px}
@@ -468,9 +468,7 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 body.playing .mini .i-pause{display:block}
 @media (min-width:641px){.mini{display:none!important}}
 /* 👥 Ver juntos: franja con quién está conectado, solicitudes y la hoja para invitar */
-.vjz{position:absolute;top:6px;left:6px;z-index:3;height:30px;padding:0 10px 0 8px;border:0;border-radius:99px;background:var(--chip-dark);color:#fff;display:flex;align-items:center;gap:5px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.vjz svg{width:16px;height:16px;fill:currentColor}
-body.jz-on .vjz{background:var(--accent);color:var(--accent-ink)}
+body.jz-on .btn.go.side.cap.vjz{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 .jz{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:10px;padding:10px 12px;background:var(--accent-bg);border:1px solid var(--line);border-radius:var(--r-md)}
 .jz-ic{font-size:20px;line-height:1}
 .jz-t{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;line-height:1.3}
@@ -509,7 +507,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 <div id="app" hidden>
 <header class="top">
   <div class="np"><div class="player">
-    <div class="video"><div id="yt"></div><div id="yt2"></div><button class="vjz" id="jzbtn" type="button" aria-label="Ver juntos" title="👥 Ver juntos: comparte un enlace y lo que suene aquí suena también allá, al mismo tiempo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Juntos</span></button><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden><button class="vbig" id="big" type="button" aria-pressed="false" aria-label="Video grande" title="Video grande a todo el ancho"><svg class="i-out" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10z"/></svg><svg class="i-in" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3.41 16.71 8.7 20 12h-8V4l3.29 3.29L20.59 2 22 3.41zM3.41 22l5.29-5.29L12 20v-8H4l3.29 3.29L2 20.59 3.41 22z"/></svg></button></div>
+    <div class="video"><div id="yt"></div><div id="yt2"></div><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden><button class="vbig" id="big" type="button" aria-pressed="false" aria-label="Video grande" title="Video grande a todo el ancho"><svg class="i-out" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10z"/></svg><svg class="i-in" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3.41 16.71 8.7 20 12h-8V4l3.29 3.29L20.59 2 22 3.41zM3.41 22l5.29-5.29L12 20v-8H4l3.29 3.29L2 20.59 3.41 22z"/></svg></button></div>
     <div class="now">
       <p class="eyebrow" id="pos">Nuestras playlists</p>
       <h1 id="nt">Elige una canción</h1>
@@ -527,6 +525,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
       <span class="sub" id="sub" hidden>
         <button class="btn go side cap" id="addcur" type="button" aria-label="Agregar a playlist" title="Agregar a playlist"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 10H3v2h11v-2zm0-4H3v2h11V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM3 16h7v-2H3v2z"/></svg><small>Playlist</small></button>
         <button class="btn go side cap" id="alt" type="button" aria-label="Otras versiones" title="Buscar otro video para esta canción"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.99 11 3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg><small>Versiones</small></button>
+        <button class="btn go side cap vjz" id="jzbtn" type="button" aria-label="Ver juntos" title="👥 Ver juntos: comparte un enlace y lo que suene aquí suena también allá, al mismo tiempo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><small>Juntos</small></button>
         <span class="volwrap">
           <button class="btn go side cap" id="volb" type="button" aria-expanded="false" aria-label="Volumen" title="Volumen"><svg class="i-high" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg><svg class="i-low" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.5 12A4.5 4.5 0 0 0 16 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg><svg class="i-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg><small>Volumen</small></button>
           <div class="pop volpop" id="volpop" hidden><button class="btn go side" id="mute" type="button" aria-pressed="false" aria-label="Silenciar" title="Silenciar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg></button><input type="range" class="tm-range" id="vol" min="0" max="100" step="1" aria-label="Volumen"><b id="vol-v">100%</b></div>

@@ -241,6 +241,11 @@ body:not(.playing) .eq i{animation-play-state:paused;transform:scaleY(.45)}
 .tag.aud svg{width:12px;height:12px;fill:currentColor}
 body.audio .tag.aud{color:var(--accent);background:var(--accent-bg)}
 .video #art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+/* ☁️ SoundCloud: su reproductor oficial ocupa el lugar del video mientras suena una canción de SoundCloud */
+.video #sc{position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:#0B0B10}
+.video.sc #sc{display:block}
+.video.sc #yt,.video.sc #yt2{opacity:0;pointer-events:none}
+.tag.scl{background:rgba(255,85,0,.14);color:#E85A0C}
 .files{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .frow{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px}
 .frow .t{flex:1;min-width:0}
@@ -509,7 +514,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 <div id="app" hidden>
 <header class="top">
   <div class="np"><div class="player">
-    <div class="video"><div id="yt"></div><div id="yt2"></div><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden><button class="vbig" id="big" type="button" aria-pressed="false" aria-label="Video grande" title="Video grande a todo el ancho"><svg class="i-out" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10z"/></svg><svg class="i-in" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3.41 16.71 8.7 20 12h-8V4l3.29 3.29L20.59 2 22 3.41zM3.41 22l5.29-5.29L12 20v-8H4l3.29 3.29L2 20.59 3.41 22z"/></svg></button></div>
+    <div class="video"><div id="yt"></div><div id="yt2"></div><iframe id="sc" title="Reproductor de SoundCloud" allow="autoplay; encrypted-media" scrolling="no"></iframe><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden><button class="vbig" id="big" type="button" aria-pressed="false" aria-label="Video grande" title="Video grande a todo el ancho"><svg class="i-out" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10z"/></svg><svg class="i-in" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3.41 16.71 8.7 20 12h-8V4l3.29 3.29L20.59 2 22 3.41zM3.41 22l5.29-5.29L12 20v-8H4l3.29 3.29L2 20.59 3.41 22z"/></svg></button></div>
     <div class="now">
       <p class="eyebrow" id="pos">Nuestras playlists</p>
       <h1 id="nt">Elige una canción</h1>
@@ -725,20 +730,22 @@ function write(id, fn){
   chains[id] = (chains[id] || Promise.resolve()).then(fn).catch(e => { flash(e.code === "permission-denied" ? "Tu cuenta no puede editar estas playlists." : "No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez."); });
 }
 function flash(t){ $("msg").hidden = !t; $("msg").textContent = t || ""; }
-const song = x => ({t: x.t, a: x.a, k: x.k, y: x.y || null});
+const song = x => ({t: x.t, a: x.a, k: x.k, y: x.y || null, ...(scOf(x) ? {sc: scOf(x)} : {})}); // sc: enlace de SoundCloud (si la canción tiene)
 /* Versión "solo audio" (campo ya en el catálogo: canal Topic, audio oficial, letra). Con el modo audio activo se reproduce esa en vez del clip. */
 let YA = new Map(), audioMode = ({"1": "audio", "auto": "auto"})[store.get("np-audio")] || "video"; // video | audio | auto
 // En automático la versión de audio se usa solo mientras la página está oculta (pantalla bloqueada u otra app)
 const wantAudio = () => audioMode === "audio" || (audioMode === "auto" && document.hidden);
 const yaOf = x => x.ya || YA.get(x.k) || null;
+let SCM = new Map(); // clave → enlace de SoundCloud guardado (campo sc del catálogo, rep o playlists)
+const scOf = x => !x ? null : x.sc || SCM.get(x.k) || null;
 const BAD = new Set(); // videos que YouTube no dejó insertar en esta sesión (error 100/101/150)
 const vid = x => { if (JZ && JZ.on) return x.y || yaOf(x); const a = wantAudio() && yaOf(x); return a && !BAD.has(a) ? a : x.y || yaOf(x); }; // sin clip suena la versión de audio
-const hasSrc = x => !!(x.y || yaOf(x) || fileFor(x)); // se puede reproducir: clip, versión solo audio o archivo
+const hasSrc = x => !!(x.y || yaOf(x) || fileFor(x) || scOf(x)); // se puede reproducir: clip, versión solo audio o archivo
 // La versión solo audio vive en el catálogo; las canciones que no están en él (agregadas desde YouTube) la guardan en rep y en sus playlists
 function rebuildYA(){
-  YA = new Map();
-  for (const s of [...(CAT.rep || []), ...mis.flatMap(p => p.songs)]) if (s.ya) YA.set(s.k, s.ya);
-  for (const c of CAT.all) if (c.ya) YA.set(c.k, c.ya);
+  YA = new Map(); SCM = new Map();
+  for (const s of [...(CAT.rep || []), ...mis.flatMap(p => p.songs)]){ if (s.ya) YA.set(s.k, s.ya); if (s.sc) SCM.set(s.k, s.sc); }
+  for (const c of CAT.all){ if (c.ya) YA.set(c.k, c.ya); if (c.sc) SCM.set(c.k, c.sc); }
 }
 let loadedId = null; // último id cargado en el reproductor principal
 const HP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-9 9v7a3 3 0 0 0 3 3h3v-8H5v-2a7 7 0 0 1 14 0v2h-4v8h3a3 3 0 0 0 3-3v-7a9 9 0 0 0-9-9z"/></svg>';
@@ -877,12 +884,13 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
   const mine = inMis(x.k), mode = tab === "pls" ? "pl" : "all";
   let meta = "";
   if (x.nueva && mode === "all" && !yt) meta += '<span class="tag yt">de YouTube</span>';
-  if (x.bl && !yt) meta += mode === "all" ? `<span class="tag dud" data-fix="${i}" title="YouTube bloquea este video fuera de su sitio. Toca para buscar otro">bloqueada · corregir</span>` : '<span class="tag dud">bloqueada</span>';
+  if (x.bl && !yt && !scOf(x)) meta += mode === "all" ? `<span class="tag dud" data-fix="${i}" title="YouTube bloquea este video fuera de su sitio. Toca para buscar otro">bloqueada · corregir</span>` : '<span class="tag dud">bloqueada</span>';
   if (x.e === "dudoso") meta += mode === "all" && !yt ? `<span class="tag dud" data-fix="${i}" title="El video puede no ser el correcto. Toca para buscar otro">dudosa · corregir</span>` : '<span class="tag dud">dudosa</span>';
   if (!yt && songEdit === x.k) return `<form class="row edit-song" data-i="${i}"><input name="t" value="${esc(x.t)}" aria-label="Título" placeholder="Título" required><input name="a" value="${esc(x.a)}" aria-label="Artista" placeholder="Artista"><button class="btn sm primary" type="submit">Guardar</button><button class="btn sm" type="button" data-act="cancel" data-i="${i}">Cancelar</button></form>`;
   const file = fileFor(x);
   if (file) meta += '<span class="tag file">♪ audio</span>';
-  else if (!x.y) meta += '<span class="tag no">sin video · buscar</span>';
+  else if (scOf(x)) meta += '<span class="tag scl" title="Tiene enlace de SoundCloud: suena desde ahí cuando YouTube no deja">☁️ SoundCloud</span>';
+  if (!file && !x.y && !scOf(x)) meta += '<span class="tag no">sin video · buscar</span>';
   if (yaOf(x) && !yt) meta += '<span class="tag aud" title="Tiene versión solo audio">' + HP + '</span>';
   if (x.cur) meta += `<span class="tag cur">actual · ${x.cur === "audio" ? "solo audio" : "video"}</span>`;
   else if (yt){ const kd = ytKind(x); if (kd) meta += `<span class="tag kind">${kd === "audio" ? "🎧 audio" : "🎬 video"}</span>`; }
@@ -902,7 +910,7 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
       })()
       + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`
       + (yt || String(x.k).startsWith("f:") ? "" : `<button type="button" class="add more" data-menu="${i}" title="Más opciones" aria-label="Más opciones" aria-expanded="${songMenu === x.k}">⋯</button>`
-        + (songMenu === x.k ? `<div class="pop" role="menu"><button type="button" data-act="fix" data-i="${i}">${x.y ? "🎬 Cambiar video" : "🎬 Buscar video"}</button><button type="button" data-act="fixaud" data-i="${i}">${yaOf(x) ? "🎧 Cambiar audio" : "🎧 Buscar audio"}</button><button type="button" data-act="paste" data-i="${i}">Pegar enlace de YouTube</button>${x.e === "dudoso" ? `<button type="button" data-act="ok" data-i="${i}">Está bien así (quitar «dudosa»)</button>` : ""}<button type="button" data-act="edit" data-i="${i}">Editar título y artista</button></div>` : ""));
+        + (songMenu === x.k ? `<div class="pop" role="menu"><button type="button" data-act="fix" data-i="${i}">${x.y ? "🎬 Cambiar video" : "🎬 Buscar video"}</button><button type="button" data-act="fixaud" data-i="${i}">${yaOf(x) ? "🎧 Cambiar audio" : "🎧 Buscar audio"}</button><button type="button" data-act="paste" data-i="${i}">${scOf(x) ? "Pegar enlace (YouTube o cambiar SoundCloud)" : "Pegar enlace de YouTube o SoundCloud"}</button>${x.e === "dudoso" ? `<button type="button" data-act="ok" data-i="${i}">Está bien así (quitar «dudosa»)</button>` : ""}<button type="button" data-act="edit" data-i="${i}">Editar título y artista</button></div>` : ""));
   return `<div class="row${hasSrc(x) ? "" : " dis"}${on ? " on" : ""}${picked && sel.has(x.k) ? " sel" : ""}" role="listitem">${picked ? '<span class="ck" aria-hidden="true"></span>' : ""}<button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
 function renderList(){
@@ -1200,7 +1208,7 @@ $("filebox").addEventListener("click", e => {
 // La página lleva la cola y le pasa al reproductor una canción cada vez. (En modo playlist de YouTube el reproductor
 // se pausa solo al pasar la página a segundo plano en el celular; en modo canción suelta sigue sonando.)
 let orderIdx = [], at = 0, pendingId = null, pendingPos = 0, kick = 0, started = false;
-let mode = "yt"; // "yt" = video de YouTube, "file" = archivo de audio del dispositivo
+let mode = "yt"; // "yt" = video de YouTube, "file" = archivo de audio del dispositivo, "sc" = SoundCloud (su widget)
 // Un solo elemento de audio para todas las canciones con archivo: así el navegador deja pasar a la siguiente
 // con la pantalla bloqueada (es el mismo reproductor que ya tenía permiso para sonar).
 const au = new Audio(); au.preload = "auto";
@@ -1241,6 +1249,7 @@ function updatePos(){
   try {
     const ms = navigator.mediaSession; if (!ms?.setPositionState) return;
     if (mode === "file"){ if (isFinite(au.duration) && au.duration > 0) ms.setPositionState({duration: au.duration, playbackRate: au.playbackRate || 1, position: Math.min(au.currentTime, au.duration)}); }
+    else if (mode === "sc"){ const d = curDur(), p = curPos(); if (d > 0) ms.setPositionState({duration: d, playbackRate: 1, position: Math.min(p, d)}); }
     else if (ready){ const d = player.getDuration(), p = player.getCurrentTime(); if (d > 0 && p >= 0) ms.setPositionState({duration: d, playbackRate: 1, position: Math.min(p, d)}); }
   } catch {}
 }
@@ -1268,7 +1277,7 @@ let vol = 100, fadeTimer = 0, fading = false;
    En iPhone/iPad la página no puede cambiar el volumen (lo manda el botón físico): el control no se muestra. */
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let level = (v => v === null || isNaN(+v) ? 100 : Math.min(100, Math.max(0, +v)))(store.get("np-vol")), muted = false;
-const setVol = v => { vol = v; const o = muted ? 0 : v * level / 100; try { if (mode === "file") au.volume = o / 100; else player?.setVolume(o); } catch {} };
+const setVol = v => { vol = v; const o = muted ? 0 : v * level / 100; try { if (mode === "file") au.volume = o / 100; else if (mode === "sc") scW?.setVolume(o); else player?.setVolume(o); } catch {} };
 function paintVol(){
   $("vol").value = level; $("vol-v").textContent = (muted ? 0 : level) + "%";
   $("volb").dataset.lvl = muted || !level ? "off" : level < 50 ? "low" : "high";
@@ -1292,7 +1301,7 @@ function fadeTo(target, ms){
 }
 setInterval(() => { // fade out: baja el volumen en los últimos segundos; si no estamos al final, el volumen se mantiene al 100 %
   if (!playing || fading || armed || !started) return; // !started: la nueva aún no suena (su fade in empieza al sonar)
-  const d = mode === "file" ? au.duration : (ready ? player.getDuration() : 0), left = d ? d - curPos() : 0;
+  const d = mode === "file" ? au.duration : mode === "sc" ? curDur() : (ready ? player.getDuration() : 0), left = d ? d - curPos() : 0;
   if (!d) return;
   if (left <= FADE / 1000 && canXfade()){ log("fundido cruzado con la siguiente"); crossing = true; step(1); crossing = false; return; }
   if (left <= FADE / 1000) setVol(Math.max(0, Math.round(100 * left / (FADE / 1000))));
@@ -1309,17 +1318,99 @@ function playFile(f, x, pos){
   au.play().catch(e => log("archivo no arrancó: " + e.name));
 }
 function keepAlive(){ if (silent.paused) silent.play().then(() => log("audio de fondo activo")).catch(e => log("audio de fondo no: " + e.name)); }
+// Reanudar lo que suene, sea YouTube, archivo o SoundCloud
+function mPlay(why){ if (mode === "file") au.play().catch(() => {}); else if (mode === "sc") scW?.play(); else resumeYt(why); }
+/* ---------- ☁️ SoundCloud ----------
+   Suena con el reproductor oficial de SoundCloud (Widget API, w.soundcloud.com/player/api.js), que es libre y no pide cuenta.
+   Buscar en SoundCloud sí pide un client_id y SoundCloud cerró el registro de apps: por eso aquí no se busca en SoundCloud.
+   Suenan solo los enlaces que pegas (en el buscador, o en ⋯ › Pegar enlace de una canción, que lo deja guardado para ella).
+   El título y el artista salen de su oEmbed público (soundcloud.com/oembed, sin client_id). */
+let scW = null, scPos = 0, scDur = 0, scTok = 0, scApi = null, scWant = 0, scLoadedUrl = null;
+// Enlace de SoundCloud de una canción (no listas «sets»): devuelve la dirección limpia o null
+function scParse(t){
+  t = String(t || "").trim();
+  const sh = t.match(/^https?:\/\/on\.soundcloud\.com\/[\w-]+/i); if (sh) return sh[0]; // enlace corto de la app: lo resuelve el oEmbed
+  const m = t.match(/^(?:https?:\/\/)?(?:www\.|m\.)?soundcloud\.com\/([\w-]+)\/([\w-]+)(?:\/(s-[\w-]+))?/i);
+  if (!m || /^(sets|likes|tracks|albums|reposts|popular-tracks|followers|following|discover|search|you|stream)$/i.test(m[2])) return null;
+  return "https://soundcloud.com/" + m[1].toLowerCase() + "/" + m[2].toLowerCase() + (m[3] ? "/" + m[3] : "");
+}
+const scKey = u => "sc:" + u.replace(/^https?:\/\/(www\.)?/, "");
+// Título, artista y portada desde el oEmbed público de SoundCloud (no necesita client_id)
+async function scInfo(url){
+  const r = await fetch("https://soundcloud.com/oembed?format=json&url=" + encodeURIComponent(url));
+  if (!r.ok) throw new Error(r.status === 404 ? "no existe o es privada" : "SoundCloud respondió " + r.status);
+  const d = await r.json(), a = decodeHtml(d.author_name || ""), full = decodeHtml(d.title || "");
+  const t = a && full.endsWith(" by " + a) ? full.slice(0, -(" by " + a).length) : full;
+  const api = /api\.soundcloud\.com(?:%2F|\/)tracks(?:%2F|\/)(\d+)/i.exec(decodeURIComponent(d.html || ""));
+  if (/(?:%2F|\/)playlists(?:%2F|\/)/i.test(decodeURIComponent(d.html || ""))) throw new Error("es una lista, no una canción");
+  return {t: t || "Canción de SoundCloud", a: a || "SoundCloud", art: d.thumbnail_url || null, api: api ? "https://api.soundcloud.com/tracks/" + api[1] : null};
+}
+function scApiLoad(){
+  if (window.SC?.Widget) return Promise.resolve();
+  return scApi || (scApi = new Promise((ok, ko) => {
+    const el = document.createElement("script"); el.src = "https://w.soundcloud.com/player/api.js";
+    el.onload = () => ok(); el.onerror = () => { scApi = null; ko(new Error("no cargó el reproductor de SoundCloud")); };
+    document.head.appendChild(el);
+  }));
+}
+const SC_OPT = {auto_play: true, visual: true, hide_related: true, show_comments: false, show_reposts: false, show_teaser: false, buying: false, sharing: false, download: false, single_active: false};
+const scSrc = u => "https://w.soundcloud.com/player/?url=" + encodeURIComponent(u) + "&" + Object.entries(SC_OPT).map(([k, v]) => k + "=" + v).join("&");
+// ¿Esta canción suena desde SoundCloud? Si tiene enlace y YouTube no tiene versión que se deje poner aquí (o quedó marcada como bloqueada)
+const ytLeft = x => [x.y, yaOf(x)].some(id => id && !BAD.has(id));
+const useSc = x => !!scOf(x) && (!!x.bl || !ytLeft(x));
+function scStop(){
+  scTok++; document.querySelector(".video").classList.remove("sc");
+  if (scW && mode === "sc") try { scW.pause(); } catch {}
+}
+function scSeek(sec){ scPos = sec * 1000; try { scW?.seekTo(sec * 1000); } catch {} }
+async function playSc(x, pos){
+  const url = scOf(x), tok = ++scTok;
+  scPos = (pos || 0) * 1000; scDur = 0; scWant = scPos; started = false; clearInterval(fadeTimer); fading = false;
+  document.querySelector(".video").classList.add("sc"); $("ph").hidden = true; $("art").hidden = true;
+  log("SoundCloud: " + url);
+  try { await scApiLoad(); } catch (e) { if (tok === scTok) scFail(x, e.message); return; }
+  if (tok !== scTok || mode !== "sc") return;
+  if (!scW){
+    const f = $("sc"); f.src = scSrc(url); scLoadedUrl = url;
+    scW = SC.Widget(f); const E = SC.Widget.Events;
+    scW.bind(E.READY, () => scReady(scTok));
+    scW.bind(E.PLAY, () => {
+      if (mode !== "sc"){ try { scW.pause(); } catch {} return; }
+      const first = !started; started = true; setPlaying(true); updatePos(); fadeTo(100, first ? FADE : FADE_RESUME);
+      if (!scDur) scW.getDuration(d => { scDur = d || 0; });
+      log("SoundCloud sonando"); jzPlayState(true);
+    });
+    scW.bind(E.PAUSE, () => { if (mode === "sc"){ setPlaying(false); jzPlayState(false); } });
+    scW.bind(E.FINISH, () => { if (mode === "sc"){ log("SoundCloud terminó"); if (!jzHoldEnd()) step(1); } });
+    scW.bind(E.PLAY_PROGRESS, e => { if (mode === "sc"){ scPos = e.currentPosition || 0; if (!scDur) scW.getDuration(d => { scDur = d || 0; }); } });
+    scW.bind(E.ERROR, () => { if (mode === "sc") scFail(queue[cur], "SoundCloud no pudo reproducirla"); });
+  } else if (scLoadedUrl === url){ scReady(tok); } // la misma canción otra vez: se vuelve a poner desde donde toca
+  else { scLoadedUrl = url; scW.load(url, {...SC_OPT, callback: () => scReady(tok)}); }
+}
+function scReady(tok){
+  if (tok !== scTok || mode !== "sc" || !scW) return;
+  setVol(0);
+  scW.getDuration(d => { scDur = d || 0; });
+  scW.seekTo(scWant); // también vuelve al principio si es la misma canción que ya terminó
+  scW.play();
+  setTimeout(() => { if (tok === scTok && mode === "sc" && !playing && !started) flash("Toca ▶ para que suene desde SoundCloud (el navegador no la dejó arrancar sola)."); }, 5000);
+}
+function scFail(x, why){
+  log("SoundCloud falló: " + why);
+  flash((x ? "«" + x.t + "»: " : "") + "SoundCloud no la pudo poner (" + why + "). Sigue la próxima.");
+  setTimeout(() => { if (queue[cur] === x) step(1); }, 1200);
+}
 function setMedia(x){
   if (!("mediaSession" in navigator)) return;
   try {
-    navigator.mediaSession.metadata = new MediaMetadata({title: x.t, artist: x.a, album: queueLabel, artwork: x.y ? [{src: "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg"}] : []});
+    navigator.mediaSession.metadata = new MediaMetadata({title: x.t, artist: x.a, album: queueLabel, artwork: x.y ? [{src: "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg", sizes: "480x360", type: "image/jpeg"}] : x.art ? [{src: x.art, sizes: "500x500", type: "image/jpeg"}] : []});
     const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => { log("lock: play"); lockRelease(); sysPause = 0; if (armed) $("play").click(); else if (mode === "file") au.play(); else resumeYt("pantalla de bloqueo"); });
+    ms.setActionHandler("play", () => { log("lock: play"); lockRelease(); sysPause = 0; if (armed) $("play").click(); else mPlay("pantalla de bloqueo"); });
     ms.setActionHandler("pause", () => {
       if (lockHeld && !playing && !armed){ // segundo toque del mismo botón (fin del intercomunicador): se sigue
         // El casco tarda en cerrar el intercomunicador: si la música vuelve antes, la deja muda. Se espera un poco.
         log("lock: pausa otra vez → sigo en 3 s"); lockRelease(); sysPause = 0;
-        lockResumeT = setTimeout(() => { if (playing || armed) return; log("sigo tras el intercomunicador"); if (mode === "file") au.play().catch(() => {}); else resumeYt("segundo toque"); }, 3000);
+        lockResumeT = setTimeout(() => { if (playing || armed) return; log("sigo tras el intercomunicador"); mPlay("segundo toque"); }, 3000);
         return;
       }
       log("lock: pausa");
@@ -1327,7 +1418,7 @@ function setMedia(x){
       const hold = mode === "yt" && !armed; // con archivos de audio la pestaña no tiene cómo mantenerse viva: pausa normal
       if (hold) lockHeld = Date.now();
       if (hold) lockHeldT = setTimeout(() => { if (lockHeld && !playing){ lockRelease(); if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; } }, 30 * 60e3);
-      if (mode === "file") au.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} setPlaying(false); keepAlive(); }
+      if (mode === "file") au.pause(); else if (mode === "sc") scW?.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} setPlaying(false); keepAlive(); }
       if (hold && "mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
       lockPauseAt = Date.now(); btWatch();
     });
@@ -1335,7 +1426,7 @@ function setMedia(x){
     ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
     ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
     // Solo "seekto" (barra de avance). Con seekforward/seekbackward el iPhone cambiaría ⏮ ⏭ por saltos de 10 s.
-    try { ms.setActionHandler("seekto", fileFor(x) ? e => { au.currentTime = Math.max(0, Math.min(au.duration || 0, e.seekTime)); updatePos(); } : e => { if (ready){ player.seekTo(e.seekTime, true); setTimeout(updatePos, 300); } }); } catch {}
+    try { ms.setActionHandler("seekto", fileFor(x) ? e => { au.currentTime = Math.max(0, Math.min(au.duration || 0, e.seekTime)); updatePos(); } : e => { if (mode === "sc"){ scSeek(e.seekTime); setTimeout(updatePos, 300); } else if (ready){ player.seekTo(e.seekTime, true); setTimeout(updatePos, 300); } }); } catch {}
   } catch (e) { log("mediaSession: " + e.message); }
 }
 // De dónde salió la cola (para retomarla al volver a abrir la app)
@@ -1502,11 +1593,16 @@ function load(i, opt = {}){
     setMedia(x); renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini(); jzLoaded(i, opt); return;
   }
   if (f){
-    mode = "file"; clearInterval(kick); pendingId = null; selfSilentAt = Date.now(); silent.pause();
+    scStop(); mode = "file"; clearInterval(kick); pendingId = null; selfSilentAt = Date.now(); silent.pause();
     if (ready) player.stopVideo();
     setMedia(x); playFile(f, x, resumePos);
+  } else if (useSc(x)){ // sin versión de YouTube que se pueda poner aquí, pero con enlace de SoundCloud
+    mode = "sc"; clearInterval(kick); pendingId = null; au.pause(); try { if (ready) player.stopVideo(); } catch {}
+    keepAlive(); setMedia(x); playSc(x, resumePos);
+    if (!opt.auto) recordPlayed(x);
+    if (JZ && JZ.on) flash("«" + x.t + "» suena desde SoundCloud: en «Ver juntos» empieza, se pausa y se adelanta a la vez, pero el desfase no se corrige solo.");
   } else {
-    mode = "yt"; au.pause(); $("art").hidden = true;
+    scStop(); mode = "yt"; au.pause(); $("art").hidden = true;
     keepAlive(); setMedia(x);
     if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; }
     if (!opt.auto) recordPlayed(x);
@@ -1517,13 +1613,13 @@ function load(i, opt = {}){
 function saveResume(pos){
   const x = queue[cur]; if (!x) return;
   if (autoTry && !started) pos = resumePos; // aún intentando arrancar sola al abrir: la posición real todavía es 0
-  store.set("np-resume", JSON.stringify({src: queueSrc, label: queueLabel, song: {t: x.t, a: x.a, k: x.k, y: x.y || null}, pos: Math.max(0, Math.floor(pos || 0)), when: Date.now()}));
+  store.set("np-resume", JSON.stringify({src: queueSrc, label: queueLabel, song: song(x), pos: Math.max(0, Math.floor(pos || 0)), when: Date.now()}));
 }
-const curPos = () => mode === "file" ? au.currentTime : (ready ? player.getCurrentTime() : 0);
+const curPos = () => mode === "file" ? au.currentTime : mode === "sc" ? scPos / 1000 : (ready ? player.getCurrentTime() : 0);
 setInterval(() => { if (playing) saveResume(curPos()); }, 5000);
 /* ---------- Barra de progreso: muestra el tiempo y permite adelantar o volver ---------- */
 const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
-const curDur = () => { try { return mode === "file" ? (isFinite(au.duration) ? au.duration : 0) : (ready ? player.getDuration() || 0 : 0); } catch { return 0; } };
+const curDur = () => { try { return mode === "file" ? (isFinite(au.duration) ? au.duration : 0) : mode === "sc" ? scDur / 1000 : (ready ? player.getDuration() || 0 : 0); } catch { return 0; } };
 let seeking = false; // mientras se arrastra no se mueve sola
 function paintSeek(){
   if (seeking || $("seekrow").hidden) return;
@@ -1535,7 +1631,7 @@ setInterval(() => { if (!document.hidden) paintSeek(); }, 500);
 $("seek").oninput = e => { seeking = true; $("t-cur").textContent = fmt(+e.target.value); };
 $("seek").onchange = e => {
   const s = +e.target.value; seeking = false;
-  if (mode === "file") au.currentTime = s; else if (ready) player.seekTo(s, true);
+  if (mode === "file") au.currentTime = s; else if (mode === "sc") scSeek(s); else if (ready) player.seekTo(s, true);
   log("adelanto a " + fmt(s)); setTimeout(() => { updatePos(); paintSeek(); }, 300); jzSeeked(s);
 };
 /* ---------- A continuación: lo que viene en la cola (en el orden real, también con Aleatorio) ---------- */
@@ -1589,7 +1685,7 @@ function tryResume(){
     if (!late && ((mode === "yt" && !ready) || st === 3)) return setTimeout(() => check(true), 15000); // todavía cargando: un poco más
     autoTry = 0; log("el navegador no dejó sonar sin un toque: queda lista");
     clearInterval(kick); pendingId = null;
-    if (mode === "file") au.pause(); else { try { player.pauseVideo(); } catch {} }
+    if (mode === "file") au.pause(); else if (mode === "sc") scW?.pause(); else { try { player.pauseVideo(); } catch {} }
     if (!silent.paused){ selfSilentAt = Date.now(); silent.pause(); }
     load(i0, {armed: true, pos: s.pos});
   };
@@ -1778,7 +1874,7 @@ if (BTD) btWatch(); // desde que se abre la app: si llega el Bluetooth del carro
 function btPause(why){
   if (!BT || sysPause) return;
   sysPause = Date.now(); log("audio desconectado (" + why + "): pausa");
-  if (mode === "file") au.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} }
+  if (mode === "file") au.pause(); else if (mode === "sc") scW?.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} }
   saveResume(curPos()); btWatch();
 }
 function btResume(why, guard){
@@ -1787,7 +1883,7 @@ function btResume(why, guard){
   if (ago > 3 * 3600e3){ sysPause = 0; return; } // demasiado tiempo: ya no se retoma sola
   if (guard && ago < 4000) return; // el aviso de cambio de dispositivo de la propia desconexión llega casi a la vez
   sysPause = 0; log("audio conectado (" + why + "): sigue");
-  if (mode === "file") au.play().catch(() => {}); else resumeYt(why);
+  mPlay(why);
 }
 silent.addEventListener("pause", () => {
   if (Date.now() - selfSilentAt < 1500) return; // la pausamos nosotros (pasó a un archivo de audio)
@@ -1805,6 +1901,7 @@ $("play").onclick = () => {
   if (cur < 0) return step(1);
   if (armed) return load(cur, {pos: resumePos}); // retoma la canción que quedó cargada al abrir la app
   if (mode === "file"){ if (au.paused) au.play(); else au.pause(); return; }
+  if (mode === "sc"){ if (playing) scW?.pause(); else scW?.play(); return; }
   if (!ready) return;
   if (playing){ started = true; clearInterval(kick); player.pauseVideo(); } else resumeYt("botón");
 };
@@ -1880,18 +1977,26 @@ function initYT(){
 function ytError(code){
   const x = queue[cur], bad = loadedId; BAD.add(bad);
   log("YouTube no reproduce " + bad + " (error " + code + ")");
+  const blocked = [100, 101, 150].includes(code);
+  if (pendingFix && pendingFix.id === bad) pendingFix = null; // la copia que se estaba probando tampoco sirve
   const alt = x && [x.y, yaOf(x)].find(id => id && id !== bad && !BAD.has(id)); // la otra versión de la misma canción
-  if (x && bad === yaOf(x) && bad !== x.y && [100, 101, 150].includes(code)) dropAudio(x); // versión de audio bloqueada: fuera para los dos
+  if (x && bad === yaOf(x) && bad !== x.y && blocked) dropAudio(x); // versión de audio bloqueada: fuera para los dos
   if (alt){ flash("YouTube bloquea esa versión de «" + x.t + "»; suena la otra."); start(alt, 0); }
-  else if (x){ // ninguna versión sirve: se marca, se pasa ya a la siguiente y se busca otra versión para que suene después de esa
-    if ([100, 101, 150].includes(code)) markBlocked(x);
-    flash("YouTube bloquea «" + x.t + "» en este sitio. Pasé a la siguiente y busco otra versión.");
-    setTimeout(() => { // primero salta; luego la otra versión entra justo después de la que empieza a sonar
-      step(1);
-      queueAlt(x).then(ok => { if (ok) flash("Encontré otra versión de «" + x.t + "»: suena después de esta."); else log("sin otra versión para «" + x.t + "»"); });
-    }, 300);
-  }
+  else if (x) rescue(x, blocked);
   else setTimeout(() => step(1), 800);
+}
+// Ninguna versión guardada sirve: 1) SoundCloud si la canción tiene enlace guardado (lo elegiste tú, no gasta cuota);
+// 2) otra copia de YouTube que se deje poner aquí (búsqueda automática, hasta 3 intentos); 3) la siguiente canción con un aviso.
+async function rescue(x, blocked){
+  if (blocked && !AUTO.has(x.k) && !x.bl) markBlocked(x);
+  if (scOf(x)){ flash("YouTube bloquea «" + x.t + "» aquí: suena desde SoundCloud."); load(cur, {auto: true}); return; }
+  if (!AUTO.get(x.k)?.tries) flash("YouTube bloquea «" + x.t + "» en este sitio. Busco otra copia…");
+  let id = null;
+  try { id = await autoNext(x); } catch (e) { log("no se pudo buscar otra copia: " + e.message); }
+  if (queue[cur] !== x || mode !== "yt") return; // mientras buscaba, pasaste a otra canción
+  if (id){ pendingFix = {k: x.k, id}; log("pruebo otra copia de «" + x.t + "»: " + id); start(id, 0); return; }
+  flash("«" + x.t + "» no se deja poner fuera de YouTube y no hallé otra copia: sigue la próxima. Si la tienes en SoundCloud, pega su enlace en ⋯ › Pegar enlace.");
+  setTimeout(() => { if (queue[cur] === x) step(1); }, 300);
 }
 if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = initYT;
 
@@ -2024,6 +2129,7 @@ function toResults(){
 async function ytSearch(q){
   q = q.trim(); if (!q) return;
   if (tab !== "all") setTab("all");
+  if (!altFor && scParse(q)) return scSearch(scParse(q));
   $("q").value = q; ytQuery = q; yres = []; ytHidden = 0; ytDone = false; shown = PAGE; syncGo();
   if (!CFG.youtubeKey){ renderYt(); return; }
   const pid = !altFor && /youtu/i.test(q) ? parseId(q) : null;
@@ -2095,7 +2201,7 @@ function altReturn(){
   });
 }
 async function ytApiSearch(q){
-  const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=20&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
+  const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&videoEmbeddable=true&videoSyndicated=true&maxResults=20&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
   const d = await r.json();
   if (!r.ok) throw new Error(d.error?.errors?.[0]?.reason || r.status);
   return (d.items || []).filter(it => it.id?.videoId).map(it => ({t: decodeHtml(it.snippet.title), a: decodeHtml(it.snippet.channelTitle), y: it.id.videoId, k: "yt:" + it.id.videoId}));
@@ -2163,11 +2269,11 @@ function renderYt(){
     html += chip;
     const n0 = altCur.length;
     if (altFor && n0) html += `<div class="ythead">Las que tiene ahora</div><div class="list" id="ytcur" role="list">${altCur.map((x, i) => songRow(x, i, true)).join("")}</div>`;
-    if (yres.length) html += `<div class="ythead">${YTI}<span class="yh">${altFor ? "Otras versiones en YouTube" : "En YouTube"} ·</span><b>${esc(ytQuery)}</b></div><div class="list" id="ytlist" role="list">${yres.map((x, i) => songRow(x, n0 + i, true)).join("")}</div>`;
+    if (yres.length) html += `<div class="ythead">${yres.every(r => r.sc) ? "☁️" : YTI}<span class="yh">${yres.every(r => r.sc) ? "En SoundCloud" : altFor ? "Otras versiones en YouTube" : "En YouTube"} ·</span><b>${esc(ytQuery)}</b></div><div class="list" id="ytlist" role="list">${yres.map((x, i) => songRow(x, n0 + i, true)).join("")}</div>`;
     if (done && !yres.length) html += `<p class="ytnone">${ytHidden ? "Todo lo que salió en YouTube para «" + esc(ytQuery) + "» ya lo tienes en tu música." : "En YouTube no salieron canciones para «" + esc(ytQuery) + "». Prueba con otras palabras."}</p>`;
     else if (done && ytHidden) html += `<p class="hint" style="margin-top:8px">${ytHidden === 1 ? "1 resultado no se muestra porque ya está" : ytHidden + " resultados no se muestran porque ya están"} en tu música.</p>`;
     if (altFor && yres.length) html += `<p style="margin:12px 0 0">${back}</p>`;
-    if ((done || altFor) && CFG.youtubeKey) html += `<form id="yf2" class="paste"><input id="yf2-url" inputmode="url" placeholder="${altFor ? "¿No aparece? Pega el enlace " + (altWant === "audio" ? "del audio" : "del video") + " para «" + esc(altFor.t) + "»" : "¿No aparece? Pega aquí el enlace de YouTube"}" autocomplete="off" aria-label="Enlace de YouTube"><button class="btn sm primary" type="submit">Usar</button><p class="err" id="yf2-err" hidden></p></form>`;
+    if ((done || altFor) && CFG.youtubeKey) html += `<form id="yf2" class="paste"><input id="yf2-url" inputmode="url" placeholder="${altFor ? "¿No aparece? Pega el enlace " + (altWant === "audio" ? "del audio" : "del video") + " o de SoundCloud para «" + esc(altFor.t) + "»" : "¿No aparece? Pega aquí el enlace de YouTube o SoundCloud"}" autocomplete="off" aria-label="Enlace de YouTube o SoundCloud"><button class="btn sm primary" type="submit">Usar</button><p class="err" id="yf2-err" hidden></p></form>`;
   }
   html += tab !== "all" || !q || CFG.youtubeKey ? "" : `<div class="steps">
     <div class="step"><h3>1 · Búscala en YouTube</h3><p>Escribe arriba y toca Buscar para abrir los resultados. Elige el video y copia su enlace.</p>
@@ -2203,8 +2309,11 @@ function dropAudio(x){
   saveYa(x, null); if (x.ya) delete x.ya;
 }
 // Guarda (id) o quita (null) la versión solo audio de `s`: en el catálogo si está ahí; si no, en rep y en las playlists donde esté
-function saveYa(s, id){
-  const set = it => { if (id) it.ya = id; else delete it.ya; };
+function saveYa(s, id){ saveAlt(s, "ya", id, YA); }
+// Lo mismo para el enlace de SoundCloud (campo sc)
+function saveSc(s, url){ saveAlt(s, "sc", url, SCM); }
+function saveAlt(s, f, id, map){
+  const set = it => { if (id) it[f] = id; else delete it[f]; };
   const c = CAT.all.find(it => it.k === s.k);
   if (c){ set(c); const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
   else {
@@ -2213,12 +2322,13 @@ function saveYa(s, id){
     if (!r && !inPl && id){ if (!CAT.rep) CAT.rep = []; r = song(s); CAT.rep.push(r); } // no estaba guardada en ningún lado
     if (r){ set(r); const rep = CAT.rep.slice(); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {rep})); }
     for (const p of mis){
-      const hit = p.songs.filter(it => it.k === s.k && (id || it.ya)); if (!hit.length) continue;
+      const hit = p.songs.filter(it => it.k === s.k && (id || it[f])); if (!hit.length) continue;
       hit.forEach(set); const songs = p.songs.slice();
       write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
     }
   }
-  if (id) YA.set(s.k, id); else YA.delete(s.k);
+  if (id) map.set(s.k, id); else map.delete(s.k);
+  queue.forEach(it => { if (it.k === s.k){ if (id) it[f] = id; else delete it[f]; } });
 }
 // Reemplazar: la canción `altFor` pasa a usar el video de `x` (en el catálogo y en todas las playlists donde esté)
 // La canción `s` pasa a usar el video `id` como clip: catálogo, playlists donde esté y cola. Si su versión de audio estaba bloqueada, también se quita.
@@ -2236,32 +2346,61 @@ function setClip(s, id){
   }
   queue.forEach(it => { if (it.k === s.k) it.y = id; });
 }
-// Búsqueda automática: cuando YouTube bloquea las versiones que tiene una canción, se busca otra y se prueba (hasta 3 candidatos).
-// Si llega a sonar, adoptVideo la guarda para los dos.
-const AUTO = new Map(); // clave → {ids, tries, used}
+// Búsqueda automática: cuando YouTube bloquea las versiones que tiene una canción, se busca otra subida que sí se deje
+// insertar (videoEmbeddable + videoSyndicated) y se prueba al momento, hasta 3 copias por canción y sesión.
+// Consultas, solo si hacen falta: «artista título», luego «… audio», luego «… letra» (100 unidades de cuota cada una, más 1
+// de los detalles). Si una copia llega a sonar, adoptVideo la guarda para los dos como el video de la canción.
+const AUTO = new Map(); // clave → {ids, q, tries, used, ref}
 let pendingFix = null;  // {k, id}: candidato que está cargando
-async function queueAlt(x){
-  let a = AUTO.get(x.k);
-  if (!a){
-    if (!CFG.youtubeKey) return false;
-    a = {ids: [], tries: 0, used: []}; AUTO.set(x.k, a);
-    try {
-      const q = x.a.split(",")[0] + " " + x.t;
-      const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&videoEmbeddable=true&videoSyndicated=true&maxResults=8&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error?.errors?.[0]?.reason || r.status);
-      a.ids = (await musicOnly((d.items || []).filter(it => it.id?.videoId).map(it => ({t: it.snippet.title, a: it.snippet.channelTitle, y: it.id.videoId})))).map(x => x.y);
-      log("otra versión de «" + x.t + "»: " + a.ids.length + " candidatos");
-    } catch (e) { log("no se pudo buscar otra versión: " + e.message); return false; }
-  }
-  const id = a.ids.find(id => id !== x.y && id !== yaOf(x) && !BAD.has(id) && !a.used.includes(id));
-  if (!id || a.tries >= 3) return false;
-  a.tries++; a.used.push(id); pendingFix = {k: x.k, id};
-  const c = {...x, y: id}; delete c.ya; // copia de la canción con el video candidato
-  queue.push(c); orderIdx.splice(at + 1, 0, queue.length - 1); // suena justo después de la que suena ahora
-  log("otra versión de «" + x.t + "» (" + id + ") en cola tras la actual");
-  cued = null; precue(); renderNext();
+const AUTO_MAX = 3;
+const AUTO_SKIP = /\b(cover|karaoke|en vivo|live|remix|instrumental|8d|slowed|sped up|reverb|nightcore|tutorial|reaccion|reaction|mashup|medley|bass boosted)\b/;
+function autoQueries(x){
+  const a1 = x.a.split(",")[0].trim(), base = norm(x.t).includes(norm(a1)) ? x.t : a1 + " " + x.t;
+  return [base, base + " audio", base + " letra"];
+}
+const isoSecs = v => { const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(v || "") || []; return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0); };
+// ¿El resultado `c` es la misma canción que `x`? Título que contenga el de la canción, sin versiones raras (cover, en vivo…)
+// que la canción no tenga, y duración parecida a la del video bloqueado (si se conoce; un videoclip suele durar algo más)
+function autoMatch(x, c, secs, ref){
+  const want = titleKey(x), ct = clean(c.t) + " " + clean(c.a), own = clean(x.t);
+  if (want.length >= 2 && !(" " + ct + " ").includes(" " + want + " ")) return false;
+  const skip = AUTO_SKIP.exec(norm(c.t)); if (skip && !own.includes(skip[1])) return false;
+  if (musicRank(c) < 0) return false;
+  if (secs && (secs < 60 || secs > 720)) return false;
+  if (secs && ref) return secs >= ref - Math.max(45, ref * 0.25) && secs <= ref + Math.max(30, ref * 0.15);
   return true;
+}
+async function autoSearch(x, q, a){
+  const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&videoSyndicated=true&maxResults=10&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
+  const d = await r.json();
+  if (!r.ok){ const why = d.error?.errors?.[0]?.reason || r.status; if (/quota/i.test(why)) a.q = 99; throw new Error(why); }
+  const list = (d.items || []).filter(it => it.id?.videoId && !BAD.has(it.id.videoId) && !a.used.includes(it.id.videoId) && it.id.videoId !== x.y)
+    .map(it => ({t: decodeHtml(it.snippet.title), a: decodeHtml(it.snippet.channelTitle), y: it.id.videoId}));
+  if (!list.length) return [];
+  // Detalles (1 unidad): duración, si de verdad se deja insertar y, de paso, la duración del video bloqueado como referencia
+  const ids = list.map(c => c.y).concat(a.ref === null && x.y ? [x.y] : []);
+  const info = new Map();
+  try {
+    const v = await (await fetch("https://www.googleapis.com/youtube/v3/videos?part=contentDetails,status&id=" + ids.join(",") + "&key=" + CFG.youtubeKey)).json();
+    for (const it of v.items || []) info.set(it.id, {secs: isoSecs(it.contentDetails?.duration), emb: it.status?.embeddable !== false});
+  } catch (e) { log("sin detalles de las copias: " + e.message); }
+  if (a.ref === null) a.ref = info.get(x.y)?.secs || 0;
+  const a1 = norm(x.a.split(",")[0].trim());
+  const ok = list.filter(c => info.get(c.y)?.emb !== false && autoMatch(x, c, info.get(c.y)?.secs || 0, a.ref));
+  ok.sort((p, q) => (norm(q.t + " " + q.a).includes(a1) - norm(p.t + " " + p.a).includes(a1)) || (musicRank(q) - musicRank(p)));
+  log("otra copia de «" + x.t + "» con «" + q + "»: " + ok.length + " de " + list.length + " sirven");
+  return ok.map(c => c.y);
+}
+async function autoNext(x){
+  let a = AUTO.get(x.k);
+  if (!a) AUTO.set(x.k, a = {ids: [], q: 0, tries: 0, used: [], ref: null});
+  if (a.tries >= AUTO_MAX || !CFG.youtubeKey) return null;
+  for (;;){
+    const id = a.ids.find(id => id !== x.y && id !== yaOf(x) && !BAD.has(id) && !a.used.includes(id));
+    if (id){ a.tries++; a.used.push(id); return id; }
+    const qs = autoQueries(x); if (a.q >= qs.length) return null;
+    a.ids = a.ids.concat(await autoSearch(x, qs[a.q++], a));
+  }
 }
 // Marca la canción como bloqueada en el catálogo (para los dos); se quita sola cuando suena otra versión o se corrige
 function markBlocked(x){
@@ -2270,6 +2409,7 @@ function markBlocked(x){
   renderList();
 }
 function adoptVideo(s, id){
+  if (JZ && JZ.on && jzGuest){ log("otra copia suena, pero como invitado no se guarda"); flash("«" + s.t + "» suena con otra copia."); return; }
   setClip(s, id);
   flash("«" + s.t + "» ya suena con otra versión y quedó guardada para los dos (sin la marca «bloqueada»). Si no es la buena, cámbiala en Versiones.");
   refresh();
@@ -2285,7 +2425,9 @@ $("ytbox").addEventListener("submit", async e => {
   if (e.target.id === "yf2"){ // enlace pegado: va a la canción que se estaba corrigiendo, o entra como canción nueva
     e.preventDefault();
     const id = parseId($("yf2-url").value), err = m => { $("yf2-err").hidden = false; $("yf2-err").textContent = m; };
-    if (!id) return err("Ese enlace no parece de un video de YouTube. Cópialo desde Compartir en YouTube.");
+    const scu = !id && scParse($("yf2-url").value);
+    if (scu) return altFor ? setScLink(altFor, scu, err) : scSearch(scu);
+    if (!id) return err("Ese enlace no parece de YouTube ni de una canción de SoundCloud. Cópialo desde Compartir.");
     if (altFor) return altWant === "audio" ? setAudio({y: id}) : replaceVideo({y: id});
     let t = $("q").value.trim() || "Video de YouTube", a = "YouTube";
     try { const d = await (await fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" + id + "&key=" + CFG.youtubeKey)).json(); const s = d.items?.[0]?.snippet; if (s){ t = decodeHtml(s.title); a = decodeHtml(s.channelTitle); } } catch {}
@@ -2304,6 +2446,29 @@ $("ytbox").addEventListener("submit", async e => {
   yres = [x]; playFrom(0, yres, "YouTube"); openSheet(x);
 });
 
+// Enlace de SoundCloud pegado en el buscador: sale como resultado para escucharlo y guardarlo en una playlist (＋)
+async function scSearch(url){
+  if (tab !== "all") setTab("all");
+  $("q").value = url; ytQuery = url; yres = []; ytHidden = 0; ytDone = false; shown = PAGE; syncGo();
+  flash("Buscando el enlace en SoundCloud…"); refresh();
+  try {
+    const i = await scInfo(url), sc = i.api && /on\.soundcloud/i.test(url) ? i.api : url;
+    const k = scKey(sc), known = allSongs().find(s => scOf(s) === sc);
+    yres = [known ? {...known} : {t: i.t, a: i.a, k, sc, art: i.art}]; ytDone = true;
+    flash("Canción de SoundCloud: tócala para escucharla o ＋ para guardarla en una playlist.");
+  } catch (e) { ytDone = true; flash("No se pudo abrir ese enlace de SoundCloud (" + e.message + "). Usa el enlace de una canción (soundcloud.com/artista/cancion)."); }
+  refresh();
+  if (yres.length && matchMedia("(max-width:640px)").matches) setTimeout(toResults, 60);
+}
+// ⋯ › Pegar enlace con un enlace de SoundCloud: queda guardado para esa canción (para los dos) y suena cuando YouTube no deja
+async function setScLink(s, url, err){
+  let i; try { i = await scInfo(url); } catch (e) { return err("No se pudo abrir ese enlace de SoundCloud (" + e.message + ")."); }
+  const sc = i.api && /on\.soundcloud/i.test(url) ? i.api : url, prev = scOf(s);
+  saveSc(s, sc); s.sc = sc;
+  flash("Listo: «" + s.t + "» sonará desde SoundCloud («" + i.t + "» de " + i.a + ") cuando YouTube no la deje poner" + (prev ? ", en vez del enlace anterior" : "") + ". Se guardó para los dos.");
+  const q = queue[cur]; if (q && q.k === s.k && !armed && (mode === "sc" || !ytLeft(q) || q.bl)) load(cur, {auto: true}); // justo sonaba (o estaba bloqueada): ya sale de SoundCloud
+  altReturn();
+}
 /* ---------- Hoja "Agregar a playlist" ---------- */
 function openSheet(x){ // x: una canción, o un array de canciones (selección múltiple)
   sheetSong = x; shDone = new Set();
@@ -2354,7 +2519,7 @@ const JZ_SID = Math.random().toString(36).slice(2, 10), JZ_HORAS = 6, JZ_MAX = 1
 let jzOff = 0, jzUser = null, jzGuest = false, jzUnsub = [], jzHb = 0, jzLoop = 0, jzTries = 0, jzNeedShown = false;
 const jzNow = () => Date.now() + jzOff;
 const jzRef = id => doc(db, "juntos", id);
-const jzItem = x => ({t: x.t || "", a: x.a || "", k: x.k || "", y: x.y || yaOf(x) || null});
+const jzItem = x => ({t: x.t || "", a: x.a || "", k: x.k || "", y: x.y || yaOf(x) || null, ...(scOf(x) ? {sc: scOf(x)} : {})}); // sc: los demás también la ponen desde SoundCloud
 const jzWant = st => st.playing ? st.pos + Math.max(0, jzNow() - st.at) / 1000 : st.pos;
 const jzIsHost = () => !!(JZ && JZ.d && jzUser && JZ.d.host === jzUser.uid);
 const jzCanCtl = () => !!(JZ && JZ.d && (!JZ.d.soloHost || jzIsHost()));
@@ -2454,6 +2619,11 @@ function jzApply(st, force){
       load(st.i, st.playing ? {pos: want} : {armed: true, pos: want});
       if (!st.playing) $("ph").querySelector("span").textContent = "En pausa · cuando alguien le dé play, suena para todos";
     } else if (armed){ if (st.playing) load(cur, {pos: want}); else { resumePos = want; paintSeek(); } }
+    else if (mode === "sc"){ // SoundCloud: play, pausa y salto grandes sí; el desfase fino no se corrige
+      if (Math.abs(curPos() - want) > 5) scSeek(want);
+      if (st.playing && !playing) scW?.play();
+      if (!st.playing && playing) scW?.pause();
+    }
     else if (mode === "yt" && ready){
       if (Math.abs(curPos() - want) > JZ_DRIFT) player.seekTo(want, true);
       if (st.playing && !playing) resumeYt("ver juntos");
@@ -2482,10 +2652,15 @@ function jzResync(){ if (!JZ || !JZ.d) return; JZ.colaRev = 0; jzCola(JZ.d); if 
 function jzLoaded(i, opt){ if (JZ && JZ.on && !JZ.applying && !opt.auto && !opt.armed) jzPublish({i, playing: true, pos: opt.pos || 0}); }
 function jzSeeked(s){ if (JZ && JZ.on && !JZ.applying && cur >= 0 && !armed) jzPublish({i: cur, playing, pos: s}); }
 function jzYtState(s){
-  if (!JZ || !JZ.on || JZ.applying || Date.now() < JZ.quiet || mode !== "yt" || cur < 0 || armed) return;
+  if (mode !== "yt") return;
   if (s !== YT.PlayerState.PLAYING && s !== YT.PlayerState.PAUSED) return; // cargando o terminó: no es una orden de nadie
-  if (s === YT.PlayerState.PAUSED && (document.hidden || Date.now() - hiddenAt < 3000)) return; // pausó el sistema (pantalla bloqueada u otra app)
-  const on = s === YT.PlayerState.PLAYING, st = JZ.st;
+  jzPlayState(s === YT.PlayerState.PLAYING);
+}
+// Sonó o se pausó aquí (YouTube o SoundCloud): se avisa a los demás
+function jzPlayState(on){
+  if (!JZ || !JZ.on || JZ.applying || Date.now() < JZ.quiet || (mode !== "yt" && mode !== "sc") || cur < 0 || armed) return;
+  if (!on && (document.hidden || Date.now() - hiddenAt < 3000)) return; // pausó el sistema (pantalla bloqueada u otra app)
+  const st = JZ.st;
   if (st && st.i === cur && st.playing === on) return; // ya es lo compartido (o lo que acabamos de aplicar)
   jzPublish({i: cur, playing: on, pos: curPos()});
 }

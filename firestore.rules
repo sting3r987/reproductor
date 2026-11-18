@@ -1,12 +1,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Cuentas con acceso: las de la lista config/acceso (campo emails, en minúsculas). La lista no está aquí porque este
+    // archivo es público. La app anota sola en esa lista a cada cuenta que ya tiene acceso cuando la abre.
     function permitido() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email in ['dsdx987@gmail.com', 'vivianfernandez144@gmail.com'];
+        && request.auth.token.email.lower() in get(/databases/$(database)/documents/config/acceso).data.emails;
     }
-    // Las dos cuentas de siempre: todo (playlists, catálogo, historial y las sesiones de Ver juntos)
+    // Las cuentas con acceso: todo (playlists, catálogo, historial, copias, acceso y las sesiones de Ver juntos)
     match /{document=**} {
       allow read, write: if permitido();
     }

@@ -7,6 +7,12 @@
 <title>Nuestras playlists</title>
 <script>if (/[#&]d=/.test(location.hash)) location.replace("player.html" + location.hash);</script>
 <meta name="theme-color" content="#F6F3EF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Playlists">
 <script>/* Tema guardado (np-theme): se aplica antes del CSS para que no parpadee */
 (function(){try{var t=JSON.parse(localStorage.getItem("np-theme")||"{}"),d=document.documentElement,m=t.mode||"auto";d.dataset.color=t.color||"rumba";d.dataset.theme=m==="auto"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):m}catch(e){}})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -125,6 +131,10 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 #backup{align-self:flex-start;margin-bottom:6px}
 .tm-chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.35;color:var(--ink-2);margin:2px 0 10px;cursor:pointer}
 .tm-heard{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2);margin:0 0 12px}
+.tm-note{font-size:12.5px;color:var(--ink-2);margin:0 0 8px}
+.bk-list{display:flex;flex-direction:column;gap:6px}
+.bk-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.net{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:60;background:var(--ink);color:var(--bg);font-size:13px;padding:7px 14px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:calc(100% - 32px);text-align:center}
 .tm-chk input{flex:none;margin:2px 0 0;accent-color:var(--accent);width:16px;height:16px}
 #aud[data-mode="auto"] svg{margin-top:-7px}
 #aud[data-mode="auto"]::after{content:"auto";width:auto;height:auto;margin:0;bottom:4px;transform:translateX(-50%);border-radius:0;background:none;font-size:8.5px;font-weight:800;letter-spacing:.04em;line-height:1;text-transform:uppercase}
@@ -576,7 +586,8 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
         <label class="tm-chk"><input type="checkbox" id="norep"><span>No repetir lo ya escuchado: en aleatorio y al pasar a la siguiente suenan primero las que no has oído en los últimos 60 días (en todos tus dispositivos). Cuando ya sonaron todas, vuelve a empezar por las más antiguas.</span></label>
         <div class="tm-heard"><span id="heard-n"></span><button class="btn sm" type="button" id="heard-reset" title="Olvida lo ya escuchado: todas vuelven a contar como nuevas">Reiniciar historial</button></div>
         <p class="tm-h">Copia de seguridad</p>
-        <button class="btn sm" type="button" id="backup" title="Descarga el catálogo y todas las playlists en un archivo .json">Descargar copia</button>
+        <p class="tm-note" id="bk-last"></p>
+        <div class="tm-heard"><button class="btn sm" type="button" id="backup" title="Descarga el catálogo, las playlists y tu historial en un archivo .json">Descargar copia</button><a class="btn sm" href="?restaurar" title="Volver a una copia automática de los últimos 14 días">Restaurar…</a></div>
         <div class="tm-foot"><button type="button" id="logout">Salir</button><button class="btn sm" type="button" id="tm-done">Listo</button></div>
       </div>
     </span>
@@ -596,6 +607,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 </div>
 </div>
 
+<div class="net" id="net" role="status" hidden></div>
 <div class="selbar" id="selbar" hidden><span id="sel-n"></span><button class="btn sm" id="sel-all" type="button">Todas</button><button class="btn sm danger" id="sel-rm" type="button" hidden>Quitar</button><button class="btn sm primary" id="sel-add" type="button">Agregar<span class="long"> a playlist</span></button><button class="btn sm" id="sel-off" type="button" aria-label="Cancelar">✕</button></div>
 <div class="sheet-bg" id="sheet" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t">
@@ -625,9 +637,10 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 
 <script src="config.js?v=2"></script>
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump } from "./lib.js?v=1";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -649,6 +662,7 @@ document.body.appendChild($("tmenu")); // fuera de la cabecera para que position
 function themeMenu(open){
   const m = $("tmenu"); m.hidden = !open; $("theme").setAttribute("aria-expanded", open);
   if (!open) return;
+  paintBk();
   const r = $("theme").getBoundingClientRect(), mob = matchMedia("(max-width:640px)").matches;
   m.style.top = mob ? "" : (r.bottom + 8) + "px"; m.style.right = mob ? "" : (document.documentElement.clientWidth - r.right) + "px"; // en celular el CSS lo pone al pie
 }
@@ -662,8 +676,6 @@ $("tmenu").onclick = e => {
 document.addEventListener("pointerdown", e => { if (!$("tmenu").hidden && !e.target.closest("#theme, .tm")) themeMenu(false); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("tmenu").hidden) themeMenu(false); });
 applyTheme();
-const norm = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
 const thumb = y => y ? `<img alt="" loading="lazy" src="https://i.ytimg.com/vi/${y}/mqdefault.jpg">` : "";
 const PAGE = 150;
 
@@ -678,7 +690,19 @@ let queue = [], cur = -1, queueLabel = "", player = null, ready = false, playing
 
 /* ---------- Firebase ---------- */
 if (!CFG.firebase){ $("gate-msg").textContent = "Falta configurar Firebase (config.js)."; $("login").hidden = true; throw new Error("sin config"); }
-const fb = initializeApp(CFG.firebase), auth = getAuth(fb), db = getFirestore(fb);
+// Pruebas automáticas: en localhost con ?emu se usan los emuladores de Firebase con un proyecto de prueba (nunca los datos reales)
+const EMU = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).has("emu");
+const fb = initializeApp(EMU ? {...CFG.firebase, projectId: "demo-np", apiKey: "demo-key", authDomain: "127.0.0.1"} : CFG.firebase), auth = getAuth(fb);
+// Caché local de Firestore (IndexedDB): la app abre sin conexión con lo último que vio y lo que cambies sin señal
+// queda en cola, aunque cierres la app; se sube solo al volver la conexión.
+let db;
+try { db = initializeFirestore(fb, {localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})}); }
+catch (e) { console.warn("sin caché local", e); db = initializeFirestore(fb, {}); }
+if (EMU){
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", {disableWarnings: true}); connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  const as = new URLSearchParams(location.search).get("as"); // ?emu&as=correo: entra con esa cuenta de prueba
+  if (as) signInWithCredential(auth, GoogleAuthProvider.credential(JSON.stringify({sub: "u-" + as.replace(/\W/g, ""), email: as, email_verified: true, name: as.split("@")[0]}))).catch(e => console.error("emu login", e));
+}
 const plCol = collection(db, "playlists");
 let unsub = [];
 // Un segundo toque mientras la ventana de Google sigue abierta cancela la primera (auth/cancelled-popup-request): se ignora.
@@ -699,8 +723,9 @@ $("logout").onclick = () => signOut(auth);
 onAuthStateChanged(auth, u => {
   unsub.forEach(f => f()); unsub = [];
   $("gate").hidden = !!u; $("app").hidden = !u;
-  if (!u){ mis = []; loaded = catLoaded = false; heardRef = null; jzStop(true); return; }
-  jzAuth(u);
+  if (!u){ mis = []; loaded = catLoaded = catServer = plServer = false; bkDone = accessDone = false; heardRef = null; jzStop(true); return; }
+  loadYtApi(); // la API de YouTube (~1 MB) se carga recién al entrar
+  jzAuth(u); if (!JZ_ID) setTimeout(() => { if (auth.currentUser?.uid === u.uid && !jzGuest) jzClean(u); }, EMU ? 1500 : 15000);
   $("who").textContent = u.email; $("who-name").textContent = u.displayName || "";
   const img = $("who-img"), ini = $("who-ini"); ini.textContent = (u.displayName || u.email)[0].toUpperCase();
   img.hidden = !u.photoURL; ini.hidden = !!u.photoURL; if (u.photoURL) img.src = u.photoURL;
@@ -712,14 +737,14 @@ onAuthStateChanged(auth, u => {
   };
   unsub.push(heardSync(u)); // lo ya escuchado (Sin repetir), por cuenta
   unsub.push(onSnapshot(doc(db, "catalog", "main"), s => {
-    catLoaded = true;
+    catLoaded = true; if (!s.metadata.fromCache){ catServer = true; setTimeout(() => autoBackup(u), 4000); accessSync(u); }
     const v = s.exists() ? s.data() : null;
     CAT = v ? {all: v.all || [], pls: v.pls || [], rep: v.rep || []} : {all: [], pls: [], rep: []}; // rep: canciones reproducidas que no estaban en el catálogo ni en una playlist
     rebuildYA();
     fillSrc(); refresh(); rematch(); tryResume();
   }, denied));
   unsub.push(onSnapshot(plCol, s => {
-    loaded = true;
+    loaded = true; if (!s.metadata.fromCache){ plServer = true; setTimeout(() => autoBackup(u), 4000); }
     mis = s.docs.map(d => { const v = d.data(); return {id: d.id, name: v.name || "Sin nombre", orden: v.orden ?? 0, oculta: !!v.oculta, songs: Array.isArray(v.songs) ? v.songs.slice() : []}; })
       .sort((a, b) => a.orden - b.orden);
     rebuildYA(); refresh(); tryResume();
@@ -727,8 +752,34 @@ onAuthStateChanged(auth, u => {
 });
 const chains = {};
 function write(id, fn){
-  chains[id] = (chains[id] || Promise.resolve()).then(fn).catch(e => { flash(e.code === "permission-denied" ? "Tu cuenta no puede editar estas playlists." : "No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez."); });
+  chains[id] = (chains[id] || Promise.resolve()).then(fn).catch(e => { log("no se guardó (" + id + "): " + (e.code || e.message)); flash(e.code === "permission-denied" ? "Tu cuenta no puede editar estas playlists." : "No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez."); });
 }
+/* Guardado sin pisarse: cada cambio se vuelve a aplicar sobre lo último que hay en el servidor (transacción), así que si
+   los dos editan casi a la vez se conservan ambos cambios. `mutate` recibe las listas del servidor y las cambia por clave
+   de canción; si devuelve false (o 0) no había nada que cambiar. Sin conexión las transacciones no corren: se guarda lo
+   que hay en este dispositivo (Firestore lo deja en cola, aunque se cierre la app, y lo sube al volver la señal). */
+const offline = () => navigator.onLine === false;
+function txEdit(chain, ref, fields, mutate, local){
+  const queueLocal = () => { updateDoc(ref, local()).catch(e => { log("no se guardó (" + chain + "): " + (e.code || e.message)); if (e.code === "permission-denied") flash("Tu cuenta no puede editar estas playlists."); }); };
+  write(chain, async () => {
+    if (offline()) return queueLocal(); // no se espera la respuesta: así no se traba la cola de cambios
+    try {
+      await runTransaction(db, async t => {
+        const s = await t.get(ref); if (!s.exists()) return;
+        const d = s.data(), out = {};
+        for (const f of fields) out[f] = Array.isArray(d[f]) ? d[f].map(x => ({...x})) : [];
+        if (!mutate(out)) return;
+        t.update(ref, out);
+      });
+    } catch (e) {
+      if (e.code === "permission-denied") throw e;
+      log("transacción no pudo (" + (e.code || e.message) + "): guardo lo de aquí"); queueLocal();
+    }
+  });
+}
+const catRef = () => doc(db, "catalog", "main");
+const catEdit = (fields, mutate) => txEdit("catalog", catRef(), fields, mutate, () => Object.fromEntries(fields.map(f => [f, (CAT[f] || []).map(it => ({...it}))])));
+const plEdit = (p, mutate) => txEdit(p.id, doc(plCol, p.id), ["songs"], d => mutate(d.songs), () => ({songs: p.songs.map(s => ({...s}))}));
 function flash(t){ $("msg").hidden = !t; $("msg").textContent = t || ""; }
 const song = x => ({t: x.t, a: x.a, k: x.k, y: x.y || null, ...(scOf(x) ? {sc: scOf(x)} : {})}); // sc: enlace de SoundCloud (si la canción tiene)
 /* Versión "solo audio" (campo ya en el catálogo: canal Topic, audio oficial, letra). Con el modo audio activo se reproduce esa en vez del clip. */
@@ -753,33 +804,30 @@ const inMis = k => mis.filter(p => p.songs.some(s => s.k === k));
 function newPl(name){
   name = name.trim(); if (!name) return null;
   const ref = doc(plCol), body = {name, orden: Date.now(), oculta: false, songs: []};
-  const p = {id: ref.id, ...body}; mis.push(p);
-  write(p.id, () => setDoc(ref, body));
+  const p = {id: ref.id, ...body, songs: []}; mis.push(p);
+  write(p.id, () => offline() ? void setDoc(ref, body).catch(() => {}) : setDoc(ref, body));
   return p;
 }
 function toggleSong(p, x){
-  const i = p.songs.findIndex(s => s.k === x.k);
-  if (i >= 0) p.songs.splice(i, 1); else p.songs.push(song(x));
-  const songs = p.songs.slice();
-  write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
+  const it = song(x), add = !p.songs.some(s => s.k === it.k);
+  plToggle(p.songs, it, add);
+  plEdit(p, songs => plToggle(songs, it, add));
 }
 function removeMany(p, list){ // quita de la playlist las canciones de `list`; devuelve cuántas salieron
-  const out = new Set(list.map(x => x.k)), n = p.songs.length;
-  p.songs = p.songs.filter(s => !out.has(s.k));
-  if (p.songs.length !== n){ const songs = p.songs.slice(); write(p.id, () => updateDoc(doc(plCol, p.id), {songs})); }
-  return n - p.songs.length;
+  const out = new Set(list.map(x => x.k)), n = plRemove(p.songs, out);
+  if (n) plEdit(p, songs => plRemove(songs, out));
+  return n;
 }
 function addMany(p, list){ // agrega a la playlist las canciones de `list` que aún no estén; devuelve cuántas entraron
-  const have = new Set(p.songs.map(s => s.k)), add = list.filter(x => !have.has(x.k));
-  if (add.length){ p.songs.push(...add.map(song)); const songs = p.songs.slice(); write(p.id, () => updateDoc(doc(plCol, p.id), {songs})); }
-  return add.length;
+  const items = list.map(song), n = plAdd(p.songs, items);
+  if (n) plEdit(p, songs => plAdd(songs, items));
+  return n;
 }
-function patch(p, f){ Object.assign(p, f); write(p.id, () => updateDoc(doc(plCol, p.id), f)); }
+function patch(p, f){ Object.assign(p, f); write(p.id, () => offline() ? void updateDoc(doc(plCol, p.id), f).catch(() => {}) : updateDoc(doc(plCol, p.id), f)); }
 function moveSongTo(p, from, to){ // mueve la canción `from` al puesto `to` dentro de la playlist
   if (!p || from === to || from < 0 || to < 0 || from >= p.songs.length || to >= p.songs.length) return;
-  const [s] = p.songs.splice(from, 1); p.songs.splice(to, 0, s);
-  const songs = p.songs.slice();
-  write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
+  const k = p.songs[from].k; plMove(p.songs, k, to);
+  plEdit(p, songs => plMove(songs, k, to));
 }
 // Mueve la playlist del puesto `from` al `to` (puestos de la lista visible). `orden` es un número: se cambia solo el de la
 // movida (punto medio entre sus vecinas) y, si ya no cabe ninguno entre medias, se renumeran todas.
@@ -794,7 +842,7 @@ function movePlTo(from, to){
   if ((prev && o - prev.orden < 1) || (next && next.orden - o < 1)) mis.forEach((q, j) => { if (q.orden !== j * 1000) patch(q, {orden: j * 1000}); });
   else patch(p, {orden: o});
 }
-function removePl(p){ mis.splice(mis.indexOf(p), 1); write(p.id, () => deleteDoc(doc(plCol, p.id))); }
+function removePl(p){ mis.splice(mis.indexOf(p), 1); write(p.id, () => offline() ? void deleteDoc(doc(plCol, p.id)).catch(() => {}) : deleteDoc(doc(plCol, p.id))); }
 
 /* ---------- Importar (primera vez) ---------- */
 function renderImport(){
@@ -802,9 +850,11 @@ function renderImport(){
   $("imp").hidden = !need;
   if (!need || $("imp").dataset.ready) return;
   $("imp").dataset.ready = "1";
-  $("imp").innerHTML = `<div class="empty" style="text-align:left"><b>Carga tus canciones y playlists</b>
+  $("imp").innerHTML = `<div class="empty" style="text-align:left"><b>${restore ? "Restaurar una copia" : "Carga tus canciones y playlists"}</b>
     <p style="margin:6px 0 12px">${restore ? "Elige una copia descargada con «Descargar copia». Reemplaza el catálogo y las playlists que trae el archivo, para los dos." : "Solo hace falta una vez. Elige el archivo <code>importar.json</code> que te preparé."}</p>
-    <input type="file" id="imp-file" accept="application/json,.json"><p class="err" id="imp-err" hidden></p></div>`;
+    <input type="file" id="imp-file" accept="application/json,.json"><p class="err" id="imp-err" hidden></p>
+    ${restore ? `<p class="tm-h" style="margin-top:16px">Copias automáticas en la nube</p><div id="imp-cloud" class="bk-list"><p class="hint">Cargando…</p></div>` : ""}</div>`;
+  if (restore) paintCloudCopies();
   $("imp-file").onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
     try {
@@ -874,12 +924,6 @@ function songsShown(){
 const ytLabel = () => altFor ? "Versiones de " + altFor.t : "Búsqueda: " + ytQuery;
 const ytAll = () => altCur.concat(yres); // lo que se ve en la sección de YouTube: primero las actuales, luego las alternativas
 // Qué tipo de versión parece un resultado de YouTube: solo audio (canal Topic, «audio», «letra»…) o videoclip (video oficial, VEVO)
-function ytKind(x){
-  const t = norm(x.t), c = norm(x.a);
-  if (/\b(video oficial|official video|official music video|videoclip|video clip|clip oficial|official hd video)\b/.test(t) || /vevo/.test(c)) return "video";
-  if (/ - topic$/.test(c) || /\b(audio|lyrics?|letras?|visualizer)\b/.test(t)) return "audio";
-  return null;
-}
 function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección bajo la lista)
   const mine = inMis(x.k), mode = tab === "pls" ? "pl" : "all";
   let meta = "";
@@ -984,20 +1028,15 @@ $("list").addEventListener("submit", e => { // guardar título y artista editado
 });
 // La canción deja de estar marcada como dudosa (el video sí es el correcto)
 function markOk(x){
-  const c = CAT.all.find(it => it.k === x.k); if (c) delete c.e; delete x.e;
-  const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all}));
+  setWhere(CAT.all, x.k, {e: null}); delete x.e;
+  catEdit(["all"], d => setWhere(d.all, x.k, {e: null}));
   flash("«" + x.t + "» ya no está marcada como dudosa."); refresh();
 }
 // Cambia título y artista en el catálogo, en las playlists donde esté y en la cola (la clave no cambia)
 function renameSong(x, t, a){
-  const c = CAT.all.find(it => it.k === x.k);
-  if (c){ c.t = t; c.a = a; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
+  if (setWhere(CAT.all, x.k, {t, a})) catEdit(["all"], d => setWhere(d.all, x.k, {t, a}));
   x.t = t; x.a = a;
-  for (const p of mis){
-    const hit = p.songs.filter(s => s.k === x.k); if (!hit.length) continue;
-    hit.forEach(s => { s.t = t; s.a = a; }); const songs = p.songs.slice();
-    write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
-  }
+  for (const p of mis) if (setWhere(p.songs, x.k, {t, a})) plEdit(p, songs => setWhere(songs, x.k, {t, a}));
   queue.forEach(s => { if (s.k === x.k){ s.t = t; s.a = a; } });
   if (queue[cur]?.k === x.k){ $("nt").textContent = t; $("na").textContent = a; }
   flash("Guardado: «" + t + "» · " + a + ". Se cambió para los dos.");
@@ -1119,8 +1158,6 @@ async function tx(mode, fn){
   const d = await idb;
   return new Promise((ok, ko) => { const t = d.transaction("files", mode), r = fn(t.objectStore("files")); t.oncomplete = () => ok(r?.result); t.onerror = () => ko(t.error); t.onabort = () => ko(t.error); });
 }
-const clean = s => norm(String(s || "")).replace(/\.[a-z0-9]{2,4}$/, "").replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
-  .replace(/\b(official|oficial|video|videoclip|audio|lyrics?|letra|hd|hq|remaster(ed)?|ft|feat)\b/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
 // Une un archivo con una canción de la lista si el nombre trae el título (y mejor si también el artista).
 function matchSong(name){
   const f = " " + clean(name) + " ";
@@ -1132,10 +1169,6 @@ function matchSong(name){
     if (sc > score){ score = sc; best = x; }
   }
   return best && (score >= 100 || clean(best.t).length >= 8) ? best : null;
-}
-function guess(name){ // "Artista - Título.mp3"
-  const base = name.replace(/\.[^.]+$/, "").replace(/_/g, " "), parts = base.split(/\s+[-–—]\s+/);
-  return parts.length > 1 ? {a: parts[0].trim(), t: parts.slice(1).join(" - ").trim()} : {a: "Archivo de audio", t: base.trim()};
 }
 function relink(){ fileByK = new Map(FILES.filter(f => f.k).map(f => [f.k, f])); }
 const fileFor = x => !x ? null : String(x.k).startsWith("f:") ? FILES.find(f => "f:" + f.id === x.k) || null : fileByK.get(x.k) || null;
@@ -1266,12 +1299,93 @@ const setFade = s => { FADE = s * 1000; $("fade").value = s; $("fade-v").textCon
 { const f = store.get("np-fade"); setFade(f === null ? 2.5 : +f); }
 $("fade").oninput = e => { setFade(+e.target.value); store.set("np-fade", e.target.value); };
 $("backup").onclick = () => {
-  const data = {exportado: new Date().toISOString(), catalog: {all: CAT.all, pls: CAT.pls || [], rep: CAT.rep || []}, playlists: mis.map(p => ({id: p.id, name: p.name, orden: p.orden, oculta: p.oculta, songs: p.songs}))};
+  const data = {exportado: new Date().toISOString(), catalog: {all: CAT.all, pls: CAT.pls || [], rep: CAT.rep || []}, playlists: mis.map(p => ({id: p.id, name: p.name, orden: p.orden, oculta: p.oculta, songs: p.songs})), historial: {h: {...heard}, reset: heardReset}};
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type: "application/json"}));
   a.download = "playlists-" + new Date().toISOString().slice(0, 10) + ".json"; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   flash("Copia descargada: " + data.catalog.all.length + " canciones y " + data.playlists.length + " playlists. Guárdala en un lugar seguro.");
 };
+/* ---------- Acceso ----------
+   Las reglas de Firestore dejan entrar a los correos de config/acceso (antes estaban escritos en firestore.rules, que es
+   público). Cada cuenta con acceso se anota sola ahí al abrir la app, para que la lista exista antes de publicar las reglas nuevas. */
+let accessDone = false;
+function accessSync(u){
+  if (accessDone || !u?.email || jzGuest) return; accessDone = true;
+  const k = "np-acceso:" + u.uid; if (store.get(k)) return;
+  setDoc(doc(db, "config", "acceso"), {emails: arrayUnion(u.email.toLowerCase())}, {merge: true})
+    .then(() => { store.set(k, "1"); log("acceso: cuenta anotada"); })
+    .catch(e => log("acceso: no se pudo anotar (" + (e.code || e.message) + ")"));
+}
+/* ---------- Copia automática en la nube ----------
+   Una vez al día (la primera vez que alguno de los dos abre la app con conexión) se guarda una copia del catálogo y de las
+   playlists en copias/<AAAA-MM-DD>, y cada cuenta guarda ahí su historial de escuchadas. Se conservan las últimas 14; la
+   lista de copias está en copias/_indice (para no descargar todas). Se restauran con ?restaurar o desde el menú de la cuenta. */
+const BK_KEEP = 14, bkIndex = () => doc(db, "copias", "_indice");
+var bkDone = false, catServer = false, plServer = false;
+async function autoBackup(u){
+  if (bkDone || !u || jzGuest || !catServer || !plServer || !CAT.all.length || u.uid !== auth.currentUser?.uid) return;
+  bkDone = true;
+  const id = dayId();
+  if (store.get("np-bk") === id + ":" + u.uid) return;
+  try {
+    const ref = doc(db, "copias", id), b = writeBatch(db);
+    if (!(await getDoc(ref)).exists()){
+      b.set(ref, {t: serverTimestamp(), por: u.email || "", canciones: CAT.all.length, nPlaylists: mis.length, catalog: {all: CAT.all, pls: CAT.pls || [], rep: CAT.rep || []}});
+      for (const p of mis) b.set(doc(db, "copias", id, "playlists", p.id), {name: p.name, orden: p.orden, oculta: p.oculta, songs: p.songs});
+      b.set(bkIndex(), {ids: arrayUnion(id)}, {merge: true});
+    }
+    b.set(doc(db, "copias", id, "historial", u.uid), {h: {...heard}, reset: heardReset}); // lo ya escuchado de esta cuenta
+    await b.commit();
+    store.set("np-bk", id + ":" + u.uid); log("copia del día en la nube: " + id);
+    await pruneCopies();
+  } catch (e) { log("copia automática no se guardó: " + (e.code || e.message)); }
+}
+async function pruneCopies(){
+  const ids = (await getDoc(bkIndex())).data()?.ids || [];
+  for (const id of oldCopies(ids, BK_KEEP)){
+    for (const sub of ["playlists", "historial"]) for (const d of (await getDocs(collection(db, "copias", id, sub))).docs) await deleteDoc(d.ref);
+    await deleteDoc(doc(db, "copias", id));
+    await updateDoc(bkIndex(), {ids: arrayRemove(id)});
+    log("copia vieja borrada: " + id);
+  }
+}
+// Lista de copias para restaurar (pantalla ?restaurar); dos toques para restaurar
+let bkArm = null;
+async function paintCloudCopies(){
+  const box = $("imp-cloud"); if (!box) return;
+  let ids = [];
+  try { ids = ((await getDoc(bkIndex())).data()?.ids || []).filter(id => /^\d{4}-/.test(id)).sort().reverse(); }
+  catch (e) { box.innerHTML = `<p class="err">No se pudo leer la lista de copias (${esc(e.code || e.message)}).</p>`; return; }
+  box.innerHTML = ids.length ? ids.map(id => `<div class="bk-row"><span>${esc(id)}</span><button class="btn sm${bkArm === id ? " danger" : ""}" type="button" data-bk="${esc(id)}">${bkArm === id ? "¿Seguro? Restaurar" : "Restaurar"}</button></div>`).join("")
+    + `<p class="hint">Restaurar reemplaza el catálogo y las playlists que trae la copia, para los dos. Las playlists creadas después se conservan. Antes se guarda una copia de cómo está ahora («antes-de-restaurar»).</p>`
+    : `<p class="hint">Todavía no hay copias automáticas. Se guarda una al día, al abrir la app con conexión.</p>`;
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-bk]"); if (!b) return;
+  const id = b.dataset.bk;
+  if (bkArm !== id){ bkArm = id; paintCloudCopies(); setTimeout(() => { if (bkArm === id){ bkArm = null; paintCloudCopies(); } }, 5000); return; }
+  bkArm = null; b.disabled = true; b.textContent = "Restaurando…";
+  try { await restoreCopy(id); flash("Listo: se restauró la copia del " + id + "."); }
+  catch (err) { flash("No se pudo restaurar (" + (err.code || err.message) + ")."); }
+  paintCloudCopies();
+});
+async function restoreCopy(id){
+  const c = await getDoc(doc(db, "copias", id)); if (!c.exists()) throw new Error("esa copia ya no existe");
+  const pls = (await getDocs(collection(db, "copias", id, "playlists"))).docs;
+  const safe = writeBatch(db), sid = "antes-de-restaurar"; // cómo estaba justo antes (por si te arrepientes)
+  safe.set(doc(db, "copias", sid), {t: serverTimestamp(), catalog: {all: CAT.all, pls: CAT.pls || [], rep: CAT.rep || []}});
+  for (const p of mis) safe.set(doc(db, "copias", sid, "playlists", p.id), {name: p.name, orden: p.orden, oculta: p.oculta, songs: p.songs});
+  await safe.commit();
+  const b = writeBatch(db), cat = c.data().catalog || {};
+  b.set(catRef(), {all: cat.all || [], pls: cat.pls || [], rep: cat.rep || []});
+  for (const d of pls) b.set(doc(plCol, d.id), d.data());
+  await b.commit();
+}
+async function paintBk(){ // menú de la cuenta: fecha de la última copia automática
+  const el = $("bk-last"); if (!el) return;
+  try { const ids = ((await getDoc(bkIndex())).data()?.ids || []).filter(id => /^\d{4}-/.test(id)).sort(); el.textContent = ids.length ? "Copia automática diaria · última: " + ids[ids.length - 1] + " (" + ids.length + (ids.length === 1 ? " guardada)" : " guardadas)") : "Copia automática diaria · aún no hay ninguna"; }
+  catch { el.textContent = ""; }
+}
 let vol = 100, fadeTimer = 0, fading = false;
 /* Volumen general (0-100): el fundido trabaja en relativo y este es su tope. Se recuerda en el dispositivo (np-vol).
    En iPhone/iPad la página no puede cambiar el volumen (lo manda el botón físico): el control no se muestra. */
@@ -1327,14 +1441,6 @@ function mPlay(why){ if (mode === "file") au.play().catch(() => {}); else if (mo
    El título y el artista salen de su oEmbed público (soundcloud.com/oembed, sin client_id). */
 let scW = null, scPos = 0, scDur = 0, scTok = 0, scApi = null, scWant = 0, scLoadedUrl = null;
 // Enlace de SoundCloud de una canción (no listas «sets»): devuelve la dirección limpia o null
-function scParse(t){
-  t = String(t || "").trim();
-  const sh = t.match(/^https?:\/\/on\.soundcloud\.com\/[\w-]+/i); if (sh) return sh[0]; // enlace corto de la app: lo resuelve el oEmbed
-  const m = t.match(/^(?:https?:\/\/)?(?:www\.|m\.)?soundcloud\.com\/([\w-]+)\/([\w-]+)(?:\/(s-[\w-]+))?/i);
-  if (!m || /^(sets|likes|tracks|albums|reposts|popular-tracks|followers|following|discover|search|you|stream)$/i.test(m[2])) return null;
-  return "https://soundcloud.com/" + m[1].toLowerCase() + "/" + m[2].toLowerCase() + (m[3] ? "/" + m[3] : "");
-}
-const scKey = u => "sc:" + u.replace(/^https?:\/\/(www\.)?/, "");
 // Título, artista y portada desde el oEmbed público de SoundCloud (no necesita client_id)
 async function scInfo(url){
   const r = await fetch("https://soundcloud.com/oembed?format=json&url=" + encodeURIComponent(url));
@@ -1549,8 +1655,6 @@ function fixNext(){
 }
 // Separa canciones parecidas en el orden aleatorio: ni el mismo artista en las 4 siguientes ni otra versión de la misma
 // canción (remix, en vivo, acústico…) en las 25 siguientes. Si no queda otra opción, relaja la regla.
-const artistKey = x => clean(String(x.a || "").split(",")[0]);
-const titleKey = x => clean(x.t).replace(/\b(remix|version|edit|mix|en vivo|live|acustic[oa]|acoustic|unplugged|extended|radio|club|instrumental|karaoke|cover|slowed|sped up)\b/g, " ").replace(/\s+/g, " ").trim();
 function spread(from, pool){
   const ak = queue.map(artistKey), tk = queue.map(titleKey), out = [from];
   const clash = (n, back, same) => { for (let i = Math.max(0, out.length - back); i < out.length; i++) if (same(n, out[i])) return true; return false; };
@@ -1571,9 +1675,8 @@ function recordPlayed(x){
   const k = x.k;
   if (CAT.all.some(c => c.k === k) || (CAT.rep || []).some(c => c.k === k) || mis.some(p => p.songs.some(s => s.k === k))) return;
   if (!CAT.rep) CAT.rep = [];
-  CAT.rep.push(song(x));
-  const rep = CAT.rep.slice();
-  write("catalog", () => updateDoc(doc(db, "catalog", "main"), {rep}));
+  const it = song(x); CAT.rep.push({...it});
+  catEdit(["rep"], d => addIfMissing(d.rep, it));
 }
 function load(i, opt = {}){
   const x = queue[i]; if (!x) return;
@@ -1618,7 +1721,6 @@ function saveResume(pos){
 const curPos = () => mode === "file" ? au.currentTime : mode === "sc" ? scPos / 1000 : (ready ? player.getCurrentTime() : 0);
 setInterval(() => { if (playing) saveResume(curPos()); }, 5000);
 /* ---------- Barra de progreso: muestra el tiempo y permite adelantar o volver ---------- */
-const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
 const curDur = () => { try { return mode === "file" ? (isFinite(au.duration) ? au.duration : 0) : mode === "sc" ? scDur / 1000 : (ready ? player.getDuration() || 0 : 0); } catch { return 0; } };
 let seeking = false; // mientras se arrastra no se mueve sola
 function paintSeek(){
@@ -1936,7 +2038,8 @@ $("aud").onclick = () => {
 };
 $("alt").onclick = () => { const x = queue[cur]; if (x) startAlt(x); };
 document.addEventListener("keydown", e => {
-  if (["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName) || !$("sheet").hidden) return;
+  if (["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!$("sheet").hidden || !$("jzsheet").hidden || !$("tmenu").hidden || e.target.closest?.("[role=dialog]")) return; // con un menú o una hoja abierta las teclas son de ellos
   if (e.key === " " && e.target.tagName !== "BUTTON"){ e.preventDefault(); $("play").click(); }
   if (e.key === "ArrowRight") step(1); if (e.key === "ArrowLeft") step(-1);
 });
@@ -1999,6 +2102,14 @@ async function rescue(x, blocked){
   setTimeout(() => { if (queue[cur] === x) step(1); }, 300);
 }
 if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = initYT;
+let ytApiAsked = false;
+function loadYtApi(){
+  if (ytApiAsked || (window.YT && YT.Player)) return; ytApiAsked = true;
+  const el = document.createElement("script"); el.src = "https://www.youtube.com/iframe_api";
+  el.onerror = () => { ytApiAsked = false; log("no cargó la API de YouTube (¿sin conexión?)"); };
+  document.head.appendChild(el);
+}
+addEventListener("online", () => { if (!player && auth.currentUser) loadYtApi(); });
 
 /* ---------- Playlists ---------- */
 const EYE_OFF = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.1M6.1 6.1C3.9 7.6 2.5 9.8 2 12c1 2.5 5 7 10 7 1.8 0 3.4-.5 4.8-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
@@ -2099,11 +2210,6 @@ $("pls").addEventListener("submit", e => {
 
 /* ---------- Buscar en YouTube ---------- */
 const decodeHtml = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; };
-function parseId(s){
-  s = s.trim();
-  const m = s.match(/(?:[?&]v=|youtu\.be\/|\/shorts\/|\/embed\/|\/live\/)([\w-]{11})/);
-  return m ? m[1] : (/^[\w-]{11}$/.test(s) ? s : null);
-}
 // Franja pequeña del reproductor (celular): aparece cuando la tarjeta del reproductor sale de la vista
 var npOut = false;
 function paintMini(){
@@ -2207,24 +2313,7 @@ async function ytApiSearch(q){
   return (d.items || []).filter(it => it.id?.videoId).map(it => ({t: decodeHtml(it.snippet.title), a: decodeHtml(it.snippet.channelTitle), y: it.id.videoId, k: "yt:" + it.id.videoId}));
 }
 // Variantes de una consulta, de la más completa a la más corta (máximo 4 intentos)
-function searchVariants(q, x){
-  const out = [q], STOP = /^(el|la|los|las|un|una|de|del|en|y|a|the|of|and|feat|ft)$/i;
-  if (x){ const a = x.a.split(",")[0].trim(), tw = x.t.split(/\s+/).filter(w => w && !STOP.test(w)); out.push(a + " " + tw.join(" "), a + " " + tw.slice(0, 1).join(" "), a); }
-  else { const w = q.split(/\s+/).filter(Boolean), sig = w.filter(t => !STOP.test(t) && t.length > 2); out.push(sig.join(" ")); for (let n = sig.length - 1; n >= 2; n--) out.push(sig.slice(0, n).join(" ")); }
-  return [...new Set(out.map(s => s.trim()).filter(Boolean))].slice(0, 4);
-}
 // Solo música: descarta lo que por el título no es una canción (entrevistas, shorts, reacciones, podcasts…) y pone primero lo que más parece canción
-const NOT_SONG = /\b(entrevist\w*|interview|habla|hablan|hablando|opina[rs]?|revela|confiesa|responde|explica|cuenta sobre|reacci|react|podcast|noticia|tutorial|how to|como (tocar|cantar|hacer)|trailer|capitulo|episodio|vlog|q ?& ?a|detras de|behind the|documental|biograf|top ?\d|ranking|shorts?|tiktok|polemica|escandalo|chisme|curiosidades|analisis|review|resena|clase|leccion|karaoke|speaking|funny|mejores momentos|compilation|recopilacion|mix \d|\d+ (canciones|exitos|horas))\b/;
-function musicRank(x){
-  const t = norm(x.t), c = norm(x.a);
-  if (NOT_SONG.test(t.replace(/#/g, " "))) return -1;
-  let s = 0;
-  if (/- topic$|vevo|official|oficial|records|music/.test(c)) s += 2;
-  if (/\b(official|oficial|audio|lyric|letra|videoclip|remix|ft|feat|live|en vivo|acustic|acoustic|cover|version)\b|video oficial|official video/.test(t)) s += 1;
-  if (/ - /.test(x.t)) s += 1;
-  return s;
-}
-const onlyMusic = list => list.map((x, i) => [musicRank(x), i, x]).filter(([s]) => s >= 0).sort((a, b) => b[0] - a[0] || a[1] - b[1]).map(([, , x]) => x);
 // Además pregunta a YouTube el tema automático de cada video (Música, Estilo de vida, Política…) y su duración:
 // se queda con los de tema Música que duran entre 1 y 12 minutos (fuera entrevistas, shorts, conciertos enteros). Cuesta 1 unidad de cuota.
 async function musicOnly(list){
@@ -2313,19 +2402,15 @@ function saveYa(s, id){ saveAlt(s, "ya", id, YA); }
 // Lo mismo para el enlace de SoundCloud (campo sc)
 function saveSc(s, url){ saveAlt(s, "sc", url, SCM); }
 function saveAlt(s, f, id, map){
-  const set = it => { if (id) it[f] = id; else delete it[f]; };
-  const c = CAT.all.find(it => it.k === s.k);
-  if (c){ set(c); const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
+  const fv = {[f]: id || null};
+  if (CAT.all.some(it => it.k === s.k)){ setWhere(CAT.all, s.k, fv); catEdit(["all"], d => setWhere(d.all, s.k, fv)); }
   else {
-    let r = (CAT.rep || []).find(it => it.k === s.k);
+    if (!CAT.rep) CAT.rep = [];
     const inPl = mis.some(p => p.songs.some(it => it.k === s.k));
-    if (!r && !inPl && id){ if (!CAT.rep) CAT.rep = []; r = song(s); CAT.rep.push(r); } // no estaba guardada en ningún lado
-    if (r){ set(r); const rep = CAT.rep.slice(); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {rep})); }
-    for (const p of mis){
-      const hit = p.songs.filter(it => it.k === s.k && (id || it[f])); if (!hit.length) continue;
-      hit.forEach(set); const songs = p.songs.slice();
-      write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
-    }
+    const add = !CAT.rep.some(it => it.k === s.k) && !inPl && id ? {...song(s), ...fv} : null; // no estaba guardada en ningún lado
+    if (add) CAT.rep.push({...add});
+    if (add || setWhere(CAT.rep, s.k, fv)) catEdit(["rep"], d => (add && addIfMissing(d.rep, add)) | setWhere(d.rep, s.k, fv));
+    for (const p of mis) if (p.songs.some(it => it.k === s.k && (id || it[f]))){ setWhere(p.songs, s.k, fv); plEdit(p, songs => setWhere(songs, s.k, fv)); }
   }
   if (id) map.set(s.k, id); else map.delete(s.k);
   queue.forEach(it => { if (it.k === s.k){ if (id) it[f] = id; else delete it[f]; } });
@@ -2336,40 +2421,22 @@ function setClip(s, id){
   s.y = id;
   const c = CAT.all.find(it => it.k === s.k);
   delete s.bl;
-  if (c){ c.y = id; delete c.e; delete c.bl; if (c.ya && BAD.has(c.ya)) delete c.ya; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all})); }
-  else { const r = (CAT.rep || []).find(it => it.k === s.k); if (r){ r.y = id; const rep = CAT.rep.slice(); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {rep})); } } // agregada desde YouTube: también en rep
+  if (c){ const fv = {y: id, e: null, bl: null, ...(c.ya && BAD.has(c.ya) ? {ya: null} : {})}; setWhere(CAT.all, s.k, fv); catEdit(["all"], d => setWhere(d.all, s.k, fv)); }
+  else if (setWhere(CAT.rep || [], s.k, {y: id})) catEdit(["rep"], d => setWhere(d.rep, s.k, {y: id})); // agregada desde YouTube: también en rep
   if (BAD.has(yaOf(s))){ YA.delete(s.k); if (s.ya) delete s.ya; }
-  for (const p of mis){
-    const hit = p.songs.filter(it => it.k === s.k); if (!hit.length) continue;
-    hit.forEach(it => { it.y = id; }); const songs = p.songs.slice();
-    write(p.id, () => updateDoc(doc(plCol, p.id), {songs}));
-  }
+  for (const p of mis) if (setWhere(p.songs, s.k, {y: id})) plEdit(p, songs => setWhere(songs, s.k, {y: id}));
   queue.forEach(it => { if (it.k === s.k) it.y = id; });
 }
 // Búsqueda automática: cuando YouTube bloquea las versiones que tiene una canción, se busca otra subida que sí se deje
 // insertar (videoEmbeddable + videoSyndicated) y se prueba al momento, hasta 3 copias por canción y sesión.
 // Consultas, solo si hacen falta: «artista título», luego «… audio», luego «… letra» (100 unidades de cuota cada una, más 1
 // de los detalles). Si una copia llega a sonar, adoptVideo la guarda para los dos como el video de la canción.
-const AUTO = new Map(); // clave → {ids, q, tries, used, ref}
+// clave → {ids, q, tries, used, ref, t}. Se recuerda 7 días en este dispositivo (np-auto): si una canción ya gastó sus búsquedas
+// o sus 3 intentos, no se vuelve a buscar cada vez que abres la app (cada búsqueda cuesta 100 de cuota).
+const AUTO = autoLoad(store.get("np-auto"));
+const autoSave = () => store.set("np-auto", autoDump(AUTO));
 let pendingFix = null;  // {k, id}: candidato que está cargando
 const AUTO_MAX = 3;
-const AUTO_SKIP = /\b(cover|karaoke|en vivo|live|remix|instrumental|8d|slowed|sped up|reverb|nightcore|tutorial|reaccion|reaction|mashup|medley|bass boosted)\b/;
-function autoQueries(x){
-  const a1 = x.a.split(",")[0].trim(), base = norm(x.t).includes(norm(a1)) ? x.t : a1 + " " + x.t;
-  return [base, base + " audio", base + " letra"];
-}
-const isoSecs = v => { const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(v || "") || []; return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0); };
-// ¿El resultado `c` es la misma canción que `x`? Título que contenga el de la canción, sin versiones raras (cover, en vivo…)
-// que la canción no tenga, y duración parecida a la del video bloqueado (si se conoce; un videoclip suele durar algo más)
-function autoMatch(x, c, secs, ref){
-  const want = titleKey(x), ct = clean(c.t) + " " + clean(c.a), own = clean(x.t);
-  if (want.length >= 2 && !(" " + ct + " ").includes(" " + want + " ")) return false;
-  const skip = AUTO_SKIP.exec(norm(c.t)); if (skip && !own.includes(skip[1])) return false;
-  if (musicRank(c) < 0) return false;
-  if (secs && (secs < 60 || secs > 720)) return false;
-  if (secs && ref) return secs >= ref - Math.max(45, ref * 0.25) && secs <= ref + Math.max(30, ref * 0.15);
-  return true;
-}
 async function autoSearch(x, q, a){
   const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&videoSyndicated=true&maxResults=10&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
   const d = await r.json();
@@ -2393,24 +2460,26 @@ async function autoSearch(x, q, a){
 }
 async function autoNext(x){
   let a = AUTO.get(x.k);
-  if (!a) AUTO.set(x.k, a = {ids: [], q: 0, tries: 0, used: [], ref: null});
-  if (a.tries >= AUTO_MAX || !CFG.youtubeKey) return null;
-  for (;;){
-    const id = a.ids.find(id => id !== x.y && id !== yaOf(x) && !BAD.has(id) && !a.used.includes(id));
-    if (id){ a.tries++; a.used.push(id); return id; }
-    const qs = autoQueries(x); if (a.q >= qs.length) return null;
-    a.ids = a.ids.concat(await autoSearch(x, qs[a.q++], a));
-  }
+  if (!a) AUTO.set(x.k, a = {ids: [], q: 0, tries: 0, used: [], ref: null, t: Date.now()});
+  if (a.tries >= AUTO_MAX || !CFG.youtubeKey){ log("«" + x.t + "»: ya se buscó otra copia hace poco; no gasto más cuota"); return null; }
+  try {
+    for (;;){
+      const id = a.ids.find(id => id !== x.y && id !== yaOf(x) && !BAD.has(id) && !a.used.includes(id));
+      if (id){ a.tries++; a.used.push(id); return id; }
+      const qs = autoQueries(x); if (a.q >= qs.length) return null;
+      a.ids = a.ids.concat(await autoSearch(x, qs[a.q++], a));
+    }
+  } finally { autoSave(); }
 }
 // Marca la canción como bloqueada en el catálogo (para los dos); se quita sola cuando suena otra versión o se corrige
 function markBlocked(x){
   x.bl = 1; const c = CAT.all.find(it => it.k === x.k); if (!c || c.bl) return;
-  c.bl = 1; const all = CAT.all.map(it => ({...it})); write("catalog", () => updateDoc(doc(db, "catalog", "main"), {all}));
+  c.bl = 1; catEdit(["all"], d => setWhere(d.all, x.k, {bl: 1}));
   renderList();
 }
 function adoptVideo(s, id){
   if (JZ && JZ.on && jzGuest){ log("otra copia suena, pero como invitado no se guarda"); flash("«" + s.t + "» suena con otra copia."); return; }
-  setClip(s, id);
+  setClip(s, id); AUTO.delete(s.k); autoSave();
   flash("«" + s.t + "» ya suena con otra versión y quedó guardada para los dos (sin la marca «bloqueada»). Si no es la buena, cámbiala en Versiones.");
   refresh();
 }
@@ -2515,7 +2584,9 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("sheet"
    volver a publicarlo (sid propio = eco). Cada segundo se corrige solo si la diferencia pasa de 1,5 s. */
 var JZ = null;
 const JZ_ID = (new URLSearchParams(location.search).get("juntos") || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 40) || null;
-const JZ_SID = Math.random().toString(36).slice(2, 10), JZ_HORAS = 6, JZ_MAX = 1500, JZ_DRIFT = 1.5;
+// JZ_MAX: canciones que viajan en la sesión. Cada aviso (play, pausa, presencia) manda el documento entero a todos, cola
+// incluida: con 300 son ~35 KB por aviso (con 1.500 eran ~170 KB). JZ_BEAT: cada cuánto se avisa «sigo conectado».
+const JZ_SID = Math.random().toString(36).slice(2, 10), JZ_HORAS = 6, JZ_MAX = 300, JZ_DRIFT = 1.5, JZ_BEAT = 60e3;
 let jzOff = 0, jzUser = null, jzGuest = false, jzUnsub = [], jzHb = 0, jzLoop = 0, jzTries = 0, jzNeedShown = false;
 const jzNow = () => Date.now() + jzOff;
 const jzRef = id => doc(db, "juntos", id);
@@ -2534,6 +2605,19 @@ if (JZ_ID){
   document.querySelector("#gate .eyebrow").textContent = "👥 Ver juntos";
   $("gate-msg").textContent = "Te invitaron a ver y escuchar juntos. Entra con tu cuenta de Google y, cuando te acepten, suena lo mismo para los dos.";
   document.querySelector("#gate .fine").textContent = "Solo verás lo que esté sonando en esa sesión.";
+}
+// Borra las sesiones de «Ver juntos» de esta cuenta que ya vencieron (con sus pedidos), una vez al día por dispositivo
+async function jzClean(u){
+  if (store.get("np-jzclean") === dayId()) return;
+  try {
+    const old = (await getDocs(query(collection(db, "juntos"), where("host", "==", u.uid)))).docs
+      .filter(d => (d.data().expira?.toMillis?.() || 0) < Date.now() - 3600e3);
+    for (const d of old){
+      for (const r of (await getDocs(collection(db, "juntos", d.id, "pedidos"))).docs) await deleteDoc(r.ref);
+      await deleteDoc(d.ref);
+    }
+    store.set("np-jzclean", dayId()); if (old.length) log("juntos: " + old.length + " sesiones viejas borradas");
+  } catch (e) { log("juntos: no se pudieron borrar las viejas (" + (e.code || e.message) + ")"); }
 }
 function jzAuth(u){
   jzUser = u;
@@ -2579,7 +2663,7 @@ function jzStart(){
       jzPaint();
     }, e => log("juntos: pedidos (" + e.code + ")")));
   }
-  jzBeat(); jzHb = setInterval(() => { jzBeat(); jzPaint(); }, 30000);
+  jzBeat(); jzHb = setInterval(() => { jzBeat(); jzPaint(); }, JZ_BEAT);
   jzLoop = setInterval(jzTick, 1000);
   if (!JZ.d.estado) $("ph").querySelector("span").textContent = "Esperando a que " + jzHostName() + " ponga algo a sonar…";
 }
@@ -2731,7 +2815,7 @@ function jzEnd(msg){
   flash(msg);
 }
 const jzVivos = () => Object.entries((JZ && JZ.d && JZ.d.conectados) || {})
-  .filter(([, c]) => { const t = c?.t?.toMillis?.(); return !t || jzNow() - t < 75000; })
+  .filter(([, c]) => { const t = c?.t?.toMillis?.(); return !t || jzNow() - t < JZ_BEAT * 2.5; })
   .map(([uid, c]) => uid === jzUser?.uid ? "tú" : String(c.n || "alguien").split(" ")[0]);
 function jzPaint(){
   if (!JZ || !JZ.on) return;
@@ -2850,7 +2934,14 @@ $("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set
 $("sf").addEventListener("submit", e => { e.preventDefault(); if (tab === "all"){ if (matchMedia("(max-width:640px)").matches) $("q").blur(); ytSearch($("q").value); } });
 setTab("all");
 loadFiles();
+if (EMU) window.__npt = {get uid(){ return auth.currentUser?.uid; }, get loaded(){ return loaded && catLoaded; }, get mis(){ return mis; }, get CAT(){ return CAT; }, toggleSong, addMany, removeMany, moveSongTo, renameSong, markOk, saveSc, autoBackup: () => { bkDone = false; return autoBackup(auth.currentUser); }, chains};
+/* ---------- Sin conexión ---------- */
+function paintNet(){ $("net").hidden = !offline(); $("net").textContent = "Sin conexión · tus cambios se suben solos al volver la señal"; }
+addEventListener("offline", () => { paintNet(); log("sin conexión"); });
+addEventListener("online", () => { paintNet(); log("volvió la conexión"); flash("Volvió la conexión."); });
+paintNet();
+// Modo sin conexión e instalación como app (sw.js guarda la app; los datos los guarda Firestore). En pruebas (?emu) solo con ?sw.
+if ("serviceWorker" in navigator && (!EMU || location.search.includes("sw"))) navigator.serviceWorker.register("sw.js").catch(e => log("sin modo sin conexión: " + e.message));
 </script>
-<script src="https://www.youtube.com/iframe_api"></script>
 </body>
 </html>

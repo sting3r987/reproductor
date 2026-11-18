@@ -420,9 +420,11 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .btn{padding:7px 12px;font-size:13px}
   /* En el celular el transporte ocupa toda una fila: ⏮ ▶ ⏭ grandes, debajo los botones pequeños */
   .transport{width:100%;min-width:0;gap:8px;grid-template-columns:40px repeat(3,minmax(0,1fr)) 40px}
-  .sub{width:100%;flex-basis:100%;grid-template-columns:repeat(2,minmax(0,1fr))}
-  .btn.go.side.cap{height:42px;padding:0 8px;gap:6px}
-  .btn.go.side.cap small{font-size:12.5px}
+  .sub{width:100%;flex-basis:100%;gap:8px}
+  /* una sola fila de cuatro: solo iconos (cada botón tiene aria-label y title) */
+  .btn.go.side.cap{height:44px;padding:0;gap:0;justify-content:center}
+  .btn.go.side.cap small{display:none}
+  .btn.go.side.cap svg{width:22px;height:22px}
   .btn.go.side{width:40px;height:40px}
   .btn.go{height:44px;font-size:14.5px;padding:0 8px;gap:8px}
   .player>.ctrls .btn:not(.go){padding:4px 10px;font-size:12px}

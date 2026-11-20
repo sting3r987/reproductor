@@ -2,14 +2,15 @@
 // Correr: npm run e2e   (levanta los emuladores, sirve la app en localhost y la maneja con Chromium)
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { extname, join, normalize } from "node:path";
 import assert from "node:assert/strict";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
-const ROOT = new URL("..", import.meta.url).pathname, PORT = 5173, P = "demo-np";
+const ROOT = fileURLToPath(new URL("..", import.meta.url)), PORT = 5173, P = "demo-np";
 const FS = `http://127.0.0.1:8080/v1/projects/${P}/databases/(default)/documents`;
 const ADMIN = {Authorization: "Bearer owner", "Content-Type": "application/json"};
 const today = (d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"))(new Date());
@@ -48,7 +49,13 @@ const NEW_RULES = readFileSync(join(ROOT, "firestore.rules"), "utf8");
 const OLD_RULES = NEW_RULES.replace(/&& request\.auth\.token\.email\.lower\(\) in get\([^;]*;/, "&& request.auth.token.email in ['a@test.com', 'b@test.com'];");
 assert.notEqual(OLD_RULES, NEW_RULES, "no se pudo armar las reglas anteriores");
 
-const browser = await chromium.launch();
+// Chromium de Playwright si está instalado; si no, el Chrome o Edge de la computadora (o CHROMIUM=/ruta), sin descargar nada
+const LOCAL = [process.env.CHROMIUM, ...(process.platform === "win32"
+  ? [process.env.PROGRAMFILES, process.env["PROGRAMFILES(X86)"], process.env.LOCALAPPDATA].filter(Boolean).flatMap(d => [join(d, "Google", "Chrome", "Application", "chrome.exe"), join(d, "Microsoft", "Edge", "Application", "msedge.exe")])
+  : process.platform === "darwin" ? ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"] : ["/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"])].filter(Boolean);
+const bundled = (() => { try { return existsSync(chromium.executablePath()); } catch { return false; } })();
+const exe = process.env.CHROMIUM || (bundled ? null : LOCAL.find(f => existsSync(f)));
+const browser = await chromium.launch(exe ? {executablePath: exe} : {});
 const results = [], pageErrors = [];
 async function step(name, fn){
   try { await fn(); results.push("ok   " + name); console.log("ok   " + name); }

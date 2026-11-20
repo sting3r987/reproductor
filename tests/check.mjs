@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import * as lib from "../lib.js";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -17,7 +18,7 @@ scripts.forEach(([, attrs, code], i) => {
   catch (e) { fails++; console.error("MAL script " + i + "\n" + e.stderr); }
 });
 for (const f of ["sw.js", "lib.js"]){
-  try { execFileSync(process.execPath, ["--check", new URL("../" + f, import.meta.url).pathname], {stdio: "pipe"}); console.log("ok  " + f); }
+  try { execFileSync(process.execPath, ["--check", fileURLToPath(new URL("../" + f, import.meta.url))], {stdio: "pipe"}); console.log("ok  " + f); }
   catch (e) { fails++; console.error("MAL " + f + "\n" + e.stderr); }
 }
 const imp = /import\s*\{([^}]*)\}\s*from\s*"\.\/lib\.js[^"]*"/.exec(html);

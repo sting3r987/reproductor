@@ -64,12 +64,20 @@ async function step(name, fn){
 async function openAs(email, extra = "", ctx){
   ctx = ctx || await browser.newContext();
   await ctx.route(/youtube\.com|ytimg\.com|soundcloud\.com/, r => r.abort()); // sin YouTube en las pruebas
+  await ctx.route(/googleapis\.com\/youtube\//, r => r.fulfill({contentType: "application/json", body: JSON.stringify({items: []})})); // la búsqueda de copias no encuentra nada (y no gasta cuota)
   const page = await ctx.newPage();
   page.on("pageerror", e => { pageErrors.push(email + ": " + e.message); console.error("  [" + email + "] error de página:", e.message); });
   await page.goto(URL0 + "?emu&as=" + encodeURIComponent(email) + extra);
   return {ctx, page};
 }
 const ready = page => page.waitForFunction(() => window.__npt?.loaded && window.__npt.mis.length > 0 && window.__npt.CAT.all.length > 0, null, {timeout: 20000});
+// WAV de silencio (8 kHz, 8 bits, mono) de `secs` segundos: el archivo de audio de prueba
+function wav(secs){
+  const n = Math.round(secs * 8000), b = Buffer.alloc(44 + n, 128);
+  b.write("RIFF", 0); b.writeUInt32LE(36 + n, 4); b.write("WAVEfmt ", 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(8000, 24); b.writeUInt32LE(8000, 28); b.writeUInt16LE(1, 32); b.writeUInt16LE(8, 34); b.write("data", 36); b.writeUInt32LE(n, 40);
+  return b;
+}
 const settle = page => page.evaluate(() => Promise.all(Object.values(window.__npt.chains)));
 
 try {
@@ -194,7 +202,7 @@ try {
     await ready(page);
     await page.waitForFunction(() => navigator.serviceWorker?.controller || navigator.serviceWorker.ready.then(() => true), null, {timeout: 15000});
     await page.reload(); await ready(page); // ya con el service worker al mando
-    await until("app guardada", () => page.evaluate(async () => !!(await caches.match("index.html")) && !!(await caches.match("lib.js?v=1"))));
+    await until("app guardada", () => page.evaluate(async () => !!(await caches.match("index.html")) && !!(await caches.match("lib.js?v=2"))));
     await ctx.setOffline(true);
     await page.evaluate(() => window.dispatchEvent(new Event("offline")));
     assert.equal(await page.isVisible("#net"), true, "aviso de sin conexión");
@@ -207,6 +215,118 @@ try {
     await ctx.setOffline(false);
     await until("cambio subido al volver la señal", async () => (await get("playlists/p1")).songs.some(s => s.k === S(5).k), 30000);
     await ctx.close();
+  });
+  /* ---------- Bloqueadas: canciones que no hubo forma de poner, con archivo propio en el aparato ---------- */
+  const k2 = S(2).k;
+  const sinrep = async () => (await get("catalog/main"))?.sinrep || [];
+  const cuantas = page => page.textContent("#cbl").then(t => t.trim());
+  await step("Bloqueadas: una canción que YouTube bloquea y sin otra copia queda anotada (una sola vez)", async () => {
+    const { page } = A;
+    await page.goto(URL0 + "?emu&as=a@test.com"); await ready(page);
+    await page.click("#tab-all");
+    await page.locator("#list .row", {hasText: "Canción 2"}).locator(".play").click();
+    await page.waitForFunction(() => window.__npt.mode === "yt");
+    await page.evaluate(() => window.__npt.ytErr(150)); // YouTube: «no se deja insertar» (como en el teléfono)
+    const l = await until("anotada en el catálogo", async () => { const l = await sinrep(); return l.length && l; });
+    assert.deepEqual(l.map(s => [s.k, s.t, s.a, s.c, s.f]), [[k2, "Canción 2", "Artista 2", 150, today]]);
+    assert.match(await page.textContent("#msg"), /Bloqueadas/);
+    await page.evaluate(k => { const n = window.__npt; n.noteSinrep(n.CAT.all.find(s => s.k === k), 150); }, k2); // otra vez: no se repite
+    await settle(page);
+    assert.equal((await sinrep()).length, 1);
+  });
+
+  await step("Bloqueadas: se ve en su sección, con contador, Buscar, Poner archivo y Pegar SoundCloud (también en el otro aparato)", async () => {
+    const { page } = A;
+    await page.click("#tab-bl");
+    assert.equal(await cuantas(page), "1");
+    const row = page.locator("#blbox .blrow", {hasText: "Canción 2"});
+    assert.equal(await row.count(), 1);
+    assert.match(await row.textContent(), /no deja ponerla fuera de su sitio/);
+    const href = await row.locator("a", {hasText: "Buscar"}).getAttribute("href");
+    assert.equal(href, "https://www.google.com/search?q=" + encodeURIComponent("Canción 2 Artista 2"));
+    assert.equal(await row.locator("a", {hasText: "Buscar"}).getAttribute("target"), "_blank");
+    assert.equal(await row.locator("input[type=file]").count(), 1);
+    assert.equal(await row.locator("[data-blsc]").count(), 1);
+    assert.match(await page.textContent("#blbox"), /solo en este aparato/);
+    await until("la otra cuenta también la ve", async () => (await cuantas(B.page)) === "1");
+  });
+
+  await step("Bloqueadas: poner un archivo y la canción suena desde él", async () => {
+    const { page } = A;
+    await page.locator("#blbox .blrow", {hasText: "Canción 2"}).locator("input[type=file]").setInputFiles({name: "Canción 2.wav", mimeType: "audio/wav", buffer: wav(1)});
+    await page.waitForSelector("#blbox .blsub");
+    assert.equal(await cuantas(page), "", "con archivo aquí ya no cuenta como pendiente");
+    assert.equal((await sinrep()).length, 1, "en la nube sigue: el otro aparato no tiene el archivo");
+    assert.equal(await cuantas(B.page), "1");
+    await page.click("#tab-all");
+    const row = page.locator("#list .row", {hasText: "Canción 2"});
+    assert.match(await row.textContent(), /♪ archivo/);
+    await page.evaluate(() => { window.__sono = null; window.__npt.au.addEventListener("playing", () => { window.__sono = window.__sono || window.__npt.mode; }); });
+    await row.locator(".play").click();
+    await page.waitForFunction(() => window.__sono, null, {timeout: 10000});
+    assert.equal(await page.evaluate(() => window.__sono), "file");
+    assert.match(await page.evaluate(() => window.__npt.au.src), /^blob:/);
+    assert.equal(await page.isVisible("#nsrc"), true, "dice «Desde tu archivo»");
+  });
+
+  await step("Bloqueadas: quitar el archivo la devuelve a la lista", async () => {
+    const { page } = A;
+    await page.click("#tab-bl");
+    await page.locator("#blbox [data-blunfile]").click();
+    await until("vuelve a contar", async () => (await cuantas(page)) === "1");
+    assert.equal(await page.evaluate(() => new Promise(ok => { const r = indexedDB.open("np-audio"); r.onsuccess = () => { const q = r.result.transaction("files").objectStore("files").count(); q.onsuccess = () => ok(q.result); }; })), 0, "el aparato ya no guarda el archivo");
+  });
+
+  await step("Bloqueadas: ⋯ › Poner archivo en cualquier canción, y quitarlo", async () => {
+    const { page } = A;
+    await page.click("#tab-all");
+    const row = () => page.locator("#list .row", {hasText: "Canción 3"});
+    await row().locator("[data-menu]").click();
+    const [fc] = await Promise.all([page.waitForEvent("filechooser"), page.click('#list [data-act="file"]')]);
+    await fc.setFiles({name: "tres.mp3", mimeType: "audio/mpeg", buffer: wav(1)});
+    await until("con archivo", async () => /♪ archivo/.test(await row().textContent()));
+    await row().locator("[data-menu]").click();
+    await page.click('#list [data-act="unfile"]');
+    await until("sin archivo", async () => !/♪ archivo/.test(await row().textContent()));
+    await row().locator("[data-menu]").click();
+    const [fc2] = await Promise.all([page.waitForEvent("filechooser"), page.click('#list [data-act="file"]')]);
+    await fc2.setFiles({name: "foto.jpg", mimeType: "image/jpeg", buffer: Buffer.from("x")});
+    await until("avisa que no es audio", async () => /no es de audio/.test(await page.textContent("#msg")));
+  });
+
+  await step("Bloqueadas: con un enlace de SoundCloud sale de la lista (para los dos)", async () => {
+    const { page } = A;
+    await page.click("#tab-bl");
+    await page.locator("#blbox [data-blsc]").click(); // «Pegar SoundCloud» abre el mismo campo de ⋯ › Pegar enlace
+    assert.equal(await page.getAttribute("#tab-all", "aria-pressed"), "true");
+    await page.waitForSelector("#yf2-url", {timeout: 5000});
+    assert.match(await page.getAttribute("#yf2-url", "placeholder"), /Canción 2/);
+    await page.click('[data-act="altoff"]');
+    await until("vuelve a Bloqueadas", async () => (await page.getAttribute("#tab-bl", "aria-pressed")) === "true");
+    await page.evaluate(k => { const n = window.__npt; n.saveSc(n.CAT.all.find(s => s.k === k), "https://soundcloud.com/artista-2/cancion-2"); }, k2);
+    await settle(page);
+    await until("fuera de la lista", async () => (await sinrep()).length === 0);
+    await until("la otra cuenta ya no la cuenta", async () => (await cuantas(B.page)) === "");
+  });
+
+  if (process.env.SHOTS) await step("capturas de Bloqueadas (teléfono y escritorio)", async () => {
+    for (const [w, h] of [[390, 844], [1400, 900], [320, 640]]){
+      const ctx = await browser.newContext({viewport: {width: w, height: h}, ...(w < 600 ? {isMobile: true, hasTouch: true, deviceScaleFactor: 2} : {})});
+      const { page } = await openAs("a@test.com", "", ctx); await ready(page);
+      await page.evaluate(() => { const n = window.__npt; n.noteSinrep(n.CAT.all[0], 150); n.noteSinrep(n.CAT.all[2], 101); n.noteSinrep(n.CAT.all[4], 100); });
+      await settle(page);
+      await page.click("#tab-bl"); await page.waitForTimeout(400);
+      await page.screenshot({path: join(process.env.SHOTS, `bloqueadas-${w}.png`), fullPage: true});
+      await page.locator("#blbox .blrow").first().locator("input[type=file]").setInputFiles({name: "uno.wav", mimeType: "audio/wav", buffer: wav(20)});
+      await page.waitForSelector("#blbox .blsub");
+      await page.screenshot({path: join(process.env.SHOTS, `bloqueadas-con-archivo-${w}.png`), fullPage: true});
+      await page.locator("#blbox [data-blplay]").first().click();
+      await page.waitForFunction(() => window.__npt.mode === "file" && !window.__npt.au.paused, null, {timeout: 10000});
+      await page.waitForTimeout(1500);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({path: join(process.env.SHOTS, `sonando-archivo-${w}.png`)});
+      await settle(page); await ctx.close();
+    }
   });
   await step("sin errores de página en toda la prueba", async () => { assert.deepEqual(pageErrors, []); });
 } finally {

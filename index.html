@@ -262,6 +262,21 @@ body.audio .tag.aud{color:var(--accent);background:var(--accent-bg)}
 .frow b,.frow span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .frow span{color:var(--ink-3);font-size:12.5px}
 .frow span.ok{color:var(--have)}
+/* Bloqueadas: canciones que YouTube no deja poner aquí; cada una con Buscar, Poner archivo y Pegar SoundCloud */
+.blhead{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-top:14px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow)}
+.blhead h3{font-family:var(--display);font-size:18px;margin:0}
+.blhead p{margin:0;color:var(--ink-2);font-size:14px}
+.blhead p.lim{font-size:13px;color:var(--ink-3)}
+.blhead p.lim::before{content:"ⓘ ";color:var(--accent)}
+.blrow{flex-wrap:wrap}
+.blrow .t{flex:1 1 220px}
+.frow span.why{color:var(--miss);white-space:normal}
+.blacts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.blacts .btn{text-decoration:none;cursor:pointer}
+.blsub{margin-top:18px;font-weight:600}
+.seg small.badge:not(:empty){display:inline-block;background:var(--accent);color:var(--accent-ink);opacity:1;font-weight:700;font-size:11px;line-height:16px;min-width:16px;padding:0 5px;border-radius:99px;text-align:center}
+/* «Desde tu archivo»: la canción que suena sale del archivo de audio guardado en este aparato */
+.srcf{margin:2px 0 0;align-self:flex-start;font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-bg);border-radius:99px;padding:2px 10px}
 .row.dis .t{opacity:.6}
 .add{flex:none;width:42px;height:42px;align-self:center;margin-right:4px;border:0;border-radius:99px;background:transparent;color:var(--ink-3);font:inherit;font-size:20px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
 .add:hover{color:var(--accent);background:var(--accent-bg)}
@@ -445,9 +460,12 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .player>.ctrls .btn:not(.go){padding:4px 10px;font-size:12px}
   /* Barra de herramientas en tres filas: [las 4 pestañas iguales · avatar] [buscador] [playlist de origen · orden] */
   .tools{gap:8px;margin-top:10px}
-  .seg{order:0;flex:1 1 0;min-width:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:2px}
+  .seg{order:0;flex:1 1 0;min-width:0;display:grid;grid-template-columns:repeat(4,auto);justify-content:space-between;padding:2px}
   .seg button{padding:7px 4px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .seg small{display:none}
+  .seg button{padding-inline:8px}
+  .seg small.badge:not(:empty){display:inline-block;margin-left:3px;vertical-align:1px} /* el contador de Bloqueadas sí se ve en el celular */
+  .blacts{justify-content:flex-start;width:100%}
   .go-yt{padding:6px 10px}
   #selbtn{order:3;flex:none;padding:7px 9px}
   #selbtn .long,.selbar .long{display:none}
@@ -465,6 +483,8 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .pa-grid{grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:16px 12px}
   .plhead .cover{width:84px}
 }
+.seg .sh{display:none}
+@media (max-width:360px){.seg button{padding-inline:5px;font-size:11.5px}.seg .lg{display:none}.seg .sh{display:inline}} /* las cuatro pestañas caben también en teléfonos angostos */
 /* Celular: la cabecera no es fija (en ningún momento); al bajar queda la franja pequeña del reproductor */
 @media (max-width:640px){
   header.top{position:static} /* el reproductor no queda fijo: al bajar se va con la página y aparece la franja pequeña (.mini) */
@@ -529,6 +549,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
       <p class="eyebrow" id="pos">Nuestras playlists</p>
       <h1 id="nt">Elige una canción</h1>
       <p class="by" id="na">Suena aquí mismo y pasa sola a la siguiente.</p>
+      <p class="srcf" id="nsrc" hidden title="Suena desde el archivo de audio que pusiste en este aparato">♪ Desde tu archivo</p>
     </div>
     <div class="ctrls">
       <div class="seek" id="seekrow" hidden><span id="t-cur">0:00</span><input type="range" id="seek" min="0" max="1" step="1" value="0" aria-label="Posición en la canción"><span id="t-dur">0:00</span></div>
@@ -559,6 +580,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
       <button type="button" id="tab-all" aria-pressed="true">Todas<small id="call"></small></button>
       <button type="button" id="tab-pls" aria-pressed="false">Playlists<small id="cpls"></small></button>
       <button type="button" id="tab-files" aria-pressed="false">Archivos<small id="cfiles"></small></button>
+      <button type="button" id="tab-bl" aria-pressed="false" title="Canciones que YouTube no deja poner aquí: búscalas y pon tu archivo o un enlace de SoundCloud"><span class="lg">Bloqueadas</span><span class="sh" aria-hidden="true">Bloq.</span><small class="badge" id="cbl"></small></button>
     </div>
     <form class="search" id="sf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Buscar en tu música o en YouTube" autocomplete="off"><button class="btn sm go-yt" id="go" type="submit" hidden title="Buscar en YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.7 2.7 0 0 0-1.9-1.9C18 4.8 12 4.8 12 4.8s-6 0-7.7.5A2.7 2.7 0 0 0 2.4 7.2 28 28 0 0 0 2 12a28 28 0 0 0 .4 4.8 2.7 2.7 0 0 0 1.9 1.9c1.7.5 7.7.5 7.7.5s6 0 7.7-.5a2.7 2.7 0 0 0 1.9-1.9A28 28 0 0 0 22 12a28 28 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg>YouTube</button></form>
     <select id="srcpl" aria-label="Playlist de origen"></select>
@@ -599,6 +621,8 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 <div class="mini" id="mini" hidden title="Volver al reproductor"><img id="mini-img" alt=""><span class="mini-t"><b id="mini-t"></b><small id="mini-a"></small></span><button class="btn go primary" id="mini-play" type="button" aria-label="Reproducir o pausar"><svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg><svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5h4.4v15H6zM13.6 4.5H18v15h-4.4z"/></svg></button><button class="btn go" id="mini-next" type="button" aria-label="Siguiente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.6 5H19v14h-2.4zM5 5.6v12.8L15 12z"/></svg></button></div>
 <section id="pls" hidden></section>
 <section id="filebox" hidden></section>
+<section id="blbox" hidden></section>
+<input type="file" id="songfile" accept="audio/*,.mp3,.m4a,.aac,.ogg,.opus,.wav,.webm,.flac" hidden>
 <section id="imp" hidden></section>
 <div class="list" id="list" role="list"></div>
 <button class="btn more" id="more" type="button" hidden>Mostrar más</button>
@@ -640,7 +664,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump } from "./lib.js?v=1";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=2";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -679,7 +703,7 @@ applyTheme();
 const thumb = y => y ? `<img alt="" loading="lazy" src="https://i.ytimg.com/vi/${y}/mqdefault.jpg">` : "";
 const PAGE = 150;
 
-let CAT = {all: [], pls: [], rep: []}, mis = [], loaded = false, catLoaded = false;
+let CAT = {all: [], pls: [], rep: [], sinrep: []}, mis = [], loaded = false, catLoaded = false;
 let tab = "all", openId = null, shown = PAGE, current = [];
 let plView = store.get("np-view") === "b" ? "b" : "a", showHidden = false, confirmDel = null, menuOpen = null, sheetSong = null;
 let songMenu = null, songEdit = null; // clave de la canción con el menú ⋯ abierto / en edición (pestaña Todas)
@@ -739,7 +763,7 @@ onAuthStateChanged(auth, u => {
   unsub.push(onSnapshot(doc(db, "catalog", "main"), s => {
     catLoaded = true; if (!s.metadata.fromCache){ catServer = true; setTimeout(() => autoBackup(u), 4000); accessSync(u); }
     const v = s.exists() ? s.data() : null;
-    CAT = v ? {all: v.all || [], pls: v.pls || [], rep: v.rep || []} : {all: [], pls: [], rep: []}; // rep: canciones reproducidas que no estaban en el catálogo ni en una playlist
+    CAT = v ? {all: v.all || [], pls: v.pls || [], rep: v.rep || [], sinrep: v.sinrep || []} : {all: [], pls: [], rep: [], sinrep: []}; // rep: canciones reproducidas que no estaban en el catálogo ni en una playlist; sinrep: las que no hubo forma de poner (Bloqueadas)
     rebuildYA();
     fillSrc(); refresh(); rematch(); tryResume();
   }, denied));
@@ -932,7 +956,7 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
   if (x.e === "dudoso") meta += mode === "all" && !yt ? `<span class="tag dud" data-fix="${i}" title="El video puede no ser el correcto. Toca para buscar otro">dudosa · corregir</span>` : '<span class="tag dud">dudosa</span>';
   if (!yt && songEdit === x.k) return `<form class="row edit-song" data-i="${i}"><input name="t" value="${esc(x.t)}" aria-label="Título" placeholder="Título" required><input name="a" value="${esc(x.a)}" aria-label="Artista" placeholder="Artista"><button class="btn sm primary" type="submit">Guardar</button><button class="btn sm" type="button" data-act="cancel" data-i="${i}">Cancelar</button></form>`;
   const file = fileFor(x);
-  if (file) meta += '<span class="tag file">♪ audio</span>';
+  if (file) meta += '<span class="tag file" title="Suena desde tu archivo de audio en este aparato">♪ archivo</span>';
   else if (scOf(x)) meta += '<span class="tag scl" title="Tiene enlace de SoundCloud: suena desde ahí cuando YouTube no deja">☁️ SoundCloud</span>';
   if (!file && !x.y && !scOf(x)) meta += '<span class="tag no">sin video · buscar</span>';
   if (yaOf(x) && !yt) meta += '<span class="tag aud" title="Tiene versión solo audio">' + HP + '</span>';
@@ -954,7 +978,7 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
       })()
       + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`
       + (yt || String(x.k).startsWith("f:") ? "" : `<button type="button" class="add more" data-menu="${i}" title="Más opciones" aria-label="Más opciones" aria-expanded="${songMenu === x.k}">⋯</button>`
-        + (songMenu === x.k ? `<div class="pop" role="menu"><button type="button" data-act="fix" data-i="${i}">${x.y ? "🎬 Cambiar video" : "🎬 Buscar video"}</button><button type="button" data-act="fixaud" data-i="${i}">${yaOf(x) ? "🎧 Cambiar audio" : "🎧 Buscar audio"}</button><button type="button" data-act="paste" data-i="${i}">${scOf(x) ? "Pegar enlace (YouTube o cambiar SoundCloud)" : "Pegar enlace de YouTube o SoundCloud"}</button>${x.e === "dudoso" ? `<button type="button" data-act="ok" data-i="${i}">Está bien así (quitar «dudosa»)</button>` : ""}<button type="button" data-act="edit" data-i="${i}">Editar título y artista</button></div>` : ""));
+        + (songMenu === x.k ? `<div class="pop" role="menu"><button type="button" data-act="fix" data-i="${i}">${x.y ? "🎬 Cambiar video" : "🎬 Buscar video"}</button><button type="button" data-act="fixaud" data-i="${i}">${yaOf(x) ? "🎧 Cambiar audio" : "🎧 Buscar audio"}</button><button type="button" data-act="paste" data-i="${i}">${scOf(x) ? "Pegar enlace (YouTube o cambiar SoundCloud)" : "Pegar enlace de YouTube o SoundCloud"}</button>${x.e === "dudoso" ? `<button type="button" data-act="ok" data-i="${i}">Está bien así (quitar «dudosa»)</button>` : ""}<button type="button" data-act="file" data-i="${i}">${file ? "♪ Cambiar archivo de audio" : "♪ Poner archivo de audio"}</button>${file ? `<button type="button" data-act="unfile" data-i="${i}">Quitar el archivo de audio</button>` : ""}<button type="button" data-act="edit" data-i="${i}">Editar título y artista</button></div>` : ""));
   return `<div class="row${hasSrc(x) ? "" : " dis"}${on ? " on" : ""}${picked && sel.has(x.k) ? " sel" : ""}" role="listitem">${picked ? '<span class="ck" aria-hidden="true"></span>' : ""}<button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
 function renderList(){
@@ -1009,6 +1033,8 @@ $("list").addEventListener("click", e => {
     if (a === "fix") return startAlt(x);
     if (a === "fixaud") return startAlt(x, true, "audio");
     if (a === "paste") return startAlt(x, false);
+    if (a === "file"){ renderList(); return pickFile(x); }
+    if (a === "unfile"){ renderList(); return detachFile(x); }
   }
   if (fix){ songMenu = null; return startAlt(current[+fix.dataset.fix]); }
   if (songMenu){ songMenu = null; renderList(); } // clic en otra parte: se cierra el menú
@@ -1237,6 +1263,101 @@ $("filebox").addEventListener("click", e => {
   if (act === "fwipe"){ if (confirmWipe){ confirmWipe = false; removeFiles(FILES.map(f => f.id)); flash("Quitaste todos los archivos de este dispositivo."); } else { confirmWipe = true; renderFiles(); } }
 });
 
+/* ---------- Bloqueadas: canciones que no hubo forma de poner (YouTube las bloquea fuera de su sitio y no hubo otra copia) ----------
+   La lista vive en el catálogo (campo sinrep, para los dos; se guarda sin pisarse, como el resto). Cada uno las busca y les pone
+   su archivo de audio, que queda solo en ese aparato (IndexedDB «np-audio», unido por la clave de la canción), o un enlace de
+   SoundCloud (para los dos). Con archivo en este aparato deja de contar aquí; con SoundCloud u otro video que suene, sale de la lista. */
+const LIM_FILE = "El archivo se guarda solo en este aparato y en este navegador (en el teléfono, ponlo en el teléfono). En «Ver juntos» la otra persona no lo tiene.";
+const ACC_AUDIO = 'accept="audio/*,.mp3,.m4a,.aac,.ogg,.opus,.wav,.webm,.flac"';
+let fileTarget = null, blArm = null; // fileTarget: canción a la que va el archivo elegido; blArm: clave que pide segundo toque para quitarla de la lista
+const blSong = it => allSongs().find(x => x.k === it.k) || {t: it.t, a: it.a, k: it.k, y: it.y || null, pl: []};
+const blPending = () => (CAT.sinrep || []).filter(it => !fileFor(it) && !scOf(it)); // las que en este aparato todavía no suenan
+const blDate = f => { const [y, m, d] = f.split("-"); return +d + "/" + +m + (y === String(new Date().getFullYear()) ? "" : "/" + y); }; // 20/11 (con año si no es este)
+const blWithFile = () => (CAT.sinrep || []).filter(it => fileFor(it));
+// Llegó al último paso (nada sirvió): queda anotada para los dos, sin duplicados
+function noteSinrep(x, code){
+  if (!x || jzGuest || String(x.k).startsWith("f:") || fileFor(x) || scOf(x)) return;
+  const it = {k: x.k, t: x.t || "", a: x.a || "", y: x.y || null, f: dayId(), c: code ?? null};
+  if (!CAT.sinrep) CAT.sinrep = [];
+  if (!blkAdd(CAT.sinrep, it)) return;
+  log("«" + x.t + "» queda en Bloqueadas (" + (code ?? "?") + ")");
+  catEdit(["sinrep"], d => blkAdd(d.sinrep, it));
+  refresh();
+}
+function dropSinrep(k){
+  if (!(CAT.sinrep || []).some(it => it.k === k)) return;
+  blkDrop(CAT.sinrep, k); catEdit(["sinrep"], d => blkDrop(d.sinrep, k));
+}
+// ⋯ › Poner archivo (cualquier canción): abre el selector de archivos del aparato
+function pickFile(x){ fileTarget = x; const i = $("songfile"); i.value = ""; i.click(); }
+$("songfile").addEventListener("change", e => { const f = e.target.files?.[0], x = fileTarget; fileTarget = null; e.target.value = ""; if (f && x) attachFile(x, f); });
+async function attachFile(x, file){
+  if (!isAudioFile(file)) return flash("«" + (file?.name || "Ese archivo") + "» no es de audio. Elige un MP3, M4A, AAC, OGG, WAV, OPUS o WEBM.");
+  if (!("indexedDB" in window)) return flash("Este navegador no deja guardar archivos en el aparato (¿modo privado?). Prueba en una ventana normal.");
+  try { await navigator.storage?.persist?.(); } catch {} // que el navegador no lo borre para liberar espacio
+  const old = FILES.filter(f => f.k === x.k).map(f => f.id);
+  const rec = {id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), name: file.name, blob: file, k: x.k, t: x.t, a: x.a};
+  flash("Guardando el archivo de «" + x.t + "» en este aparato…");
+  try { await tx("readwrite", st => { for (const id of old) st.delete(id); st.put(rec); }); }
+  catch (e) {
+    log("archivo no se guardó: " + (e?.name || e));
+    return flash(e?.name === "QuotaExceededError"
+      ? "No hay espacio en este aparato para guardar «" + file.name + "». Libera espacio (o quita otros archivos en Archivos) y vuelve a intentar."
+      : "No se pudo guardar el archivo en este aparato (" + (e?.name || e) + "). Si estás en modo privado, prueba en una ventana normal.");
+  }
+  await loadFiles();
+  flash("Listo: «" + x.t + "» suena desde tu archivo" + (old.length ? " (reemplazó al anterior)" : "") + ". " + LIM_FILE);
+  const q = queue[cur]; if (q && q.k === x.k && !armed && mode !== "file") load(cur, {auto: true}); // justo sonaba: ya sale del archivo
+}
+async function detachFile(x){
+  const ids = FILES.filter(f => f.k === x.k).map(f => f.id); if (!ids.length) return;
+  const q = queue[cur], now = q && q.k === x.k && mode === "file";
+  await removeFiles(ids);
+  flash("Quitaste el archivo de «" + x.t + "» de este aparato." + ((CAT.sinrep || []).some(it => it.k === x.k) ? " Vuelve a «Bloqueadas»." : ""));
+  if (now){ au.pause(); load(cur, {auto: true}); } // sonaba desde el archivo: sigue con lo que tenga (YouTube o SoundCloud)
+}
+function renderBl(){
+  const box = $("blbox");
+  box.hidden = tab !== "bl";
+  if (tab !== "bl") return;
+  const pend = blPending(), done = blWithFile();
+  const row = (it, has) => { const x = blSong(it);
+    return `<div class="frow blrow"><div class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span>`
+      + (has ? `<span class="ok">♪ Suena desde tu archivo en este aparato</span>` : `<span class="why">${esc(blkWhy(it.c))}${it.f ? " · desde el " + esc(blDate(it.f)) : ""}</span>`) + `</div>`
+      + `<div class="blacts">` + (has
+        ? `<button class="btn sm primary" type="button" data-blplay="${esc(it.k)}">▶ Escuchar</button><label class="btn sm">Cambiar archivo<input type="file" data-blfile="${esc(it.k)}" ${ACC_AUDIO} hidden></label><button class="btn sm" type="button" data-blunfile="${esc(it.k)}">Quitar archivo</button>`
+        : `<a class="btn sm" href="${esc(blkSearch(x))}" target="_blank" rel="noopener noreferrer" title="Abre una búsqueda web de «${esc(x.t)}» en otra pestaña">🔎 Buscar</a>`
+          + `<label class="btn sm primary" title="Elige el archivo de audio de esta canción en este aparato">♪ Poner archivo<input type="file" data-blfile="${esc(it.k)}" ${ACC_AUDIO} hidden></label>`
+          + `<button class="btn sm" type="button" data-blsc="${esc(it.k)}">☁️ Pegar SoundCloud</button>`
+          + `<button class="btn sm${blArm === it.k ? " danger" : ""}" type="button" data-bldel="${esc(it.k)}" title="Quitarla de la lista (para los dos)">${blArm === it.k ? "¿Seguro? Quitar" : "Quitar de la lista"}</button>`)
+      + `</div></div>`; };
+  box.innerHTML = `<div class="blhead"><h3>${pend.length ? pend.length + (pend.length === 1 ? " canción no puede sonar aquí" : " canciones no pueden sonar aquí") : "Ninguna canción bloqueada pendiente"}</h3>
+      <p>YouTube no deja ponerlas fuera de su sitio y no hubo otra copia que sirviera. Búscalas y ponles tu archivo de audio (MP3, M4A, AAC, OGG, WAV, OPUS o WEBM) o pega un enlace de SoundCloud: desde ahí suenan en cualquier playlist.</p>
+      <p class="lim">${LIM_FILE}</p></div>`
+    + (pend.length ? `<div class="files">${pend.map(it => row(it, false)).join("")}</div>`
+      : `<div class="empty"><b>No hay canciones bloqueadas${done.length ? " sin archivo" : ""}</b>Cuando YouTube no deje poner una y no haya otra copia, aparece aquí.</div>`)
+    + (done.length ? `<p class="msg blsub">Ya suenan desde tu archivo en este aparato (${done.length})</p><div class="files">${done.map(it => row(it, true)).join("")}</div>` : "");
+}
+$("blbox").addEventListener("change", e => {
+  const k = e.target.dataset?.blfile; if (k === undefined) return;
+  const f = e.target.files?.[0], it = (CAT.sinrep || []).find(s => s.k === k); e.target.value = "";
+  if (f && it) attachFile(blSong(it), f);
+});
+$("blbox").addEventListener("click", e => {
+  const b = e.target.closest("[data-blsc],[data-bldel],[data-blplay],[data-blunfile]"); if (!b) return;
+  const d = b.dataset, k = d.blsc ?? d.bldel ?? d.blplay ?? d.blunfile, it = (CAT.sinrep || []).find(s => s.k === k); if (!it) return;
+  const x = blSong(it);
+  if (d.blsc !== undefined){ // reutiliza «Pegar enlace» de la canción (al guardar vuelve aquí)
+    startAlt(x, false); setTab("all");
+    const u = $("yf2-url"); if (u){ u.scrollIntoView({block: "center"}); u.focus(); } else flash("Pega el enlace de SoundCloud de «" + x.t + "» en ⋯ › Pegar enlace.");
+    return;
+  }
+  if (d.blplay !== undefined){ const l = blWithFile().map(blSong); return playFrom(l.findIndex(s => s.k === k), l, "Bloqueadas con tu archivo", null, true); }
+  if (d.blunfile !== undefined) return detachFile(x);
+  if (blArm !== k){ blArm = k; renderBl(); setTimeout(() => { if (blArm === k){ blArm = null; renderBl(); } }, 5000); return; }
+  blArm = null; dropSinrep(k); flash("«" + x.t + "» salió de «Bloqueadas»."); refresh();
+});
+
 /* ---------- Reproductor ---------- */
 // La página lleva la cola y le pasa al reproductor una canción cada vez. (En modo playlist de YouTube el reproductor
 // se pausa solo al pasar la página a segundo plano en el celular; en modo canción suelta sigue sonando.)
@@ -1330,7 +1451,7 @@ async function autoBackup(u){
   try {
     const ref = doc(db, "copias", id), b = writeBatch(db);
     if (!(await getDoc(ref)).exists()){
-      b.set(ref, {t: serverTimestamp(), por: u.email || "", canciones: CAT.all.length, nPlaylists: mis.length, catalog: {all: CAT.all, pls: CAT.pls || [], rep: CAT.rep || []}});
+      b.set(ref, {t: serverTimestamp(), por: u.email || "", canciones: CAT.all.length, nPlaylists: mis.length, catalog: {all: CAT.all, pls: CAT.pls || [], rep: CAT.rep || [], sinrep: CAT.sinrep || []}});
       for (const p of mis) b.set(doc(db, "copias", id, "playlists", p.id), {name: p.name, orden: p.orden, oculta: p.oculta, songs: p.songs});
       b.set(bkIndex(), {ids: arrayUnion(id)}, {merge: true});
     }
@@ -1373,11 +1494,11 @@ async function restoreCopy(id){
   const c = await getDoc(doc(db, "copias", id)); if (!c.exists()) throw new Error("esa copia ya no existe");
   const pls = (await getDocs(collection(db, "copias", id, "playlists"))).docs;
   const safe = writeBatch(db), sid = "antes-de-restaurar"; // cómo estaba justo antes (por si te arrepientes)
-  safe.set(doc(db, "copias", sid), {t: serverTimestamp(), catalog: {all: CAT.all, pls: CAT.pls || [], rep: CAT.rep || []}});
+  safe.set(doc(db, "copias", sid), {t: serverTimestamp(), catalog: {all: CAT.all, pls: CAT.pls || [], rep: CAT.rep || [], sinrep: CAT.sinrep || []}});
   for (const p of mis) safe.set(doc(db, "copias", sid, "playlists", p.id), {name: p.name, orden: p.orden, oculta: p.oculta, songs: p.songs});
   await safe.commit();
   const b = writeBatch(db), cat = c.data().catalog || {};
-  b.set(catRef(), {all: cat.all || [], pls: cat.pls || [], rep: cat.rep || []});
+  b.set(catRef(), {all: cat.all || [], pls: cat.pls || [], rep: cat.rep || [], sinrep: cat.sinrep || CAT.sinrep || []}); // copias de antes de «Bloqueadas»: se queda la lista de ahora
   for (const d of pls) b.set(doc(plCol, d.id), d.data());
   await b.commit();
 }
@@ -1421,13 +1542,14 @@ setInterval(() => { // fade out: baja el volumen en los últimos segundos; si no
   if (left <= FADE / 1000) setVol(Math.max(0, Math.round(100 * left / (FADE / 1000))));
   else if (vol < 100) setVol(100);
 }, 100);
+$("art").onerror = () => { $("art").hidden = true; $("ph").hidden = false; }; // sin señal la portada de YouTube no carga: queda el aviso
 function playFile(f, x, pos){
   if (auUrl) URL.revokeObjectURL(auUrl);
   auUrl = URL.createObjectURL(f.blob); au.src = auUrl;
   if (pos) au.addEventListener("loadedmetadata", () => { au.currentTime = Math.min(pos, au.duration || pos); }, {once: true});
   const art = x.y ? "https://i.ytimg.com/vi/" + x.y + "/hqdefault.jpg" : null;
   $("art").hidden = !art; if (art) $("art").src = art;
-  $("ph").hidden = !!art; $("ph").querySelector("span").textContent = "♪ Sonando desde este dispositivo";
+  $("ph").hidden = !!art; $("ph").querySelector("span").textContent = "♪ Sonando desde tu archivo (en este aparato)";
   started = false; clearInterval(fadeTimer); fading = false; setVol(0);
   au.play().catch(e => log("archivo no arrancó: " + e.name));
 }
@@ -1695,7 +1817,9 @@ function load(i, opt = {}){
     $("ph").hidden = false; $("ph").querySelector("span").textContent = "Toca Reproducir para seguir donde ibas";
     setMedia(x); renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini(); jzLoaded(i, opt); return;
   }
+  $("nsrc").hidden = !f;
   if (f){
+    if (JZ && JZ.on && !opt.auto) flash("«" + x.t + "» suena desde tu archivo, que está solo en este aparato: en «Ver juntos» la otra persona no lo tiene.");
     scStop(); mode = "file"; clearInterval(kick); pendingId = null; selfSilentAt = Date.now(); silent.pause();
     if (ready) player.stopVideo();
     setMedia(x); playFile(f, x, resumePos);
@@ -2085,12 +2209,12 @@ function ytError(code){
   const alt = x && [x.y, yaOf(x)].find(id => id && id !== bad && !BAD.has(id)); // la otra versión de la misma canción
   if (x && bad === yaOf(x) && bad !== x.y && blocked) dropAudio(x); // versión de audio bloqueada: fuera para los dos
   if (alt){ flash("YouTube bloquea esa versión de «" + x.t + "»; suena la otra."); start(alt, 0); }
-  else if (x) rescue(x, blocked);
+  else if (x) rescue(x, blocked, code);
   else setTimeout(() => step(1), 800);
 }
 // Ninguna versión guardada sirve: 1) SoundCloud si la canción tiene enlace guardado (lo elegiste tú, no gasta cuota);
 // 2) otra copia de YouTube que se deje poner aquí (búsqueda automática, hasta 3 intentos); 3) la siguiente canción con un aviso.
-async function rescue(x, blocked){
+async function rescue(x, blocked, code){
   if (blocked && !AUTO.has(x.k) && !x.bl) markBlocked(x);
   if (scOf(x)){ flash("YouTube bloquea «" + x.t + "» aquí: suena desde SoundCloud."); load(cur, {auto: true}); return; }
   if (!AUTO.get(x.k)?.tries) flash("YouTube bloquea «" + x.t + "» en este sitio. Busco otra copia…");
@@ -2098,7 +2222,8 @@ async function rescue(x, blocked){
   try { id = await autoNext(x); } catch (e) { log("no se pudo buscar otra copia: " + e.message); }
   if (queue[cur] !== x || mode !== "yt") return; // mientras buscaba, pasaste a otra canción
   if (id){ pendingFix = {k: x.k, id}; log("pruebo otra copia de «" + x.t + "»: " + id); start(id, 0); return; }
-  flash("«" + x.t + "» no se deja poner fuera de YouTube y no hallé otra copia: sigue la próxima. Si la tienes en SoundCloud, pega su enlace en ⋯ › Pegar enlace.");
+  noteSinrep(x, code);
+  flash("«" + x.t + "» no se deja poner fuera de YouTube y no hallé otra copia: sigue la próxima. Quedó en «Bloqueadas»: ahí la buscas y le pones tu archivo de audio o un enlace de SoundCloud.");
   setTimeout(() => { if (queue[cur] === x) step(1); }, 300);
 }
 if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = initYT;
@@ -2413,12 +2538,13 @@ function saveAlt(s, f, id, map){
     for (const p of mis) if (p.songs.some(it => it.k === s.k && (id || it[f]))){ setWhere(p.songs, s.k, fv); plEdit(p, songs => setWhere(songs, s.k, fv)); }
   }
   if (id) map.set(s.k, id); else map.delete(s.k);
+  if (f === "sc" && id) dropSinrep(s.k); // con enlace de SoundCloud ya suena: sale de «Bloqueadas»
   queue.forEach(it => { if (it.k === s.k){ if (id) it[f] = id; else delete it[f]; } });
 }
 // Reemplazar: la canción `altFor` pasa a usar el video de `x` (en el catálogo y en todas las playlists donde esté)
 // La canción `s` pasa a usar el video `id` como clip: catálogo, playlists donde esté y cola. Si su versión de audio estaba bloqueada, también se quita.
 function setClip(s, id){
-  s.y = id;
+  s.y = id; dropSinrep(s.k); // otro video: sale de «Bloqueadas» (si tampoco sirve, vuelve a entrar)
   const c = CAT.all.find(it => it.k === s.k);
   delete s.bl;
   if (c){ const fv = {y: id, e: null, bl: null, ...(c.ya && BAD.has(c.ya) ? {ya: null} : {})}; setWhere(CAT.all, s.k, fv); catEdit(["all"], d => setWhere(d.all, s.k, fv)); }
@@ -2907,8 +3033,8 @@ function fillSrc(){
 }
 function setTab(t){
   tab = t; confirmDel = null; menuOpen = null; songMenu = null; songEdit = null; shown = PAGE; sel = null;
-  for (const k of ["all","pls","files"]) $("tab-"+k).setAttribute("aria-pressed", k === t);
-  $("sf").hidden = t === "pls" || t === "files"; confirmWipe = false; $("srcpl").hidden = t !== "all"; syncGo();
+  for (const k of ["all","pls","files","bl"]) $("tab-"+k).setAttribute("aria-pressed", k === t);
+  $("sf").hidden = t === "pls" || t === "files" || t === "bl"; confirmWipe = false; $("srcpl").hidden = t !== "all"; syncGo();
   flash("");
   refresh();
 }
@@ -2917,11 +3043,12 @@ function refresh(){
   $("call").textContent = all.length;
   $("cpls").textContent = mis.filter(p => !p.oculta).length;
   $("cfiles").textContent = FILES.length || "";
-  renderImport(); renderAudioImport(); renderPls(); renderFiles(); renderList(); renderYt(); // renderYt usa `current` (lo arma renderList)
+  const nb = blPending().length; $("cbl").textContent = nb || ""; $("tab-bl").setAttribute("aria-label", "Bloqueadas" + (nb ? ": " + nb + " sin poder sonar" : ""));
+  renderImport(); renderAudioImport(); renderPls(); renderFiles(); renderBl(); renderList(); renderYt(); // renderYt usa `current` (lo arma renderList)
 }
 // El botón YouTube del buscador aparece cuando hay algo escrito (y la API está configurada)
 function syncGo(){ $("go").hidden = tab !== "all" || !$("q").value.trim() || !CFG.youtubeKey; }
-for (const t of ["all","pls","files"]) $("tab-"+t).onclick = () => { if (t !== tab) $("q").value = ""; if (t === "pls") openId = null; setTab(t); };
+for (const t of ["all","pls","files","bl"]) $("tab-"+t).onclick = () => { if (t !== tab) $("q").value = ""; if (t === "pls") openId = null; setTab(t); };
 $("q").addEventListener("input", () => { if (tab === "all"){ shown = PAGE; renderList(); renderYt(); syncGo(); } });
 $("srcpl").addEventListener("change", () => { shown = PAGE; renderList(); });
 $("sort").value = sortBy;
@@ -2934,7 +3061,7 @@ $("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set
 $("sf").addEventListener("submit", e => { e.preventDefault(); if (tab === "all"){ if (matchMedia("(max-width:640px)").matches) $("q").blur(); ytSearch($("q").value); } });
 setTab("all");
 loadFiles();
-if (EMU) window.__npt = {get uid(){ return auth.currentUser?.uid; }, get loaded(){ return loaded && catLoaded; }, get mis(){ return mis; }, get CAT(){ return CAT; }, toggleSong, addMany, removeMany, moveSongTo, renameSong, markOk, saveSc, autoBackup: () => { bkDone = false; return autoBackup(auth.currentUser); }, chains};
+if (EMU) window.__npt = {get uid(){ return auth.currentUser?.uid; }, get loaded(){ return loaded && catLoaded; }, get mis(){ return mis; }, get CAT(){ return CAT; }, toggleSong, addMany, removeMany, moveSongTo, renameSong, markOk, saveSc, noteSinrep, attachFile, detachFile, playFrom, get mode(){ return mode; }, au, ytErr: code => { const x = queue[cur]; loadedId = vid(x); ytError(code); }, autoBackup: () => { bkDone = false; return autoBackup(auth.currentUser); }, chains};
 /* ---------- Sin conexión ---------- */
 function paintNet(){ $("net").hidden = !offline(); $("net").textContent = "Sin conexión · tus cambios se suben solos al volver la señal"; }
 addEventListener("offline", () => { paintNet(); log("sin conexión"); });

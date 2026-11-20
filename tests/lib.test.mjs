@@ -120,3 +120,23 @@ test("autoLoad/autoDump recuerdan 7 días y luego olvidan", () => {
   assert.equal(L.autoLoad(raw, now + 8 * 86400e3).has("k1"), false);
   assert.equal(L.autoLoad("no es json", now).size, 0);
 });
+
+test("Sin reproducir: agregar sin duplicados y quitar", () => {
+  const l = [];
+  assert.equal(L.blkAdd(l, {k: "a", t: "Uno", a: "X", f: "2026-11-20", c: 150}), true);
+  assert.equal(L.blkAdd(l, {k: "a", t: "Uno", a: "X", f: "2026-11-21", c: 150}), false, "la misma canción no se repite");
+  assert.equal(L.blkAdd(l, {k: "a", t: "Uno", a: "X", f: "2026-11-21", c: 100}), true, "cambia el motivo");
+  assert.deepEqual(l, [{k: "a", t: "Uno", a: "X", f: "2026-11-20", c: 100}], "se queda la primera fecha");
+  L.blkAdd(l, {k: "b", t: "Dos", a: "Y", f: "2026-11-20", c: 101});
+  assert.equal(L.blkDrop(l, "a"), true); assert.equal(L.blkDrop(l, "a"), false);
+  assert.deepEqual(l.map(s => s.k), ["b"]);
+});
+
+test("Sin reproducir: motivo, búsqueda web y archivos de audio", () => {
+  assert.match(L.blkWhy(150), /fuera de su sitio/); assert.match(L.blkWhy(100), /no está disponible/); assert.match(L.blkWhy(5), /error 5/);
+  assert.equal(L.blkSearch({t: "Vivir mi vida", a: "Marc Anthony, Otro"}), "https://www.google.com/search?q=Vivir%20mi%20vida%20Marc%20Anthony");
+  for (const n of ["a.mp3", "a.M4A", "a.aac", "a.ogg", "a.wav", "a.opus", "a.webm"]) assert.equal(L.isAudioFile({name: n, type: ""}), true, n);
+  assert.equal(L.isAudioFile({name: "x", type: "audio/mpeg"}), true);
+  assert.equal(L.isAudioFile({name: "foto.jpg", type: "image/jpeg"}), false);
+  assert.equal(L.isAudioFile({name: "clip.mp4", type: "video/mp4"}), false);
+});

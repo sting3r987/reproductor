@@ -143,3 +143,27 @@ export function autoDump(map, now = Date.now()){
   for (const [k, a] of map) if (now - (a.t || now) < AUTO_TTL) o[k] = {ids: a.ids.slice(0, 30), q: a.q, tries: a.tries, used: a.used.slice(-10), ref: a.ref, t: a.t || now};
   return JSON.stringify(o);
 }
+
+/* ---------- Sin reproducir: YouTube no la deja poner aquí y no hubo otra copia que sirviera ---------- */
+// Agrega la canción a la lista (sin duplicados, por clave). Si ya estaba, solo cambia el motivo; la fecha es la primera vez.
+export function blkAdd(list, it){
+  const i = list.findIndex(s => s.k === it.k);
+  if (i < 0){ list.push({...it}); return true; }
+  if (list[i].c === it.c) return false;
+  list[i] = {...list[i], c: it.c}; return true;
+}
+// Saca la canción de la lista (ya tiene archivo, enlace o video que funciona)
+export function blkDrop(list, k){
+  const i = list.findIndex(s => s.k === k); if (i < 0) return false;
+  list.splice(i, 1); return true;
+}
+// Motivo en palabras según el código de error de YouTube
+export const blkWhy = c => c === 100 ? "YouTube dice que no está disponible" : c === 101 || c === 150 ? "YouTube no deja ponerla fuera de su sitio" : c ? "YouTube no la pudo poner (error " + c + ")" : "YouTube no la pudo poner";
+// Búsqueda web de la canción (título y primer artista), para abrir en otra pestaña
+export function blkSearch(it){
+  const a = String(it.a || "").split(",")[0].trim();
+  return "https://www.google.com/search?q=" + encodeURIComponent((it.t + (a ? " " + a : "")).trim());
+}
+// ¿Es un archivo de audio que se puede poner a una canción? (por tipo o por extensión)
+export const AUDIO_EXT = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)$/i;
+export const isAudioFile = f => !!f && (String(f.type || "").startsWith("audio/") || (f.type === "video/webm" && /\.webm$/i.test(f.name || "")) || AUDIO_EXT.test(f.name || ""));

@@ -21,7 +21,7 @@
 /* Diseño "noche de rumba": fondo con brillo cálido, tarjeta de reproducción, listas suaves. Reproductor fijo arriba, lista o playlists debajo. Datos en Firebase, acceso con Google. */
 :root{
   --bg:#F6F3EF; --surface:#FFFFFF; --surface-2:#EFEAE4; --surface-3:#E6E0D8; --line:#E3DDD5; --line-2:#CBC3B9;
-  --ink:#1C1A22; --ink-2:#585460; --ink-3:#8B8793;
+  --ink:#1C1A22; --ink-2:#585460; --ink-3:#67636F;
   --accent:#D43A5C; --accent-2:#F07A4A; --accent-ink:#FFFFFF; --accent-bg:#FBE4E9; --accent-glow:rgba(212,58,92,.20); --glow-2:rgba(240,122,74,.14);
   --miss:#A1711A; --miss-bg:#F7EBCC; --pl:#2D5C8C; --pl-bg:#E0EBF7; --have:#1E8657; --have-bg:#DAF1E4;
   --focus:#2F6FE4; --shade:rgba(28,26,34,.5); --chip-dark:rgba(14,12,20,.62);
@@ -34,7 +34,7 @@
 }
 :root[data-theme="dark"]{
     --bg:#0E0F15; --surface:#181A24; --surface-2:#222533; --surface-3:#2B2F40; --line:#2A2D3B; --line-2:#3C4053;
-    --ink:#F2F1F6; --ink-2:#B9B7C5; --ink-3:#7F7D8D;
+    --ink:#F2F1F6; --ink-2:#B9B7C5; --ink-3:#9896A6;
     --accent:#FF5C7A; --accent-2:#FF8E5E; --accent-ink:#1C0810; --accent-bg:#3A1A24; --accent-glow:rgba(255,92,122,.26); --glow-2:rgba(255,142,94,.14);
     --miss:#E8BB58; --miss-bg:#3A2E12; --pl:#90B9EB; --pl-bg:#1C2E46; --have:#52D190; --have-bg:#163A29;
     --focus:#7FAAFF; --shade:rgba(0,0,0,.66); --chip-dark:rgba(8,8,14,.66);
@@ -127,8 +127,9 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .qplay .t b{font-size:13.5px}
 .qplay .t span{font-size:12px}
 .qn{flex:none;width:20px;text-align:right;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
-.qup{flex:none;width:36px;height:36px;border:0;border-radius:99px;background:transparent;color:var(--ink-3);font:inherit;font-size:17px;line-height:1;cursor:pointer}
+.qup{position:relative;flex:none;width:36px;height:36px;margin-left:6px;border:0;border-radius:99px;background:transparent;color:var(--ink-3);font:inherit;font-size:17px;line-height:1;cursor:pointer}
 .qup:hover{color:var(--accent);background:var(--accent-bg)}
+.qup::after{content:"";position:absolute;inset:-4px} /* área táctil de 44×44 */
 .qmore{padding:6px 10px 8px 38px;font-size:12px;color:var(--ink-3)}
 #backup{align-self:flex-start;margin-bottom:6px}
 .tm-chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.35;color:var(--ink-2);margin:2px 0 10px;cursor:pointer}
@@ -283,9 +284,12 @@ body.audio .tag.aud{color:var(--accent);background:var(--accent-bg)}
 /* «Desde tu archivo»: la canción que suena sale del archivo de audio guardado en este aparato */
 .srcf{margin:2px 0 0;align-self:flex-start;font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-bg);border-radius:99px;padding:2px 10px}
 .row.dis .t{opacity:.6}
-.add{flex:none;width:42px;height:42px;align-self:center;margin-right:4px;border:0;border-radius:99px;background:transparent;color:var(--ink-3);font:inherit;font-size:20px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
+.add{position:relative;flex:none;width:42px;height:42px;align-self:center;margin-right:4px;border:0;border-radius:99px;background:transparent;color:var(--ink-3);font:inherit;font-size:20px;line-height:1;cursor:pointer;transition:background .12s,color .12s}
 .add:hover{color:var(--accent);background:var(--accent-bg)}
 .add.in{color:var(--have)}
+.add::after{content:"";position:absolute;inset:-1px} /* 44×44 */
+.rep{position:relative}
+.rep::after{content:"";position:absolute;inset:-7px 0} /* alto táctil 44 */
 .rep{flex:none;align-self:center;margin-right:2px;white-space:nowrap}
 /* Selección múltiple: círculo a la izquierda de cada fila y barra fija al pie */
 .row .ck{flex:none;align-self:center;width:22px;height:22px;margin-left:10px;border-radius:50%;border:2px solid var(--line-2);display:grid;place-items:center;transition:background .12s,border-color .12s}
@@ -307,6 +311,7 @@ body.selecting{padding-bottom:76px}
   .row:has(.rep) .play{flex-basis:100%}
   .row:has(.rep) .rep,.row:has(.rep) .add{margin-top:-2px}
   .row:has(.rep) .add{height:30px;margin-right:6px}
+  .row:has(.rep) .add::after{inset:-7px -1px}
   .row:has([data-dropaud]){flex-wrap:wrap;justify-content:flex-end;padding-bottom:6px}
   .row:has([data-dropaud]) .play{flex-basis:100%}
   .row:has([data-dropaud]) [data-dropaud]{margin-top:-2px}
@@ -342,8 +347,9 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 .cover img{width:100%;height:100%;object-fit:cover;display:block}
 .cover.none{display:grid;place-items:center;color:#fff;font-family:var(--display);font-weight:800;font-size:36px;background:linear-gradient(135deg,hsl(var(--h,340) 70% 58%),hsl(calc(var(--h,340) + 45) 72% 42%));text-shadow:0 2px 8px rgba(0,0,0,.25)}
 .off{opacity:.55}
-.ic{width:34px;height:34px;flex:none;border-radius:99px;border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:15px;line-height:1;cursor:pointer;display:grid;place-items:center;transition:background .12s,color .12s}
+.ic{position:relative;width:34px;height:34px;flex:none;border-radius:99px;border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:15px;line-height:1;cursor:pointer;display:grid;place-items:center;transition:background .12s,color .12s}
 .ic:hover{background:var(--surface-3);color:var(--ink)}
+.ic::after{content:"";position:absolute;inset:-5px} /* área táctil de 44×44 */
 .ic.play-b{background:var(--accent);color:var(--accent-ink)}
 .ic.play-b:hover{background:var(--accent);filter:brightness(1.08)}
 .ic.ask{width:auto;padding:0 10px;font-size:12px;font-weight:600;background:var(--accent);color:var(--accent-ink)}
@@ -355,6 +361,7 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 .pa .pb{position:absolute;right:10px;bottom:10px;width:44px;height:44px;font-size:16px;box-shadow:0 6px 16px rgba(0,0,0,.35);opacity:0;transform:translateY(6px);transition:opacity .15s,transform .15s}
 .pa .menu{position:absolute;top:8px;right:8px;width:30px;height:30px;background:var(--chip-dark);color:#fff;opacity:0;transition:opacity .15s;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .pa .menu:hover{background:var(--chip-dark);color:#fff}
+.pa .menu::after{inset:-7px}
 .pa:hover .pb,.pa:hover .menu,.pa .pb:focus-visible,.pa .menu:focus-visible,.pa.menu-on .menu,.pa.menu-on .pb{opacity:1;transform:none}
 @media (hover:none){.pa .pb,.pa .menu{opacity:1;transform:none}}
 .pop{position:absolute;top:42px;right:8px;z-index:3;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:5px;display:flex;flex-direction:column;min-width:160px}
@@ -376,7 +383,7 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 .rowmain .sb{display:block;color:var(--ink-3);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pb-row .grip{margin:0 0 0 2px}
 .pb-row .grip+.rowmain{padding-left:2px}
-.pb-row .acts{display:flex;gap:2px;align-items:center;opacity:.5;transition:opacity .15s}
+.pb-row .acts{display:flex;gap:10px;align-items:center;opacity:.5;transition:opacity .15s}
 .pb-row:hover .acts,.pb-row .acts:focus-within{opacity:1}
 @media (hover:none){.pb-row .acts{opacity:1}}
 .plhead{position:relative;display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:14px;padding:16px;background:radial-gradient(circle 170px at 110px 50px,var(--accent-glow),transparent 72%) var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
@@ -454,13 +461,12 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .player>.ctrls{gap:6px}
   .btn{padding:7px 12px;font-size:13px}
   /* En el celular el transporte ocupa toda una fila: ⏮ ▶ ⏭ grandes, debajo los botones pequeños */
-  .transport{width:100%;min-width:0;gap:8px;grid-template-columns:40px repeat(3,minmax(0,1fr)) 40px}
+  .transport{width:100%;min-width:0;gap:8px;grid-template-columns:44px repeat(3,minmax(0,1fr)) 44px}
   .sub{width:100%;flex-basis:100%;gap:8px;grid-template-columns:repeat(5,minmax(0,1fr))}
   /* una sola fila de cuatro: solo iconos (cada botón tiene aria-label y title) */
   .btn.go.side.cap{height:44px;padding:0;gap:0;justify-content:center}
   .btn.go.side.cap small{display:none}
   .btn.go.side.cap svg{width:22px;height:22px}
-  .btn.go.side{width:40px;height:40px}
   .btn.go{height:44px;font-size:14.5px;padding:0 8px;gap:8px}
   .player>.ctrls .btn:not(.go){padding:4px 10px;font-size:12px}
   /* Barra de herramientas en tres filas: [las 4 pestañas iguales · avatar] [buscador] [playlist de origen · orden] */
@@ -504,7 +510,8 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 .mini-t b,.mini-t small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mini-t b{font-size:14px}
 .mini-t small{font-size:12px;color:var(--ink-2)}
-.mini .btn.go{flex:none;width:40px;height:40px;padding:0}
+.mini .btn.go{position:relative;flex:none;width:40px;height:40px;padding:0}
+.mini .btn.go::after{content:"";position:absolute;inset:-2px}
 .mini .btn.go svg{width:20px;height:20px}
 .mini .i-pause,body.playing .mini .i-play{display:none}
 body.playing .mini .i-pause{display:block}

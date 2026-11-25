@@ -173,3 +173,17 @@ test("plFilter filtra por título o artista sin mayúsculas ni tildes", () => {
   assert.deepEqual(L.plFilter(l, L.norm("zzz")), []);
   assert.equal(L.plFilter(l, ""), l);
 });
+
+test("queueNext deja la canción justo después de la actual (la mueve o la inserta)", () => {
+  const o = [0, 1, 2, 3, 4];
+  let r = L.queueNext(o, 1, 4); // estaba más adelante
+  assert.deepEqual(r, {order: [0, 1, 4, 2, 3], at: 1, moved: true});
+  r = L.queueNext(o, 3, 0); // estaba antes: la posición actual baja
+  assert.deepEqual(r, {order: [1, 2, 3, 0, 4], at: 2, moved: true});
+  r = L.queueNext(o, 1, 9); // no estaba en la cola
+  assert.deepEqual(r, {order: [0, 1, 9, 2, 3, 4], at: 1, moved: true});
+  assert.equal(L.queueNext(o, 1, 2).moved, false, "ya es la siguiente");
+  assert.equal(L.queueNext(o, 1, 1).moved, false, "es la que suena");
+  assert.deepEqual(L.queueNext([0, 1], 1, 0), {order: [1, 0], at: 0, moved: true}, "al final: da la vuelta, queda detrás de la actual");
+  assert.deepEqual(o, [0, 1, 2, 3, 4], "no cambia la lista original");
+});

@@ -194,3 +194,16 @@ export function failDecision({fails, size, online, nextLocal}){
 export function plFilter(songs, q){
   return q ? songs.filter(x => norm(x.t + " " + x.a).includes(q)) : songs;
 }
+
+/* ---------- Reproducir después ---------- */
+// Cola = `order` (índices de canciones) y `at` (posición de la que suena). Deja `idx` justo después de la actual:
+// si ya estaba en la cola la mueve (ajustando `at` si salía de antes), si no la inserta. Devuelve {order, at, moved}; no cambia lo que recibe.
+export function queueNext(order, at, idx){
+  const o = order.slice(); let a = at;
+  const p = o.indexOf(idx);
+  if (p === a) return {order: o, at: a, moved: false}; // es la que suena
+  if (p === a + 1) return {order: o, at: a, moved: false}; // ya es la siguiente
+  if (p >= 0){ o.splice(p, 1); if (p < a) a--; }
+  o.splice(a + 1, 0, idx);
+  return {order: o, at: a, moved: true};
+}

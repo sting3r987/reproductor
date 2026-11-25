@@ -667,7 +667,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=5";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=6";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -1008,7 +1008,7 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
       })()
       + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`
       + (yt || String(x.k).startsWith("f:") ? "" : `<button type="button" class="add more" data-menu="${i}" title="Más opciones" aria-label="Más opciones" aria-expanded="${songMenu === x.k}">⋯</button>`
-        + (songMenu === x.k ? `<div class="pop" role="menu"><button type="button" data-act="fix" data-i="${i}">${x.y ? "🎬 Cambiar video" : "🎬 Buscar video"}</button><button type="button" data-act="fixaud" data-i="${i}">${yaOf(x) ? "🎧 Cambiar audio" : "🎧 Buscar audio"}</button><button type="button" data-act="paste" data-i="${i}">${scOf(x) ? "Pegar enlace (YouTube o cambiar SoundCloud)" : "Pegar enlace de YouTube o SoundCloud"}</button>${x.e === "dudoso" ? `<button type="button" data-act="ok" data-i="${i}">Está bien así (quitar «dudosa»)</button>` : ""}<button type="button" data-act="file" data-i="${i}">${file ? "♪ Cambiar archivo de audio" : "♪ Poner archivo de audio"}</button>${file ? `<button type="button" data-act="unfile" data-i="${i}">Quitar el archivo de audio</button>` : ""}<button type="button" data-act="edit" data-i="${i}">Editar título y artista</button></div>` : ""));
+        + (songMenu === x.k ? `<div class="pop" role="menu"><button type="button" data-act="after" data-i="${i}">▶ Reproducir después</button><button type="button" data-act="fix" data-i="${i}">${x.y ? "🎬 Cambiar video" : "🎬 Buscar video"}</button><button type="button" data-act="fixaud" data-i="${i}">${yaOf(x) ? "🎧 Cambiar audio" : "🎧 Buscar audio"}</button><button type="button" data-act="paste" data-i="${i}">${scOf(x) ? "Pegar enlace (YouTube o cambiar SoundCloud)" : "Pegar enlace de YouTube o SoundCloud"}</button>${x.e === "dudoso" ? `<button type="button" data-act="ok" data-i="${i}">Está bien así (quitar «dudosa»)</button>` : ""}<button type="button" data-act="file" data-i="${i}">${file ? "♪ Cambiar archivo de audio" : "♪ Poner archivo de audio"}</button>${file ? `<button type="button" data-act="unfile" data-i="${i}">Quitar el archivo de audio</button>` : ""}<button type="button" data-act="edit" data-i="${i}">Editar título y artista</button></div>` : ""));
   return `<div class="row${hasSrc(x) ? "" : " dis"}${on ? " on" : ""}${picked && sel.has(x.k) ? " sel" : ""}" role="listitem">${picked ? '<span class="ck" aria-hidden="true"></span>' : ""}<button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
 function renderList(){
@@ -1057,6 +1057,7 @@ $("list").addEventListener("click", e => {
   if (act){
     const x = current[+act.dataset.i], a = act.dataset.act; songMenu = null;
     if (a === "cancel"){ songEdit = null; return renderList(); }
+    if (a === "after"){ renderList(); return playAfter(x); }
     if (a === "edit"){ songEdit = x.k; renderList(); $("list").querySelector(".edit-song input")?.focus(); return; }
     if (a === "ok") return markOk(x);
     if (a === "fix") return startAlt(x);
@@ -1699,7 +1700,7 @@ function playFrom(i, list, label, src, exact){ // exact: empieza en i aunque est
     const fresh = queue.map((_, n) => n).filter(n => !lastPlayed(queue[n]));
     qi = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)] : oldestOf(queue.map((_, n) => n));
   }
-  orderIdx = order(qi); at = 0;
+  orderIdx = order(qi); at = 0; pinNext = -1;
   load(orderIdx[0]);
 }
 function order(from){ // orden de reproducción a partir de la canción `from` (índices de queue); en aleatorio baraja todo sin repetir
@@ -1778,7 +1779,19 @@ function resetHeard(){
   heardCloud({h: {}, reset: now}, false);
   paintHeard(); rearm();
 }
-function rearm(){ if (cur >= 0 && queue.length){ orderIdx = order(cur); at = 0; cued = null; precue(); renderNext(); } } // rearma lo que sigue a partir de la actual
+// «Reproducir después»: la canción (esté o no en la cola) suena justo después de la actual. Sin nada sonando, se reproduce.
+var pinNext = -1; // índice en queue de la que puso «Reproducir después» (fixNext no la cambia)
+function playAfter(x){
+  if (!hasSrc(x)) return flash("«" + x.t + "» no tiene video ni archivo para sonar.");
+  if (JZ && JZ.on) return flash("En «Ver juntos» no se cambia la cola.");
+  if (cur < 0 || !queue.length || !orderIdx.length) return playFrom(0, [x], "Una canción");
+  let idx = queue.findIndex(q => q.k === x.k);
+  if (idx < 0){ queue.push(x); idx = queue.length - 1; }
+  if (idx === orderIdx[at]) return flash("«" + x.t + "» ya suena.");
+  const r = queueNext(orderIdx, at, idx); orderIdx = r.order; at = r.at; pinNext = idx;
+  cued = null; precue(); renderNext(); flash("Suena después: «" + x.t + "»");
+}
+function rearm(){ pinNext = -1; if (cur >= 0 && queue.length){ orderIdx = order(cur); at = 0; cued = null; precue(); renderNext(); } } // rearma lo que sigue a partir de la actual
 // Cuánto sonó de verdad la canción actual (se suma solo mientras suena)
 var listenAcc = 0, listenFrom = 0, heardDone = false;
 const listened = () => (listenAcc + (listenFrom ? Date.now() - listenFrom : 0)) / 1000;
@@ -1795,6 +1808,7 @@ function paintHeard(){
 // Deja como siguiente la primera de la cola que no sonó en 2 horas; si todas sonaron, la que sonó hace más tiempo.
 function fixNext(){
   const L = orderIdx.length; if (L < 2) return;
+  if (pinNext >= 0 && orderIdx[(at + 1) % L] === pinNext) return; // la puso «Reproducir después»: no se cambia por otra
   let best = -1, bestT = Infinity;
   for (let k = 1; k < L; k++){
     const p = (at + k) % L, t = lastPlayed(queue[orderIdx[p]]);
@@ -1841,6 +1855,7 @@ function load(i, opt = {}){
   $("ph").hidden = true; $("sub").hidden = false; $("seekrow").hidden = false;
   log((armed ? "retomo " : "canción ") + (i + 1) + ": " + x.t + (resumePos ? " desde " + resumePos + " s" : ""));
   if (!armed && !opt.auto) markPlayed(x);
+  if (i === pinNext) pinNext = -1;
   fixNext();
   const f = fileFor(x);
   if (armed){

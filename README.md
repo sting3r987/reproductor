@@ -81,6 +81,10 @@ Comparte un enlace (`?juntos=<id>`); lo que suena en un teléfono suena en el ot
 
 BotÃ³n âŸ² con un 1 en la fila de abajo del reproductor (junto a Volumen): al terminar la canciÃ³n vuelve a empezar la misma, en YouTube, archivo o SoundCloud. Se recuerda en el aparato (`np-repeat`). Apagado, la cola ya da la vuelta sola al llegar al final. Con repetir encendido no hay fundido cruzado con la siguiente. No cuenta escuchas de mÃ¡s (no recarga la canciÃ³n). En Â«Ver juntosÂ» estÃ¡ apagado (no debe repetir en un solo telÃ©fono).
 
+## Reproducir despuÃ©s
+
+En â‹¯ de cualquier canciÃ³n (pestaÃ±a Todas): **â–¶ Reproducir despuÃ©s** la pone justo detrÃ¡s de la que suena, estÃ© o no en la cola (si no estaba, se agrega al final y se sube). Aviso Â«Suena despuÃ©s: Â«tÃ­tuloÂ»Â». Sin nada sonando, la reproduce. No cambia con Â«No repetir lo ya escuchadoÂ» (`fixNext` respeta la que se puso a mano). En Â«Ver juntosÂ» no se cambia la cola. La inserciÃ³n es `queueNext` en `lib.js`.
+
 ## Opciones en la dirección
 
 | Agregar a la dirección | Para qué |

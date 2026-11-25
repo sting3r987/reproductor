@@ -179,3 +179,12 @@ export function plRestore(songs, items){
   }
   return n;
 }
+
+/* ---------- Tope de saltos seguidos por error ---------- */
+export const MAX_FALLOS = 5;
+// Tras un fallo (`fails` ya cuenta este): ¿seguir con la siguiente o parar? nextLocal: la siguiente suena desde un archivo del aparato.
+export function failDecision({fails, size, online, nextLocal}){
+  if (!online && !nextLocal) return {stop: true, why: "offline"};
+  if (fails >= Math.min(MAX_FALLOS, Math.max(1, size))) return {stop: true, why: "fails"};
+  return {stop: false, why: null};
+}

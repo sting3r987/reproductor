@@ -154,3 +154,14 @@ test("plRestore devuelve las quitadas a su puesto, sin repetir", () => {
   assert.equal(L.plRestore(m, [{it: mk("z"), i: 9}, {it: mk("y"), i: -2}]), 2);
   assert.deepEqual(m.map(s => s.k), ["y", "a", "z"]);
 });
+
+test("failDecision: sigue hasta 5 fallos seguidos o el tamaño de la cola; sin conexión para", () => {
+  const d = o => L.failDecision({fails: 1, size: 20, online: true, nextLocal: false, ...o});
+  assert.equal(d({}).stop, false);
+  assert.equal(d({fails: 4}).stop, false);
+  assert.deepEqual(d({fails: 5}), {stop: true, why: "fails"});
+  assert.equal(d({fails: 3, size: 3}).stop, true, "cola de 3: para a los 3");
+  assert.equal(d({fails: 1, size: 1}).stop, true);
+  assert.deepEqual(d({online: false}), {stop: true, why: "offline"});
+  assert.equal(d({online: false, nextLocal: true}).stop, false, "sin señal pero la siguiente tiene archivo");
+});

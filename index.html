@@ -664,7 +664,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=3";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=4";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -1387,6 +1387,7 @@ $("blbox").addEventListener("click", e => {
 /* ---------- Reproductor ---------- */
 // La página lleva la cola y le pasa al reproductor una canción cada vez. (En modo playlist de YouTube el reproductor
 // se pausa solo al pasar la página a segundo plano en el celular; en modo canción suelta sigue sonando.)
+let failRun = 0; // fallos seguidos (ver failNext)
 let orderIdx = [], at = 0, pendingId = null, pendingPos = 0, kick = 0, started = false;
 let mode = "yt"; // "yt" = video de YouTube, "file" = archivo de audio del dispositivo, "sc" = SoundCloud (su widget)
 // Un solo elemento de audio para todas las canciones con archivo: así el navegador deja pasar a la siguiente
@@ -1416,7 +1417,7 @@ let stoppedAt = 0;
 let lockHeld = 0, lockHeldT = 0, lockResumeT = 0;
 function lockRelease(){ lockHeld = 0; clearTimeout(lockHeldT); clearTimeout(lockResumeT); }
 function setPlaying(on){
-  if (on) lockRelease();
+  if (on){ lockRelease(); failRun = 0; }
   if (playing && !on) stoppedAt = Date.now();
   if (on && !listenFrom) listenFrom = Date.now(); else if (!on && listenFrom){ listenAcc += Date.now() - listenFrom; listenFrom = 0; } // tiempo escuchado (Sin repetir)
   if (playing && !on && BTD) setTimeout(() => { if (!playing && Date.now() - btT0 > 2000) btWatch(); }, 50); // se pausó: a vigilar el Bluetooth (si la pausa no lo puso ya a vigilar)
@@ -1437,7 +1438,7 @@ setInterval(() => { if (playing) updatePos(); }, 2000);
 au.addEventListener("playing", () => { if (mode === "file"){ const first = !started; started = true; setPlaying(true); updatePos(); log("archivo sonando"); fadeTo(100, first ? FADE : FADE_RESUME); } });
 au.addEventListener("pause", () => { if (mode === "file") setPlaying(false); });
 au.addEventListener("ended", () => { if (mode === "file"){ log("archivo terminó"); step(1); } });
-au.addEventListener("error", () => { if (mode === "file" && au.src){ log("archivo con error"); setTimeout(() => step(1), 800); } });
+au.addEventListener("error", () => { if (mode === "file" && au.src){ log("archivo con error"); setTimeout(failNext, 800); } });
 au.addEventListener("loadedmetadata", updatePos);
 au.addEventListener("seeked", updatePos);
 /* ---------- Fundido entre canciones: entra subiendo el volumen y sale bajándolo en los últimos segundos ---------- */
@@ -2020,6 +2021,19 @@ function resumeYt(why){
     if (s === YT.PlayerState.CUED || s === YT.PlayerState.UNSTARTED || s === YT.PlayerState.PAUSED){ try { player.playVideo(); } catch {} if (tries % 5 === 1) log("insisto en reanudar (estado " + s + ")"); }
   }, 1000);
 }
+// Tras un fallo de reproducción: pasa a la siguiente, pero no sin fin (5 fallos seguidos, o sin señal y la siguiente sin archivo).
+// failRun vuelve a 0 en cuanto una canción suena de verdad (setPlaying(true)). En Ver juntos manda el anfitrión: no se cuenta.
+
+function failNext(){
+  if (JZ && JZ.on) return step(1);
+  failRun++;
+  const nx = queue[orderIdx[(at + 1) % Math.max(1, orderIdx.length)]];
+  const dec = failDecision({fails: failRun, size: queue.length, online: !offline(), nextLocal: !!(nx && fileFor(nx))});
+  if (!dec.stop) return step(1);
+  const n = failRun; failRun = 0; clearInterval(kick); au.pause(); try { player?.pauseVideo(); } catch {} try { scW?.pause(); } catch {}
+  log("paro: " + (dec.why === "offline" ? "sin conexión" : n + " fallos seguidos"));
+  flash(dec.why === "offline" ? "Sin conexión." : "No pude reproducir las últimas " + n + " canciones.");
+}
 function step(d){
   if (!queue.length) return playFrom(0, current, listLabel());
   // Con la pantalla bloqueada YouTube no arranca: si hay canciones con archivo, salta a la próxima que tenga.
@@ -2236,7 +2250,7 @@ function ytError(code){
   if (x && bad === yaOf(x) && bad !== x.y && blocked) dropAudio(x); // versión de audio bloqueada: fuera para los dos
   if (alt){ flash("YouTube bloquea esa versión de «" + x.t + "»; suena la otra."); start(alt, 0); }
   else if (x) rescue(x, blocked, code);
-  else setTimeout(() => step(1), 800);
+  else setTimeout(failNext, 800);
 }
 // Ninguna versión guardada sirve: 1) SoundCloud si la canción tiene enlace guardado (lo elegiste tú, no gasta cuota);
 // 2) otra copia de YouTube que se deje poner aquí (búsqueda automática, hasta 3 intentos); 3) la siguiente canción con un aviso.
@@ -2250,7 +2264,7 @@ async function rescue(x, blocked, code){
   if (id){ pendingFix = {k: x.k, id}; log("pruebo otra copia de «" + x.t + "»: " + id); start(id, 0); return; }
   noteSinrep(x, code);
   flash("«" + x.t + "» no se deja poner fuera de YouTube y no hallé otra copia: sigue la próxima. Quedó en «Bloqueadas»: ahí la buscas y le pones tu archivo de audio o un enlace de SoundCloud.");
-  setTimeout(() => { if (queue[cur] === x) step(1); }, 300);
+  setTimeout(() => { if (queue[cur] === x) failNext(); }, 300);
 }
 if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = initYT;
 let ytApiAsked = false;

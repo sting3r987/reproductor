@@ -1923,11 +1923,11 @@ function paintSeek(){
 }
 setInterval(() => { if (!document.hidden) paintSeek(); }, 500);
 $("seek").oninput = e => { seeking = true; $("t-cur").textContent = fmt(+e.target.value); };
-$("seek").onchange = e => {
-  const s = +e.target.value; seeking = false;
+function seekTo(s){
   if (mode === "file") au.currentTime = s; else if (mode === "sc") scSeek(s); else if (ready) player.seekTo(s, true);
   log("adelanto a " + fmt(s)); setTimeout(() => { updatePos(); paintSeek(); }, 300); jzSeeked(s);
-};
+}
+$("seek").onchange = e => { const s = +e.target.value; seeking = false; seekTo(s); };
 /* ---------- A continuación: lo que viene en la cola (en el orden real, también con Aleatorio) ---------- */
 let qOpen = false;
 const upcoming = n => { const out = []; for (let k = 1; k <= Math.min(n, orderIdx.length - 1); k++) out.push((at + k) % orderIdx.length); return out; }; // posiciones en orderIdx
@@ -2306,7 +2306,22 @@ document.addEventListener("keydown", e => {
   if (["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
   if (!$("sheet").hidden || !$("jzsheet").hidden || !$("tmenu").hidden || e.target.closest?.("[role=dialog]")) return; // con un menú o una hoja abierta las teclas son de ellos
   if (e.key === " " && e.target.tagName !== "BUTTON"){ e.preventDefault(); $("play").click(); }
-  if (e.key === "ArrowRight") step(1); if (e.key === "ArrowLeft") step(-1);
+  if (e.defaultPrevented || e.target.isContentEditable) return;
+  if (e.key === "ArrowRight" && !e.shiftKey) step(1); if (e.key === "ArrowLeft" && !e.shiftKey) step(-1);
+  const k = e.key.toLowerCase();
+  if (k === "m" && !e.shiftKey){ $("mute").click(); flash(muted ? "Silenciado." : "Sonido activado."); }
+  else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && queue.length && !e.target.closest?.(".grip")){ // sin canción cargada las flechas siguen desplazando la página
+    e.preventDefault(); level = Math.min(100, Math.max(0, level + (e.key === "ArrowUp" ? 5 : -5))); muted = false;
+    store.set("np-vol", level); setVol(vol); paintVol(); flash("Volumen " + level + " %.");
+  }
+  else if (k === "j" || k === "l" || (e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight"))){
+    const d = curDur(); if (!d || armed || $("seekrow").hidden) return;
+    const back = k === "j" || e.key === "ArrowLeft";
+    seekTo(Math.max(0, Math.min(Math.floor(d), Math.floor(curPos() || 0) + (back ? -10 : 10))));
+  }
+  else if (e.key === "/"){ e.preventDefault(); $("q").focus(); }
+  else if (k === "r" && !e.shiftKey){ if (!$("rep").disabled) $("rep").click(); }
+  else if (e.key === "?") flash("Atajos: espacio = reproducir/pausar · ← → = anterior/siguiente · m = silenciar · ↑ ↓ = volumen · j l o Mayús+← → = ∓10 s · / = buscar · r = repetir · ? = esta ayuda");
 });
 // El módulo corre después de cargar Firebase; la API de YouTube puede haber cargado antes y ya no llamará al callback.
 function initYT(){

@@ -95,6 +95,21 @@ En â‹¯ de cada canciÃ³n (pestaÃ±a Todas): **â™¡ Agregar a Favoritos*
 
 Pendiente: Â«lo mÃ¡s escuchadoÂ» (contar escuchas) cambiarÃ­a el esquema del historial y no se hizo; tampoco hay corazÃ³n en la fila de la canciÃ³n que suena ni â‹¯ en las filas de una playlist abierta.
 
+## Atajos de teclado (computadora)
+
+No actúan con el cursor en un campo de texto, ni con una hoja o diálogo abierto.
+
+| Tecla | Hace |
+|---|---|
+| Espacio | Reproducir / pausar |
+| ← / → | Anterior / siguiente |
+| m | Silenciar / quitar silencio |
+| ↑ / ↓ | Volumen ±5 (solo con una canción cargada; si no, la página se desplaza) |
+| j / l, o Mayús+← / Mayús+→ | Retroceder / adelantar 10 s |
+| / | Ir al buscador |
+| r | Repetir canción |
+| ? | Mostrar esta lista en un aviso |
+
 ## Opciones en la dirección
 
 | Agregar a la dirección | Para qué |

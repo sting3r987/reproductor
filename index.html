@@ -188,7 +188,10 @@ select{border:1px solid var(--line);background:var(--surface);color:var(--ink);b
 .msg{margin:10px 0 0;color:var(--ink-2);font-size:14px}
 #msg{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:6px 14px;font-size:13px;box-shadow:var(--shadow-sm);max-width:100%;overflow-wrap:anywhere}
 #msg::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
-.who{display:flex;align-items:center;margin-left:auto}
+.who{display:flex;align-items:center;margin-left:auto;position:relative}
+.sl-badge{position:absolute;right:-5px;bottom:-5px;min-width:18px;padding:1px 5px;border-radius:99px;background:var(--accent);color:var(--accent-ink);font:700 10.5px/1.3 var(--display);text-align:center;pointer-events:none;font-variant-numeric:tabular-nums}
+.sl-seg{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.sl-seg .btn[aria-pressed="true"]{background:var(--accent-bg);color:var(--accent);border-color:transparent}
 /* Avatar (foto de Google o inicial): abre el panel de cuenta y apariencia */
 .avatar{width:36px;height:36px;border-radius:50%;border:2px solid var(--line);padding:0;background:var(--surface);display:grid;place-items:center;overflow:hidden;cursor:pointer;color:var(--accent);font:700 15px/1 var(--display);box-shadow:0 0 0 2px var(--accent-bg);transition:box-shadow .15s,border-color .15s}
 .avatar img{width:100%;height:100%;object-fit:cover;display:block}
@@ -590,7 +593,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
     <select id="sort" aria-label="Orden"><option value="">Orden original</option><option value="t">Nombre A–Z</option><option value="a">Artista A–Z</option></select>
     <button class="btn sm" id="selbtn" type="button" hidden aria-pressed="false" title="Seleccionar varias canciones para agregarlas a una playlist"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2v2H3zm4 0h14v2H7zM3 11h2v2H3zm4 0h14v2H7zM3 17h2v2H3zm4 0h14v2H7z"/></svg><span class="long">Seleccionar</span></button>
     <span class="who">
-      <button type="button" id="theme" class="avatar" aria-haspopup="true" aria-expanded="false" title="Cuenta y apariencia" aria-label="Cuenta y apariencia"><img id="who-img" alt="" referrerpolicy="no-referrer" hidden><span id="who-ini">♪</span></button>
+      <button type="button" id="theme" class="avatar" aria-haspopup="true" aria-expanded="false" title="Cuenta y apariencia" aria-label="Cuenta y apariencia"><img id="who-img" alt="" referrerpolicy="no-referrer" hidden><span id="who-ini">♪</span></button><span class="sl-badge" id="sl-badge" hidden></span>
       <div class="tm" id="tmenu" hidden role="dialog" aria-label="Cuenta y apariencia">
         <div class="tm-user"><b id="who-name"></b><span id="who"></span></div>
         <p class="tm-h">Apariencia</p>
@@ -607,6 +610,8 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
         <input type="range" class="tm-range" id="fade" min="0" max="8" step="0.5" aria-label="Segundos de fundido">
         <label class="tm-chk"><input type="checkbox" id="btauto"><span>Carro y Bluetooth: pausar al desconectar y seguir al conectar</span></label>
         <label class="tm-chk"><input type="checkbox" id="btdetect"><span>Detectar cuándo vuelve el Bluetooth (pide permiso de micrófono: es la única forma que da el navegador de ver los dispositivos; la app no graba nada)</span></label>
+        <p class="tm-h">Dormir <span class="tm-v" id="sl-v"></span></p>
+        <div class="sl-seg" id="sl-seg" role="group" aria-label="Temporizador para dormir"><button class="btn sm" type="button" data-sl="15" aria-pressed="false">15 min</button><button class="btn sm" type="button" data-sl="30" aria-pressed="false">30 min</button><button class="btn sm" type="button" data-sl="60" aria-pressed="false">60 min</button><button class="btn sm" type="button" data-sl="song" aria-pressed="false">Al terminar esta canción</button><button class="btn sm" type="button" data-sl="off">Apagar</button></div>
         <p class="tm-h">Sin repetir</p>
         <label class="tm-chk"><input type="checkbox" id="norep"><span>No repetir lo ya escuchado: en aleatorio y al pasar a la siguiente suenan primero las que no has oído en los últimos 60 días (en todos tus dispositivos). Cuando ya sonaron todas, vuelve a empezar por las más antiguas.</span></label>
         <div class="tm-heard"><span id="heard-n"></span><button class="btn sm" type="button" id="heard-reset" title="Olvida lo ya escuchado: todas vuelven a contar como nuevas">Reiniciar historial</button></div>
@@ -667,7 +672,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=6";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=7";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -1438,7 +1443,7 @@ function updatePos(){
     else if (ready){ const d = player.getDuration(), p = player.getCurrentTime(); if (d > 0 && p >= 0) ms.setPositionState({duration: d, playbackRate: 1, position: Math.min(p, d)}); }
   } catch {}
 }
-setInterval(() => { paintRepeat(); if (playing) updatePos(); }, 2000);
+setInterval(() => { paintRepeat(); sleepTick(false); if (playing) updatePos(); }, 2000); // la hora del temporizador se mira aquí: un setTimeout largo se frena con la pantalla bloqueada
 au.addEventListener("playing", () => { if (mode === "file"){ const first = !started; started = true; setPlaying(true); updatePos(); log("archivo sonando"); fadeTo(100, first ? FADE : FADE_RESUME); } });
 au.addEventListener("pause", () => { if (mode === "file") setPlaying(false); });
 au.addEventListener("ended", () => { if (mode === "file"){ log("archivo terminó"); endTrack(); } });
@@ -1982,7 +1987,7 @@ function precue(){
 }
 // ¿Se puede encadenar con fundido cruzado? (no en iPhone: allí el volumen del video no se puede bajar; no en segundo plano)
 function canXfade(){
-  if ((JZ && JZ.on) || repeatOn() || mode !== "yt" || IOS || document.hidden || !FADE || !spareReady || xfade || !cued || queue.length < 2) return false;
+  if ((JZ && JZ.on) || repeatOn() || (sleep && sleep.song) || mode !== "yt" || IOS || document.hidden || !FADE || !spareReady || xfade || !cued || queue.length < 2) return false;
   const nx = queue[orderIdx[(at + 1) % orderIdx.length]];
   return !!nx && !fileFor(nx) && vid(nx) === cued;
 }
@@ -2189,6 +2194,38 @@ $("play").onclick = () => {
   if (!ready) return;
   if (playing){ started = true; clearInterval(kick); player.pauseVideo(); } else resumeYt("botón");
 };
+/* ---------- Dormir: temporizador (por aparato, no se sincroniza en Ver juntos) ---------- */
+// Se guarda la hora de fin y se compara en el intervalo de 2 s (y al terminar cada canción), no con un setTimeout largo.
+var sleep = null, sleepPausedAt = 0; // {until, min} o {song: true}
+function sleepPaint(){
+  const left = sleepLeft(sleep, Date.now()), b = $("sl-badge");
+  const txt = !sleep ? "" : sleep.song ? "al terminar esta canción" : "faltan " + left + " min";
+  b.hidden = !sleep; b.textContent = !sleep ? "" : sleep.song ? "💤" : left + "′";
+  $("sl-v").textContent = txt;
+  $("theme").title = "Cuenta y apariencia" + (sleep ? " · Dormir: " + txt : "");
+  for (const x of $("sl-seg").querySelectorAll("button[data-sl]")) x.setAttribute("aria-pressed", String(!!sleep && (sleep.song ? x.dataset.sl === "song" : x.dataset.sl === String(sleep.min))));
+}
+function sleepTick(songEnded){ // true si venció (y ya pausó)
+  if (!sleep) return false;
+  if (!sleepDue(sleep, Date.now(), songEnded)){ sleepPaint(); return false; }
+  sleepFire(songEnded); return true;
+}
+function sleepFire(atEnd){
+  sleep = null; sleepPaint();
+  if (!playing && !atEnd) return; // ya estaba en pausa: no hay nada que parar
+  log("temporizador: pausa"); sleepPausedAt = Date.now(); clearInterval(kick); // sin reintento: que no reanude solo
+  const stop = () => { clearInterval(kick); if (mode === "file") au.pause(); else if (mode === "sc") scW?.pause(); else { started = true; try { player?.pauseVideo(); } catch {} } };
+  if (atEnd){ if (orderIdx.length > 1){ at = (at + 1) % orderIdx.length; load(orderIdx[at], {armed: true}); } } // la siguiente queda cargada, sin sonar
+  else { fadeTo(0, 2500); if (document.hidden) stop(); else setTimeout(stop, 2600); }
+  flash("Temporizador: pausado");
+}
+$("sl-seg").onclick = e => {
+  const b = e.target.closest("button[data-sl]"); if (!b) return;
+  sleep = sleepSet(b.dataset.sl, Date.now());
+  if (sleep && !sleep.song) sleep.min = +b.dataset.sl;
+  sleepPaint();
+  flash(!sleep ? "Temporizador apagado." : sleep.song ? "Se pausará al terminar esta canción." : "Se pausará en " + sleep.min + " min.");
+};
 // Repetir canción: al terminar vuelve a empezar la misma (en el mismo reproductor, sin recargar: no cuenta como otra escucha).
 // «Lista» no hace falta: la cola ya da la vuelta sola al llegar al final (step usa módulo). En Ver juntos no se repite.
 let repeatOne = store.get("np-repeat") === "1";
@@ -2213,6 +2250,7 @@ function replayCur(){
 }
 // Una canción terminó: repite la misma o pasa a la siguiente
 function endTrack(){
+  if (sleepTick(true)) return;
   if (repeatOn() && cur >= 0 && !armed && queue[cur]) return replayCur();
   step(1);
 }
@@ -2275,7 +2313,7 @@ function initYT(){
         jzYtState(e.data);
         if (e.data === YT.PlayerState.ENDED && !jzHoldEnd()) endTrack();
         if (e.data === YT.PlayerState.CUED && !started && !armed) player.playVideo(); // cargó pero no arrancó (pasa en segundo plano)
-        if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000) setTimeout(() => { if (document.hidden && !playing) player.playVideo(); }, 400);
+        if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000 && Date.now() - sleepPausedAt > 6000) setTimeout(() => { if (document.hidden && !playing) player.playVideo(); }, 400);
       },
       onError(e){
         if (e.target !== player){ cued = null; return; } // la preparada falló: se cargará de la forma normal

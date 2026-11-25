@@ -85,6 +85,10 @@ BotÃ³n âŸ² con un 1 en la fila de abajo del reproductor (junto a Volumen): 
 
 En â‹¯ de cualquier canciÃ³n (pestaÃ±a Todas): **â–¶ Reproducir despuÃ©s** la pone justo detrÃ¡s de la que suena, estÃ© o no en la cola (si no estaba, se agrega al final y se sube). Aviso Â«Suena despuÃ©s: Â«tÃ­tuloÂ»Â». Sin nada sonando, la reproduce. No cambia con Â«No repetir lo ya escuchadoÂ» (`fixNext` respeta la que se puso a mano). En Â«Ver juntosÂ» no se cambia la cola. La inserciÃ³n es `queueNext` en `lib.js`.
 
+## Dormir (temporizador)
+
+En el menÃº de la cuenta (el avatar) â€º **Dormir**: 15, 30, 60 min, Â«Al terminar esta canciÃ³nÂ» y Â«ApagarÂ». Guarda la hora de fin y la mira cada 2 s y al terminar cada canciÃ³n (no usa un `setTimeout` largo, que se frena con la pantalla bloqueada). Al vencer baja el volumen (~2,5 s) y pausa, sin reintentos que la reanuden, y avisa Â«Temporizador: pausadoÂ». Con Â«Al terminar esta canciÃ³nÂ» no hay fundido cruzado y la siguiente queda cargada sin sonar. Mientras estÃ¡ activo el avatar muestra los minutos que faltan (ðŸ’¤ si es por canciÃ³n). Es por aparato: no se sincroniza en Â«Ver juntosÂ». La decisiÃ³n es `sleepDue` en `lib.js`.
+
 ## Opciones en la dirección
 
 | Agregar a la dirección | Para qué |

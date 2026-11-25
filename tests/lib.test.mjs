@@ -187,3 +187,23 @@ test("queueNext deja la canción justo después de la actual (la mueve o la inse
   assert.deepEqual(L.queueNext([0, 1], 1, 0), {order: [1, 0], at: 0, moved: true}, "al final: da la vuelta, queda detrás de la actual");
   assert.deepEqual(o, [0, 1, 2, 3, 4], "no cambia la lista original");
 });
+
+test("temporizador: sleepSet, sleepDue y sleepLeft", () => {
+  const t = 1_000_000;
+  assert.deepEqual(L.sleepSet("30", t), {until: t + 30 * 60000});
+  assert.deepEqual(L.sleepSet("song", t), {song: true});
+  assert.equal(L.sleepSet("off", t), null);
+  const s = L.sleepSet(15, t);
+  assert.equal(L.sleepDue(s, t + 15 * 60000 - 1), false);
+  assert.equal(L.sleepDue(s, t + 15 * 60000), true, "vence justo a la hora");
+  assert.equal(L.sleepDue(s, t + 20 * 60000), true, "con la pantalla bloqueada se mira tarde: igual vence");
+  assert.equal(L.sleepDue(s, t + 60000, true), false, "terminar una canción no vence uno por hora");
+  assert.equal(L.sleepDue({song: true}, t, false), false);
+  assert.equal(L.sleepDue({song: true}, t, true), true);
+  assert.equal(L.sleepDue(null, t, true), false);
+  assert.equal(L.sleepLeft(s, t), 15);
+  assert.equal(L.sleepLeft(s, t + 60000 + 1), 14, "redondea hacia arriba");
+  assert.equal(L.sleepLeft(s, t + 99 * 60000), 0);
+  assert.equal(L.sleepLeft({song: true}, t), 0);
+  assert.equal(L.sleepLeft(null, t), 0);
+});

@@ -207,3 +207,18 @@ export function queueNext(order, at, idx){
   o.splice(a + 1, 0, idx);
   return {order: o, at: a, moved: true};
 }
+
+/* ---------- Dormir (temporizador) ---------- */
+// Estado: null (apagado), {until: ms} (a una hora) o {song: true} (al terminar la canción que suena)
+export function sleepSet(kind, now){
+  if (kind === "song") return {song: true};
+  const m = +kind; return m > 0 ? {until: now + m * 60000} : null; // "off" u otra cosa: apagado
+}
+// ¿Ya venció? Por hora, o porque terminó una canción cuando se pidió «al terminar esta canción»
+export function sleepDue(s, now, songEnded = false){
+  if (!s) return false;
+  if (s.until != null && now >= s.until) return true;
+  return !!(s.song && songEnded);
+}
+// Minutos que faltan, redondeados hacia arriba (0 si no hay hora)
+export const sleepLeft = (s, now) => s && s.until != null ? Math.max(0, Math.ceil((s.until - now) / 60000)) : 0;

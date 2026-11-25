@@ -298,11 +298,11 @@ try {
     const { page } = A;
     await page.click("#tab-bl");
     await page.locator("#blbox [data-blsc]").click(); // «Pegar SoundCloud» abre el mismo campo de ⋯ › Pegar enlace
-    assert.equal(await page.getAttribute("#tab-all", "aria-pressed"), "true");
+    assert.equal(await page.getAttribute("#tab-all", "aria-selected"), "true");
     await page.waitForSelector("#yf2-url", {timeout: 5000});
     assert.match(await page.getAttribute("#yf2-url", "placeholder"), /Canción 2/);
     await page.click('[data-act="altoff"]');
-    await until("vuelve a Bloqueadas", async () => (await page.getAttribute("#tab-bl", "aria-pressed")) === "true");
+    await until("vuelve a Bloqueadas", async () => (await page.getAttribute("#tab-bl", "aria-selected")) === "true");
     await page.evaluate(k => { const n = window.__npt; n.saveSc(n.CAT.all.find(s => s.k === k), "https://soundcloud.com/artista-2/cancion-2"); }, k2);
     await settle(page);
     await until("fuera de la lista", async () => (await sinrep()).length === 0);

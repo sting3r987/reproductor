@@ -166,7 +166,7 @@ body.playing .btn.go.play-main .i-pause{display:block}
 .seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;border:1px solid var(--line);border-radius:99px;background:var(--surface-2)}
 .seg button{border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:13.5px;font-weight:600;padding:7px 14px;cursor:pointer;border-radius:99px;transition:background .15s,color .15s}
 .seg button:hover{color:var(--ink)}
-.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
+.seg button[aria-pressed="true"],.seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
 .seg small{font-weight:500;opacity:.65;margin-left:6px;font-variant-numeric:tabular-nums;font-size:12px}
 .search{flex:1 1 220px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:0 6px 0 14px;box-shadow:var(--shadow-sm);transition:border-color .15s,box-shadow .15s}
 .search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
@@ -589,11 +589,11 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
     </div>
   </div></div>
   <div class="tools">
-    <div class="seg" role="group" aria-label="Sección">
-      <button type="button" id="tab-all" aria-pressed="true">Todas<small id="call"></small></button>
-      <button type="button" id="tab-pls" aria-pressed="false">Playlists<small id="cpls"></small></button>
-      <button type="button" id="tab-files" aria-pressed="false">Archivos<small id="cfiles"></small></button>
-      <button type="button" id="tab-bl" aria-pressed="false" title="Canciones que YouTube no deja poner aquí: búscalas y pon tu archivo o un enlace de SoundCloud"><span class="lg">Bloqueadas</span><span class="sh" aria-hidden="true">Bloq.</span><small class="badge" id="cbl"></small></button>
+    <div class="seg" role="tablist" aria-label="Sección">
+      <button type="button" role="tab" id="tab-all" aria-selected="true">Todas<small id="call"></small></button>
+      <button type="button" role="tab" id="tab-pls" aria-selected="false">Playlists<small id="cpls"></small></button>
+      <button type="button" role="tab" id="tab-files" aria-selected="false">Archivos<small id="cfiles"></small></button>
+      <button type="button" role="tab" id="tab-bl" aria-selected="false" title="Canciones que YouTube no deja poner aquí: búscalas y pon tu archivo o un enlace de SoundCloud"><span class="lg">Bloqueadas</span><span class="sh" aria-hidden="true">Bloq.</span><small class="badge" id="cbl"></small></button>
     </div>
     <form class="search" id="sf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Buscar en tu música o en YouTube" autocomplete="off"><button class="btn sm go-yt" id="go" type="submit" hidden title="Buscar en YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.7 2.7 0 0 0-1.9-1.9C18 4.8 12 4.8 12 4.8s-6 0-7.7.5A2.7 2.7 0 0 0 2.4 7.2 28 28 0 0 0 2 12a28 28 0 0 0 .4 4.8 2.7 2.7 0 0 0 1.9 1.9c1.7.5 7.7.5 7.7.5s6 0 7.7-.5a2.7 2.7 0 0 0 1.9-1.9A28 28 0 0 0 22 12a28 28 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg>YouTube</button></form>
     <select id="srcpl" aria-label="Playlist de origen"></select>
@@ -707,13 +707,13 @@ function themeMenu(open){
 }
 sysDark.addEventListener("change", applyTheme);
 $("theme").onclick = () => themeMenu($("tmenu").hidden);
-$("tm-done").onclick = () => themeMenu(false);
+$("tm-done").onclick = () => { themeMenu(false); $("theme").focus(); };
 $("tmenu").onclick = e => {
   const b = e.target.closest("button[data-v]"); if (!b) return;
   THEME[b.parentElement.dataset.k] = b.dataset.v; store.set("np-theme", JSON.stringify(THEME)); applyTheme();
 };
 document.addEventListener("pointerdown", e => { if (!$("tmenu").hidden && !e.target.closest("#theme, .tm")) themeMenu(false); });
-document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("tmenu").hidden) themeMenu(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("tmenu").hidden){ themeMenu(false); $("theme").focus(); } });
 applyTheme();
 const thumb = y => y ? `<img alt="" loading="lazy" src="https://i.ytimg.com/vi/${y}/mqdefault.jpg">` : "";
 const PAGE = 150;
@@ -1031,9 +1031,12 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
       + `<button type="button" class="add${mine.length ? " in" : ""}" data-add="${i}" title="Agregar a playlist" aria-label="Agregar a playlist">${mine.length ? "✓" : "＋"}</button>`
       + (yt || String(x.k).startsWith("f:") ? "" : `<button type="button" class="add more" data-menu="${i}" title="Más opciones" aria-label="Más opciones" aria-expanded="${songMenu === x.k}">⋯</button>`
         + (songMenu === x.k ? `<div class="pop" role="menu"><button type="button" data-act="fav" data-i="${i}">${isFav(x) ? "♥ Quitar de Favoritos" : "♡ Agregar a Favoritos"}</button><button type="button" data-act="after" data-i="${i}">▶ Reproducir después</button><button type="button" data-act="fix" data-i="${i}">${x.y ? "🎬 Cambiar video" : "🎬 Buscar video"}</button><button type="button" data-act="fixaud" data-i="${i}">${yaOf(x) ? "🎧 Cambiar audio" : "🎧 Buscar audio"}</button><button type="button" data-act="paste" data-i="${i}">${scOf(x) ? "Pegar enlace (YouTube o cambiar SoundCloud)" : "Pegar enlace de YouTube o SoundCloud"}</button>${x.e === "dudoso" ? `<button type="button" data-act="ok" data-i="${i}">Está bien así (quitar «dudosa»)</button>` : ""}<button type="button" data-act="file" data-i="${i}">${file ? "♪ Cambiar archivo de audio" : "♪ Poner archivo de audio"}</button>${file ? `<button type="button" data-act="unfile" data-i="${i}">Quitar el archivo de audio</button>` : ""}<button type="button" data-act="edit" data-i="${i}">Editar título y artista</button></div>` : ""));
-  return `<div class="row${hasSrc(x) ? "" : " dis"}${on ? " on" : ""}${picked && sel.has(x.k) ? " sel" : ""}" role="listitem">${picked ? '<span class="ck" aria-hidden="true"></span>' : ""}<button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
+  return `<div class="row${hasSrc(x) ? "" : " dis"}${on ? " on" : ""}${picked && sel.has(x.k) ? " sel" : ""}" role="listitem" data-k="${esc(String(x.k))}">${picked ? '<span class="ck" aria-hidden="true"></span>' : ""}<button type="button" class="play" data-i="${i}"><span class="th">${thumb(x.y) || '<span aria-hidden="true">♪</span>'}${x.n ? `<span class="n">${x.n}</span>` : ""}${on ? '<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ""}</span><span class="t"><b>${esc(x.t)}</b><span>${esc(x.a)}</span></span><span class="meta">${meta}</span></button>${btn}</div>`;
 }
 function renderList(){
+  // Si el foco del teclado estaba en una fila, tras repintar vuelve a la misma canción (y al mismo botón)
+  const fa = document.activeElement, frow = fa && fa !== document.body && $("list").contains(fa) ? fa.closest(".row[data-k]") : null;
+  const fk = frow?.dataset.k, fi = frow ? [...frow.querySelectorAll("button, input, select")].indexOf(fa) : -1;
   current = songsShown();
   const showList = tab === "all" || (tab === "pls" && openPl());
   $("list").hidden = !showList;
@@ -1043,6 +1046,11 @@ function renderList(){
   $("note").hidden = tab !== "all";
   $("sort").hidden = !(tab === "all" || (tab === "pls" && openPl()));
   $("selbtn").hidden = $("sort").hidden; selBar();
+  if (fk !== undefined){
+    const row = [...$("list").querySelectorAll(".row[data-k]")].find(el => el.dataset.k === fk);
+    const ctl = row && row.querySelectorAll("button, input, select");
+    if (ctl && ctl.length) (ctl[fi] || ctl[0]).focus({preventScroll: true});
+  }
 }
 // Barra de selección (fija al pie): cuántas van, Todas/Ninguna, Agregar a playlist, cancelar
 function selBar(){
@@ -2822,7 +2830,7 @@ async function setScLink(s, url, err){
 }
 /* ---------- Hoja "Agregar a playlist" ---------- */
 function openSheet(x){ // x: una canción, o un array de canciones (selección múltiple)
-  sheetSong = x; shDone = new Set();
+  sheetSong = x; shDone = new Set(); shOpener = document.activeElement;
   const many = Array.isArray(x);
   $("sh-t").textContent = many ? "Agregar " + x.length + (x.length === 1 ? " canción" : " canciones") : "Agregar a playlist";
   $("sh-s").textContent = many ? x.slice(0, 3).map(s => s.t).join(" · ") + (x.length > 3 ? " y " + (x.length - 3) + " más" : "") : x.t + " · " + x.a;
@@ -2851,7 +2859,13 @@ function renderSheet(){
   }));
   fillIdeas($("sh-ideas"), $("sh-name"), n => { $("sh-name").value = n; });
 }
-function closeSheet(){ const done = Array.isArray(sheetSong) && shDone.size; $("sheet").hidden = true; sheetSong = null; if (done) sel = null; refresh(); } // si se agregaron, se sale del modo selección
+var shOpener = null; // quién abrió la hoja: al cerrarla el foco vuelve ahí
+function closeSheet(){
+  const done = Array.isArray(sheetSong) && shDone.size, op = shOpener, ok = op && op.closest?.(".row[data-k]")?.dataset.k; shOpener = null;
+  $("sheet").hidden = true; sheetSong = null; if (done) sel = null; refresh();
+  if (op && op.isConnected) op.focus({preventScroll: true});
+  else if (ok !== undefined) { const row = [...$("list").querySelectorAll(".row[data-k]")].find(el => el.dataset.k === ok); row?.querySelector("button")?.focus({preventScroll: true}); } // el botón se repintó: a la misma canción
+} // si se agregaron, se sale del modo selección
 $("sh-new").addEventListener("submit", e => { e.preventDefault(); const p = newPl($("sh-name").value); if (p){ if (Array.isArray(sheetSong)){ addMany(p, sheetSong); shDone.add(p.id); } else toggleSong(p, sheetSong); $("sh-name").value = ""; renderSheet(); } });
 $("sh-close").onclick = closeSheet;
 $("sheet").addEventListener("click", e => { if (e.target === $("sheet")) closeSheet(); });
@@ -3116,7 +3130,9 @@ function jzPaint(){
     $("jz-inv").innerHTML = (d.invitados || []).map(m => `<li><span>${esc(m)}</span><button class="btn sm" type="button" data-jrm="${esc(m)}" aria-label="Quitar a ${esc(m)}">Quitar</button></li>`).join("");
   }
 }
-function jzSheet(){ $("jzsheet").hidden = false; $("jz-share").hidden = !navigator.share; }
+var jzOpener = null;
+function jzClose(){ $("jzsheet").hidden = true; if (jzOpener?.isConnected) jzOpener.focus({preventScroll: true}); jzOpener = null; }
+function jzSheet(){ jzOpener = document.activeElement; $("jzsheet").hidden = false; $("jz-share").hidden = !navigator.share; }
 async function jzCreate(){
   if (!jzUser || jzGuest) return;
   const x = queue[cur];
@@ -3137,8 +3153,9 @@ async function jzCreate(){
 }
 $("jzbtn").onclick = () => { if (JZ && !JZ.on) return; if (!JZ) return jzCreate(); if (jzIsHost()){ jzPaint(); jzSheet(); } else flash("Estás viendo juntos con " + jzHostName() + "."); };
 $("jz-more").onclick = () => { jzPaint(); jzSheet(); };
-$("jz-done").onclick = () => { $("jzsheet").hidden = true; };
-$("jzsheet").onclick = e => { if (e.target === $("jzsheet")) $("jzsheet").hidden = true; };
+$("jz-done").onclick = jzClose;
+$("jzsheet").onclick = e => { if (e.target === $("jzsheet")) jzClose(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("jzsheet").hidden) jzClose(); });
 $("jz-copy").onclick = async () => {
   const u = $("jz-url").value;
   try { await navigator.clipboard.writeText(u); } catch { $("jz-url").select(); try { document.execCommand("copy"); } catch {} }
@@ -3189,7 +3206,7 @@ function fillSrc(){
 }
 function setTab(t){
   tab = t; confirmDel = null; menuOpen = null; songMenu = null; songEdit = null; shown = PAGE; sel = null;
-  for (const k of ["all","pls","files","bl"]) $("tab-"+k).setAttribute("aria-pressed", k === t);
+  for (const k of ["all","pls","files","bl"]) $("tab-"+k).setAttribute("aria-selected", k === t);
   $("sf").hidden = t === "pls" || t === "files" || t === "bl"; confirmWipe = false; $("srcpl").hidden = t !== "all"; syncGo();
   flash("");
   refresh();

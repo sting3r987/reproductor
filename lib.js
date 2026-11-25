@@ -167,3 +167,15 @@ export function blkSearch(it){
 // ¿Es un archivo de audio que se puede poner a una canción? (por tipo o por extensión)
 export const AUDIO_EXT = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)$/i;
 export const isAudioFile = f => !!f && (String(f.type || "").startsWith("audio/") || (f.type === "video/webm" && /\.webm$/i.test(f.name || "")) || AUDIO_EXT.test(f.name || ""));
+
+/* ---------- Deshacer al quitar de una playlist ---------- */
+// Vuelve a poner canciones quitadas: items = [{it, i}] (la canción y el puesto que tenía). Las que ya estén (por clave) no se repiten.
+// Va de menor a mayor puesto, así cada una queda donde estaba; si la lista cambió, queda lo más cerca posible. Devuelve cuántas volvieron.
+export function plRestore(songs, items){
+  let n = 0;
+  for (const {it, i} of [...items].sort((a, b) => a.i - b.i)){
+    if (songs.some(s => s.k === it.k)) continue;
+    songs.splice(Math.max(0, Math.min(songs.length, i)), 0, {...it}); n++;
+  }
+  return n;
+}

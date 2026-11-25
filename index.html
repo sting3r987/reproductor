@@ -664,7 +664,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=2";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=3";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -804,7 +804,28 @@ function txEdit(chain, ref, fields, mutate, local){
 const catRef = () => doc(db, "catalog", "main");
 const catEdit = (fields, mutate) => txEdit("catalog", catRef(), fields, mutate, () => Object.fromEntries(fields.map(f => [f, (CAT[f] || []).map(it => ({...it}))])));
 const plEdit = (p, mutate) => txEdit(p.id, doc(plCol, p.id), ["songs"], d => mutate(d.songs), () => ({songs: p.songs.map(s => ({...s}))}));
-function flash(t){ $("msg").hidden = !t; $("msg").textContent = t || ""; }
+let undoT = 0;
+function flash(t){ clearTimeout(undoT); undoT = 0; $("msg").hidden = !t; $("msg").textContent = t || ""; }
+// Aviso con botón «Deshacer» (7 s): fn vuelve a poner lo que se quitó
+function flashUndo(t, fn){
+  flash(t); const b = document.createElement("button");
+  b.type = "button"; b.className = "btn sm"; b.textContent = "Deshacer"; b.style.marginLeft = "8px";
+  b.onclick = () => { flash(""); fn(); };
+  $("msg").append(b); undoT = setTimeout(() => flash(""), 7000);
+}
+// Quita de la playlist las canciones de list y deja el aviso con Deshacer (vuelven a su puesto)
+function removeUndo(p, list){
+  const keys = new Set(list.map(x => x.k)), items = [];
+  p.songs.forEach((s, i) => { if (keys.has(s.k)) items.push({it: {...s}, i}); });
+  const n = removeMany(p, list); if (!n) return 0;
+  const t = n === 1 ? "Quitaste «" + items[0].it.t + "»" : "Quitaste " + n + " canciones";
+  flashUndo(t + " de “" + p.name + "”.", () => {
+    if (!mis.includes(p)) return;
+    if (plRestore(p.songs, items)) plEdit(p, songs => plRestore(songs, items));
+    refresh();
+  });
+  return n;
+}
 const song = x => ({t: x.t, a: x.a, k: x.k, y: x.y || null, ...(scOf(x) ? {sc: scOf(x)} : {})}); // sc: enlace de SoundCloud (si la canción tiene)
 /* Versión "solo audio" (campo ya en el catálogo: canal Topic, audio oficial, letra). Con el modo audio activo se reproduce esa en vez del clip. */
 let YA = new Map(), audioMode = ({"1": "audio", "auto": "auto"})[store.get("np-audio")] || "video"; // video | audio | auto
@@ -1011,8 +1032,7 @@ $("sel-add").onclick = () => { if (sel?.size) openSheet([...sel.values()]); };
 $("sel-rm").onclick = () => { // dos toques: el primero pide confirmación
   const p = openPl(); if (!sel?.size || !p) return;
   if (!rmArm){ rmArm = true; selBar(); return; }
-  const n = removeMany(p, [...sel.values()]); rmArm = false; sel = null;
-  flash("Quitaste " + n + (n === 1 ? " canción" : " canciones") + " de “" + p.name + "”."); refresh();
+  removeUndo(p, [...sel.values()]); rmArm = false; sel = null; refresh();
 };
 $("list").addEventListener("click", e => {
   const add = e.target.closest("[data-add]"), rm = e.target.closest("[data-rm]"), pl = e.target.closest(".play");
@@ -1042,7 +1062,7 @@ $("list").addEventListener("click", e => {
   if (rep) return replaceVideo(current[+rep.dataset.rep]);
   if (aud) return setAudio(current[+aud.dataset.aud]);
   if (add) return openSheet(current[+add.dataset.add]);
-  if (rm){ toggleSong(openPl(), current[+rm.dataset.rm]); return refresh(); }
+  if (rm){ removeUndo(openPl(), [current[+rm.dataset.rm]]); return refresh(); }
   if (pl){ const x = current[+pl.dataset.i]; if (hasSrc(x)) playFrom(+pl.dataset.i); else startAlt(x); }
 });
 $("list").addEventListener("submit", e => { // guardar título y artista editados

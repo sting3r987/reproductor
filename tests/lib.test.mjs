@@ -140,3 +140,17 @@ test("Sin reproducir: motivo, búsqueda web y archivos de audio", () => {
   assert.equal(L.isAudioFile({name: "foto.jpg", type: "image/jpeg"}), false);
   assert.equal(L.isAudioFile({name: "clip.mp4", type: "video/mp4"}), false);
 });
+
+test("plRestore devuelve las quitadas a su puesto, sin repetir", () => {
+  const mk = k => ({k, t: k, a: "x"});
+  const l = [mk("a"), mk("b"), mk("c"), mk("d"), mk("e")];
+  const quitadas = [{it: l[1], i: 1}, {it: l[3], i: 3}];
+  L.plRemove(l, ["b", "d"]);
+  assert.deepEqual(l.map(s => s.k), ["a", "c", "e"]);
+  assert.equal(L.plRestore(l, quitadas), 2);
+  assert.deepEqual(l.map(s => s.k), ["a", "b", "c", "d", "e"]);
+  assert.equal(L.plRestore(l, quitadas), 0, "ya están: no se repiten");
+  const m = [mk("a")]; // la lista cambió: queda lo más cerca posible
+  assert.equal(L.plRestore(m, [{it: mk("z"), i: 9}, {it: mk("y"), i: -2}]), 2);
+  assert.deepEqual(m.map(s => s.k), ["y", "a", "z"]);
+});

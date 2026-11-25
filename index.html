@@ -664,7 +664,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=4";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=5";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -968,7 +968,7 @@ function listLabel(){
 }
 const sorted = l => !sortBy ? l : l.slice().sort((x, y) => norm(x[sortBy]).localeCompare(norm(y[sortBy]), "es") || norm(x.t).localeCompare(norm(y.t), "es"));
 function songsShown(){
-  if (tab === "pls") return openPl() ? sorted(openPl().songs) : [];
+  if (tab === "pls") return openPl() ? sorted(plFilter(openPl().songs, norm($("q").value.trim()))) : []; // el buscador filtra la playlist abierta
   const q = norm($("q").value.trim()), pl = $("srcpl").value;
   return sorted(allSongs().filter(x => (!pl || (pl === "__nuevas" ? x.nueva : pl === "__archivo" ? !!fileFor(x) : (x.pl || []).includes(pl))) && (!q || norm(x.t + " " + x.a).includes(q))));
 }
@@ -991,7 +991,7 @@ function songRow(x, i, yt){ // yt: fila de un resultado de YouTube (sección baj
   else if (yt){ const kd = ytKind(x); if (kd) meta += `<span class="tag kind">${kd === "audio" ? "🎧 audio" : "🎬 video"}</span>`; }
   if (mode === "all") meta += mine.map(p => `<span class="tag mine">${esc(p.name)}</span>`).join("");
   const on = cur >= 0 && queue[cur] && queue[cur].k === x.k && queueLabel === (yt ? ytLabel() : listLabel());
-  const mv = mode === "pl" && !sortBy && current.length > 1
+  const mv = mode === "pl" && !sortBy && !$("q").value.trim() && current.length > 1 // con filtro no se reordena (dañaría el orden)
     ? `<button type="button" class="grip" data-grip="${i}" title="Arrastra para cambiar el orden (o usa ↑ ↓)" aria-label="Arrastra para cambiar el orden"><svg viewBox="0 0 12 18" aria-hidden="true"><circle cx="3" cy="3" r="1.7"/><circle cx="9" cy="3" r="1.7"/><circle cx="3" cy="9" r="1.7"/><circle cx="9" cy="9" r="1.7"/><circle cx="3" cy="15" r="1.7"/><circle cx="9" cy="15" r="1.7"/></svg></button>` : "";
   const picked = sel && !yt;
   const btn = picked ? "" : mode === "pl"
@@ -3078,7 +3078,15 @@ function setTab(t){
   flash("");
   refresh();
 }
+let qOwner = null; // id de la playlist abierta a la que pertenece lo escrito en el buscador (null: pestaña Todas)
+function syncSearch(){
+  const want = tab === "pls" && openPl() ? openId : null;
+  if (want !== qOwner){ if (want || qOwner) $("q").value = ""; qOwner = want; } // salió de la playlist o abrió otra: sin filtro
+  $("sf").hidden = !(tab === "all" || want);
+  $("q").placeholder = want ? "Buscar en esta playlist" : "Buscar en tu música o en YouTube";
+}
 function refresh(){
+  syncSearch();
   const all = allSongs();
   $("call").textContent = all.length;
   $("cpls").textContent = mis.filter(p => !p.oculta).length;
@@ -3089,7 +3097,7 @@ function refresh(){
 // El botón YouTube del buscador aparece cuando hay algo escrito (y la API está configurada)
 function syncGo(){ $("go").hidden = tab !== "all" || !$("q").value.trim() || !CFG.youtubeKey; }
 for (const t of ["all","pls","files","bl"]) $("tab-"+t).onclick = () => { if (t !== tab) $("q").value = ""; if (t === "pls") openId = null; setTab(t); };
-$("q").addEventListener("input", () => { if (tab === "all"){ shown = PAGE; renderList(); renderYt(); syncGo(); } });
+$("q").addEventListener("input", () => { if (tab === "all"){ shown = PAGE; renderList(); renderYt(); syncGo(); } else if (qOwner){ shown = PAGE; renderList(); } });
 $("srcpl").addEventListener("change", () => { shown = PAGE; renderList(); });
 $("sort").value = sortBy;
 $("shuf").setAttribute("aria-pressed", shuffle);
@@ -3098,7 +3106,7 @@ const setBig = on => { document.body.classList.toggle("big", on); $("big").setAt
 setBig(store.get("np-big") === "1");
 $("big").onclick = () => { const on = !document.body.classList.contains("big"); setBig(on); store.set("np-big", on ? "1" : "0"); };
 $("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set("np-sort", sortBy); shown = PAGE; renderList(); });
-$("sf").addEventListener("submit", e => { e.preventDefault(); if (tab === "all"){ if (matchMedia("(max-width:640px)").matches) $("q").blur(); ytSearch($("q").value); } });
+$("sf").addEventListener("submit", e => { e.preventDefault(); if (qOwner){ if (matchMedia("(max-width:640px)").matches) $("q").blur(); return; } if (tab === "all"){ if (matchMedia("(max-width:640px)").matches) $("q").blur(); ytSearch($("q").value); } });
 setTab("all");
 loadFiles();
 if (EMU) window.__npt = {get uid(){ return auth.currentUser?.uid; }, get loaded(){ return loaded && catLoaded; }, get mis(){ return mis; }, get CAT(){ return CAT; }, toggleSong, addMany, removeMany, moveSongTo, renameSong, markOk, saveSc, noteSinrep, attachFile, detachFile, playFrom, get mode(){ return mode; }, au, ytErr: code => { const x = queue[cur]; loadedId = vid(x); ytError(code); }, autoBackup: () => { bkDone = false; return autoBackup(auth.currentUser); }, chains};

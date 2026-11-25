@@ -165,3 +165,11 @@ test("failDecision: sigue hasta 5 fallos seguidos o el tamaño de la cola; sin c
   assert.deepEqual(d({online: false}), {stop: true, why: "offline"});
   assert.equal(d({online: false, nextLocal: true}).stop, false, "sin señal pero la siguiente tiene archivo");
 });
+
+test("plFilter filtra por título o artista sin mayúsculas ni tildes", () => {
+  const l = [{k: "1", t: "Vivir mi vida", a: "Marc Anthony"}, {k: "2", t: "Bailando", a: "Enrique Iglesias"}, {k: "3", t: "Ámame", a: "Ñengo"}];
+  assert.deepEqual(L.plFilter(l, L.norm("ANTHONY")).map(s => s.k), ["1"]);
+  assert.deepEqual(L.plFilter(l, L.norm("amame")).map(s => s.k), ["3"]);
+  assert.deepEqual(L.plFilter(l, L.norm("zzz")), []);
+  assert.equal(L.plFilter(l, ""), l);
+});

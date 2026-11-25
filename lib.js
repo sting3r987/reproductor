@@ -188,3 +188,9 @@ export function failDecision({fails, size, online, nextLocal}){
   if (fails >= Math.min(MAX_FALLOS, Math.max(1, size))) return {stop: true, why: "fails"};
   return {stop: false, why: null};
 }
+
+/* ---------- Buscar dentro de una playlist ---------- */
+// Canciones cuyo título o artista contienen q (q ya sin mayúsculas ni tildes, como lo da norm()); sin q devuelve todas
+export function plFilter(songs, q){
+  return q ? songs.filter(x => norm(x.t + " " + x.a).includes(q)) : songs;
+}

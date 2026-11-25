@@ -5,7 +5,7 @@
    - Todo lo demás (YouTube, SoundCloud, búsquedas) pasa directo, sin guardar. */
 const CACHE = "np-v2";
 const FB = "https://www.gstatic.com/firebasejs/12.19.0/";
-const APP = ["./", "index.html", "config.js?v=2", "lib.js?v=4", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
+const APP = ["./", "index.html", "config.js?v=2", "lib.js?v=5", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 const LIBS = [FB + "firebase-app.js", FB + "firebase-auth.js", FB + "firebase-firestore.js"];
 
 self.addEventListener("install", e => {

@@ -202,7 +202,7 @@ try {
     await ready(page);
     await page.waitForFunction(() => navigator.serviceWorker?.controller || navigator.serviceWorker.ready.then(() => true), null, {timeout: 15000});
     await page.reload(); await ready(page); // ya con el service worker al mando
-    await until("app guardada", () => page.evaluate(async () => !!(await caches.match("index.html")) && !!(await caches.match("lib.js?v=2"))));
+    await until("app guardada", () => page.evaluate(async () => !!(await caches.match("index.html")) && !!(await caches.match("lib.js", {ignoreSearch: true}))));
     await ctx.setOffline(true);
     await page.evaluate(() => window.dispatchEvent(new Event("offline")));
     assert.equal(await page.isVisible("#net"), true, "aviso de sin conexión");

@@ -77,6 +77,10 @@ Suena con el reproductor oficial de SoundCloud (Widget API). Buscar en SoundClou
 
 Comparte un enlace (`?juntos=<id>`); lo que suena en un teléfono suena en el otro al mismo tiempo. Viajan hasta 300 canciones de la cola (las que siguen, en el orden en que van a sonar). Las sesiones vencidas de cada cuenta se borran solas una vez al día.
 
+## Repetir canciÃ³n
+
+BotÃ³n âŸ² con un 1 en la fila de abajo del reproductor (junto a Volumen): al terminar la canciÃ³n vuelve a empezar la misma, en YouTube, archivo o SoundCloud. Se recuerda en el aparato (`np-repeat`). Apagado, la cola ya da la vuelta sola al llegar al final. Con repetir encendido no hay fundido cruzado con la siguiente. No cuenta escuchas de mÃ¡s (no recarga la canciÃ³n). En Â«Ver juntosÂ» estÃ¡ apagado (no debe repetir en un solo telÃ©fono).
+
 ## Opciones en la dirección
 
 | Agregar a la dirección | Para qué |

@@ -91,9 +91,11 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .btn.go.side[aria-pressed="true"]::after{content:"";position:absolute;left:50%;bottom:5px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--accent)}
 /* Fila secundaria: iconos con una palabra debajo (en el celular no hay tooltip) y volumen desplegable */
 /* Fila secundaria: tres píldoras iguales (icono + texto), mismo estilo que ⏮ ⏭; el volumen se despliega a todo el ancho debajo */
-.sub{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;flex:none;width:480px;max-width:100%} /* mismo ancho que el transporte */
+.sub{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 44px;gap:8px;flex:none;width:480px;max-width:100%} /* mismo ancho que el transporte */
 .btn.go.side.cap{width:auto;min-width:0;height:44px;border-radius:99px;flex-direction:row;gap:7px;padding:0 10px;background:var(--surface);border-color:var(--line);box-shadow:var(--shadow-sm);color:var(--ink);justify-self:stretch}
 .btn.go.side.cap:hover{background:var(--surface-2)}
+#rep[aria-pressed="true"],#rep[aria-pressed="true"]:hover{background:var(--accent-bg);color:var(--accent);border-color:transparent}
+#rep:disabled{opacity:.4}
 .btn.go.side.cap[aria-expanded="true"]{background:var(--accent-bg);color:var(--accent)}
 .btn.go.side.cap svg{width:19px;height:19px}
 .btn.go.side.cap small{font-size:13px;font-weight:600;line-height:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -450,7 +452,7 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
   .btn{padding:7px 12px;font-size:13px}
   /* En el celular el transporte ocupa toda una fila: ⏮ ▶ ⏭ grandes, debajo los botones pequeños */
   .transport{width:100%;min-width:0;gap:8px;grid-template-columns:40px repeat(3,minmax(0,1fr)) 40px}
-  .sub{width:100%;flex-basis:100%;gap:8px}
+  .sub{width:100%;flex-basis:100%;gap:8px;grid-template-columns:repeat(5,minmax(0,1fr))}
   /* una sola fila de cuatro: solo iconos (cada botón tiene aria-label y title) */
   .btn.go.side.cap{height:44px;padding:0;gap:0;justify-content:center}
   .btn.go.side.cap small{display:none}
@@ -522,7 +524,7 @@ body.jz-on .btn.go.side.cap.vjz{background:var(--accent);color:var(--accent-ink)
 .jz-h{margin:4px 0 -4px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .jz-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
 /* Invitado: solo el reproductor (sin la música ni las playlists del dueño) */
-body.jz-guest .tools,body.jz-guest #list,body.jz-guest #more,body.jz-guest #note,body.jz-guest #pls,body.jz-guest #filebox,body.jz-guest #imp,body.jz-guest #ytbox,body.jz-guest #addcur,body.jz-guest #alt,body.jz-guest #shuf,body.jz-guest #aud,body.jz-guest #jzbtn,body.jz-guest .vbig{display:none!important}
+body.jz-guest .tools,body.jz-guest #list,body.jz-guest #more,body.jz-guest #note,body.jz-guest #pls,body.jz-guest #filebox,body.jz-guest #imp,body.jz-guest #ytbox,body.jz-guest #addcur,body.jz-guest #alt,body.jz-guest #shuf,body.jz-guest #aud,body.jz-guest #jzbtn,body.jz-guest #rep,body.jz-guest .vbig{display:none!important}
 body.jz-guest .sub{grid-template-columns:minmax(0,1fr)}
 /* Solo el anfitrión controla: el invitado ve los botones, apagados */
 body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body.jz-lock #mini-play,body.jz-lock #mini-next,body.jz-lock #qlist button{opacity:.4;pointer-events:none}
@@ -568,6 +570,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
           <button class="btn go side cap" id="volb" type="button" aria-expanded="false" aria-label="Volumen" title="Volumen"><svg class="i-high" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg><svg class="i-low" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.5 12A4.5 4.5 0 0 0 16 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg><svg class="i-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg><small>Volumen</small></button>
           <div class="pop volpop" id="volpop" hidden><button class="btn go side" id="mute" type="button" aria-pressed="false" aria-label="Silenciar" title="Silenciar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg></button><input type="range" class="tm-range" id="vol" min="0" max="100" step="1" aria-label="Volumen"><b id="vol-v">100%</b></div>
         </span>
+        <button class="btn go side cap" id="rep" type="button" aria-pressed="false" aria-label="Repetir canción" title="Repetir canción: apagado"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z"/></svg></button>
       </span>
       <div class="upnext" id="upnext" hidden>
         <button type="button" id="nextbtn" aria-expanded="false" aria-controls="qlist"><span class="qh">A continuación</span><b id="next-t"></b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
@@ -1434,10 +1437,10 @@ function updatePos(){
     else if (ready){ const d = player.getDuration(), p = player.getCurrentTime(); if (d > 0 && p >= 0) ms.setPositionState({duration: d, playbackRate: 1, position: Math.min(p, d)}); }
   } catch {}
 }
-setInterval(() => { if (playing) updatePos(); }, 2000);
+setInterval(() => { paintRepeat(); if (playing) updatePos(); }, 2000);
 au.addEventListener("playing", () => { if (mode === "file"){ const first = !started; started = true; setPlaying(true); updatePos(); log("archivo sonando"); fadeTo(100, first ? FADE : FADE_RESUME); } });
 au.addEventListener("pause", () => { if (mode === "file") setPlaying(false); });
-au.addEventListener("ended", () => { if (mode === "file"){ log("archivo terminó"); step(1); } });
+au.addEventListener("ended", () => { if (mode === "file"){ log("archivo terminó"); endTrack(); } });
 au.addEventListener("error", () => { if (mode === "file" && au.src){ log("archivo con error"); setTimeout(failNext, 800); } });
 au.addEventListener("loadedmetadata", updatePos);
 au.addEventListener("seeked", updatePos);
@@ -1636,7 +1639,7 @@ async function playSc(x, pos){
       log("SoundCloud sonando"); jzPlayState(true);
     });
     scW.bind(E.PAUSE, () => { if (mode === "sc"){ setPlaying(false); jzPlayState(false); } });
-    scW.bind(E.FINISH, () => { if (mode === "sc"){ log("SoundCloud terminó"); if (!jzHoldEnd()) step(1); } });
+    scW.bind(E.FINISH, () => { if (mode === "sc"){ log("SoundCloud terminó"); if (!jzHoldEnd()) endTrack(); } });
     scW.bind(E.PLAY_PROGRESS, e => { if (mode === "sc"){ scPos = e.currentPosition || 0; if (!scDur) scW.getDuration(d => { scDur = d || 0; }); } });
     scW.bind(E.ERROR, () => { if (mode === "sc") scFail(queue[cur], "SoundCloud no pudo reproducirla"); });
   } else if (scLoadedUrl === url){ scReady(tok); } // la misma canción otra vez: se vuelve a poner desde donde toca
@@ -1964,7 +1967,7 @@ function precue(){
 }
 // ¿Se puede encadenar con fundido cruzado? (no en iPhone: allí el volumen del video no se puede bajar; no en segundo plano)
 function canXfade(){
-  if ((JZ && JZ.on) || mode !== "yt" || IOS || document.hidden || !FADE || !spareReady || xfade || !cued || queue.length < 2) return false;
+  if ((JZ && JZ.on) || repeatOn() || mode !== "yt" || IOS || document.hidden || !FADE || !spareReady || xfade || !cued || queue.length < 2) return false;
   const nx = queue[orderIdx[(at + 1) % orderIdx.length]];
   return !!nx && !fileFor(nx) && vid(nx) === cued;
 }
@@ -2171,6 +2174,33 @@ $("play").onclick = () => {
   if (!ready) return;
   if (playing){ started = true; clearInterval(kick); player.pauseVideo(); } else resumeYt("botón");
 };
+// Repetir canción: al terminar vuelve a empezar la misma (en el mismo reproductor, sin recargar: no cuenta como otra escucha).
+// «Lista» no hace falta: la cola ya da la vuelta sola al llegar al final (step usa módulo). En Ver juntos no se repite.
+let repeatOne = store.get("np-repeat") === "1";
+const repeatOn = () => repeatOne && !(JZ && JZ.on);
+function paintRepeat(){
+  const b = $("rep"), jz = !!(JZ && JZ.on);
+  b.disabled = jz; b.setAttribute("aria-pressed", String(repeatOn()));
+  b.title = jz ? "Repetir canción: no se usa en Ver juntos" : repeatOne ? "Repetir canción: encendido (toca para apagar)" : "Repetir canción: apagado";
+}
+$("rep").onclick = () => {
+  repeatOne = !repeatOne; store.set("np-repeat", repeatOne ? "1" : "0"); paintRepeat(); // con repetir encendido no hay fundido cruzado con la siguiente (canXfade)
+  flash(repeatOne ? "Repetir canción: encendido." : "Repetir canción: apagado.");
+};
+paintRepeat();
+function replayCur(){
+  log("repetir canción");
+  try {
+    if (mode === "file"){ au.currentTime = 0; au.play().catch(() => {}); }
+    else if (mode === "sc"){ scSeek(0); scW?.play(); }
+    else if (ready){ player.seekTo(0, true); resumeYt("repetir"); }
+  } catch {}
+}
+// Una canción terminó: repite la misma o pasa a la siguiente
+function endTrack(){
+  if (repeatOn() && cur >= 0 && !armed && queue[cur]) return replayCur();
+  step(1);
+}
 $("shuf").onclick = () => {
   shuffle = !shuffle; $("shuf").setAttribute("aria-pressed", shuffle); store.set("np-shuffle", shuffle ? "1" : "0");
   rearm();
@@ -2228,7 +2258,7 @@ function initYT(){
         log("estado " + ({"-1": "sin empezar", 0: "terminó", 1: "sonando", 2: "pausa", 3: "cargando", 5: "lista"}[e.data] ?? e.data));
         if (playing && !wasPlaying) precue();
         jzYtState(e.data);
-        if (e.data === YT.PlayerState.ENDED && !jzHoldEnd()) step(1);
+        if (e.data === YT.PlayerState.ENDED && !jzHoldEnd()) endTrack();
         if (e.data === YT.PlayerState.CUED && !started && !armed) player.playVideo(); // cargó pero no arrancó (pasa en segundo plano)
         if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000) setTimeout(() => { if (document.hidden && !playing) player.playVideo(); }, 400);
       },

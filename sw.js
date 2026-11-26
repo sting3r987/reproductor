@@ -3,9 +3,9 @@
    - Archivos de la app: primero la red (así siempre llega la versión nueva) y, si no hay señal, lo guardado.
    - Firebase y fuentes (direcciones con versión, no cambian): primero lo guardado.
    - Todo lo demás (YouTube, SoundCloud, búsquedas) pasa directo, sin guardar. */
-const CACHE = "np-v3";
+const CACHE = "np-v4";
 const FB = "https://www.gstatic.com/firebasejs/12.19.0/";
-const APP = ["./", "index.html", "config.js?v=2", "lib.js?v=7", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
+const APP = ["./", "index.html", "config.js?v=2", "lib.js?v=8", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 const LIBS = [FB + "firebase-app.js", FB + "firebase-auth.js", FB + "firebase-firestore.js"];
 
 // Los archivos de la app son imprescindibles: si uno falla, no se instala esta versión (queda la anterior) en vez de dejar la caché incompleta.

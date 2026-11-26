@@ -57,7 +57,13 @@ YouTube pausa sus videos al bloquear la pantalla o cambiar de app. En la pestañ
 
 Si una canción no tiene otra versión guardada que sirva: 1) si tiene enlace de SoundCloud guardado, suena desde ahí (sin gastar cuota); 2) si no, se busca otra subida que sí se deje insertar (`videoEmbeddable` y `videoSyndicated`, título que contenga el de la canción y duración parecida) y se prueba al momento, hasta 3 copias; la que suene queda guardada como el video de la canción; 3) si nada sirve, sigue la próxima con un aviso y la canción queda en la pestaña **Bloqueadas**.
 
-Cada búsqueda cuesta 100 unidades de cuota de la YouTube Data API (más 1 de los detalles). Lo buscado por cada canción se recuerda 7 días en el dispositivo: una canción que ya gastó sus 3 intentos no vuelve a buscar cada vez que se abre la app (máximo 303 unidades por canción por semana).
+**Sonda**: YouTube marca como «insertables» copias que luego bloquea aquí por los derechos de la canción (error 150). Antes de usar una copia, un tercer reproductor escondido y sin sonido la *carga* sin reproducirla: si está bloqueada, YouTube avisa en unas décimas de segundo y se descarta sin gastar un intento ni sonar. Así se revisan todas las candidatas de cada búsqueda (50 resultados) y no solo 3.
+
+Consultas, en orden y solo si hacen falta: «artista título»; el título sin paréntesis con los invitados (`(feat. X & Y)` o los demás artistas), porque muchas subidas no nombran al primer artista; «… audio»; «… letra».
+
+Cada búsqueda cuesta 100 unidades de cuota de la YouTube Data API (más 1 de los detalles). Lo buscado por cada canción se recuerda 7 días en el dispositivo (`np-auto2`): una canción que ya gastó sus búsquedas no vuelve a buscar cada vez que se abre la app (máximo 404 unidades por canción por semana).
+
+En **Bloqueadas**, el botón **Buscar copias que sí suenen (todas)** hace esa búsqueda para las pendientes (hasta 15 por toque y 2 consultas por canción; lo ya buscado en los últimos 7 días no se repite) y guarda la primera copia que la sonda ve cargar bien.
 
 ## Bloqueadas
 

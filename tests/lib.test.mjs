@@ -46,6 +46,11 @@ test("searchVariants y autoQueries", () => {
   assert.deepEqual(L.searchVariants("el cantante de la noche"), ["el cantante de la noche", "cantante noche"]);
   assert.equal(L.searchVariants("q", {t: "La Noche", a: "Joe Arroyo, Otro"})[1], "Joe Arroyo Noche");
   assert.deepEqual(L.autoQueries({t: "Ángel", a: "Elefante"}), ["Elefante Ángel", "Elefante Ángel audio", "Elefante Ángel letra"]);
+  // con invitados: segunda consulta con el título sin paréntesis y los invitados (así salen las subidas que no nombran al primer artista)
+  assert.equal(L.autoQueries({t: "El Conejito (feat. Jhoan & Oneil)", a: "Perreke, Jhoan, O'neil"})[1], "El Conejito Jhoan Oneil");
+  assert.equal(L.autoQueries({t: "Danza Kuduro", a: "Don Omar, Lucenzo"})[1], "Danza Kuduro Lucenzo");
+  assert.equal(L.autoQueries({t: "Gasolina (Remix)", a: "Daddy Yankee"})[1], "Daddy Yankee Gasolina");
+  assert.equal(L.autoQueries({t: "El Conejito (feat. Jhoan & Oneil)", a: "Perreke"}).length, 4);
 });
 
 test("isoSecs y autoMatch", () => {

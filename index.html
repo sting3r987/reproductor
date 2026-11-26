@@ -71,6 +71,7 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding-block:12
 .video #yt,.video #yt2{position:absolute;inset:0;width:100%;height:100%}
 /* Dos reproductores: el de reserva (oculto) prepara la siguiente canción para cambiar sin espera */
 .video #yt2,.video.swap #yt{opacity:0;pointer-events:none}
+#ytprobe{position:absolute;left:0;top:0;width:200px;height:120px;opacity:0;pointer-events:none;z-index:-1;overflow:hidden} /* sonda: comprueba copias sin mostrarlas ni sonar */
 .video.swap #yt2{opacity:1;pointer-events:auto}
 .video .ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#C4C2CE;font-size:13px;text-align:center;padding:12px;background:radial-gradient(circle at 50% 35%,#2B2340,#0B0B10 72%)}
 .video .ph::before{content:"▶";display:grid;place-items:center;padding-left:3px;width:46px;height:46px;border-radius:50%;background:var(--accent);color:#fff;font-size:17px;box-shadow:0 0 0 8px var(--accent-glow)}
@@ -556,7 +557,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 <div id="app" hidden>
 <header class="top">
   <div class="np"><div class="player">
-    <div class="video"><div id="yt"></div><div id="yt2"></div><iframe id="sc" title="Reproductor de SoundCloud" allow="autoplay; encrypted-media" scrolling="no"></iframe><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden><button class="vbig" id="big" type="button" aria-pressed="false" aria-label="Video grande" title="Video grande a todo el ancho"><svg class="i-out" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10z"/></svg><svg class="i-in" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3.41 16.71 8.7 20 12h-8V4l3.29 3.29L20.59 2 22 3.41zM3.41 22l5.29-5.29L12 20v-8H4l3.29 3.29L2 20.59 3.41 22z"/></svg></button></div>
+    <div class="video"><div id="yt"></div><div id="yt2"></div><div id="ytprobe" aria-hidden="true"><div id="yt3"></div></div><iframe id="sc" title="Reproductor de SoundCloud" allow="autoplay; encrypted-media" scrolling="no"></iframe><div class="ph" id="ph"><span>Toca una canción para empezar</span></div><img id="art" alt="" hidden><button class="vbig" id="big" type="button" aria-pressed="false" aria-label="Video grande" title="Video grande a todo el ancho"><svg class="i-out" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10z"/></svg><svg class="i-in" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3.41 16.71 8.7 20 12h-8V4l3.29 3.29L20.59 2 22 3.41zM3.41 22l5.29-5.29L12 20v-8H4l3.29 3.29L2 20.59 3.41 22z"/></svg></button></div>
     <div class="now">
       <p class="eyebrow" id="pos">Nuestras playlists</p>
       <h1 id="nt">Elige una canción</h1>
@@ -679,7 +680,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=7";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=8";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -1330,7 +1331,7 @@ $("filebox").addEventListener("click", e => {
    SoundCloud (para los dos). Con archivo en este aparato deja de contar aquí; con SoundCloud u otro video que suene, sale de la lista. */
 const LIM_FILE = "El archivo se guarda solo en este aparato y en este navegador (en el teléfono, ponlo en el teléfono). En «Ver juntos» la otra persona no lo tiene.";
 const ACC_AUDIO = 'accept="audio/*,.mp3,.m4a,.aac,.ogg,.opus,.wav,.webm,.flac"';
-let fileTarget = null, blArm = null; // fileTarget: canción a la que va el archivo elegido; blArm: clave que pide segundo toque para quitarla de la lista
+let fileTarget = null, blArm = null, blBusy = ""; // fileTarget: canción a la que va el archivo elegido; blArm: clave que pide segundo toque para quitarla de la lista
 const blSong = it => allSongs().find(x => x.k === it.k) || {t: it.t, a: it.a, k: it.k, y: it.y || null, pl: []};
 const blPending = () => (CAT.sinrep || []).filter(it => !fileFor(it) && !scOf(it)); // las que en este aparato todavía no suenan
 const blDate = f => { const [y, m, d] = f.split("-"); return +d + "/" + +m + (y === String(new Date().getFullYear()) ? "" : "/" + y); }; // 20/11 (con año si no es este)
@@ -1394,7 +1395,8 @@ function renderBl(){
       + `</div></div>`; };
   box.innerHTML = `<div class="blhead"><h3>${pend.length ? pend.length + (pend.length === 1 ? " canción no puede sonar aquí" : " canciones no pueden sonar aquí") : "Ninguna canción bloqueada pendiente"}</h3>
       <p>YouTube no deja ponerlas fuera de su sitio y no hubo otra copia que sirviera. Búscalas y ponles tu archivo de audio (MP3, M4A, AAC, OGG, WAV, OPUS o WEBM) o pega un enlace de SoundCloud: desde ahí suenan en cualquier playlist.</p>
-      <p class="lim">${LIM_FILE}</p></div>`
+      <p class="lim">${LIM_FILE}</p>
+      ${pend.length && CFG.youtubeKey && !jzGuest ? `<p><button class="btn sm primary" type="button" id="blretry"${blBusy ? " disabled" : ""}>${blBusy ? "Buscando copias… " + esc(blBusy) : "🔁 Buscar copias que sí suenen (todas)"}</button></p>` : ""}</div>`
     + (pend.length ? `<div class="files">${pend.map(it => row(it, false)).join("")}</div>`
       : `<div class="empty"><b>No hay canciones bloqueadas${done.length ? " sin archivo" : ""}</b>Cuando YouTube no deje poner una y no haya otra copia, aparece aquí.</div>`)
     + (done.length ? `<p class="msg blsub">Ya suenan desde tu archivo en este aparato (${done.length})</p><div class="files">${done.map(it => row(it, true)).join("")}</div>` : "");
@@ -1404,7 +1406,36 @@ $("blbox").addEventListener("change", e => {
   const f = e.target.files?.[0], it = (CAT.sinrep || []).find(s => s.k === k); e.target.value = "";
   if (f && it) attachFile(blSong(it), f);
 });
+// Recorre las pendientes: busca otras subidas de cada una y se queda con la primera que la sonda ve cargar bien (sin reproducirla).
+// La copia queda guardada para los dos como el video de la canción y la canción sale de la lista.
+const BL_MAX = 15; // canciones por toque: cada una gasta como mucho 2 búsquedas (202 unidades de las 10 000 del día)
+async function blRetryAll(){
+  if (blBusy || jzGuest || !CFG.youtubeKey) return;
+  if (!(window.YT && YT.Player)){ loadYtApi(); return flash("Todavía no carga YouTube. Intenta de nuevo en unos segundos."); }
+  blBusy = "preparando"; renderBl();
+  const todo = blPending().map(blSong).filter(x => queue[cur]?.k !== x.k && allSongs().some(s => s.k === x.k)); // la que está puesta ahora se busca sola; las que ya no están en ninguna lista no tienen dónde guardarse
+  const part = todo.slice(0, BL_MAX), got = []; let n = 0, noQuota = false, spent = 0;
+  try {
+    if (!(await probeUp())) return flash("No pude preparar la comprobación de copias. Recarga la página e intenta de nuevo.");
+    for (const x of part){
+      if (jzGuest) break;
+      blBusy = ++n + " de " + part.length; renderBl();
+      const q0 = AUTO.get(x.k)?.q || 0;
+      let id = null;
+      try { do id = await autoNext(x, {maxQ: 2}); while (id && !PROBED.has(id)); } // solo vale una copia que la sonda vio cargar
+      catch (e) { log("«" + x.t + "»: no se pudo buscar (" + e.message + ")"); if (AUTO.get(x.k)?.q === 99){ noQuota = true; break; } }
+      spent += Math.max(0, Math.min(AUTO.get(x.k)?.q || 0, 2) - q0);
+      if (!id || jzGuest || queue[cur]?.k === x.k || !(CAT.sinrep || []).some(it => it.k === x.k)) continue;
+      setClip(x, id); AUTO.delete(x.k); got.push(x.t); log("«" + x.t + "»: copia que sí carga → " + id);
+    }
+  } finally { blBusy = ""; autoSave(); refresh(); }
+  const rest = todo.length - part.length;
+  flash((got.length ? "Encontré copia para " + got.length + " de " + part.length + ": " + got.slice(0, 3).join(", ") + (got.length > 3 ? "…" : "") + ". Quedaron guardadas para los dos; si alguna no es la buena, cámbiala en Versiones."
+      : noQuota ? "" : spent ? "No encontré copias que YouTube deje poner aquí. Queda ponerles tu archivo o un enlace de SoundCloud." : "Ya se buscaron hace poco y no hubo copia que sirva. Queda ponerles tu archivo o un enlace de SoundCloud.")
+    + (noQuota ? " Se acabó la cuota de búsquedas de YouTube por hoy: sigue mañana." : rest > 0 ? " Faltan " + rest + ": toca otra vez para seguir." : ""));
+}
 $("blbox").addEventListener("click", e => {
+  if (e.target.closest("#blretry")) return blRetryAll();
   const b = e.target.closest("[data-blsc],[data-bldel],[data-blplay],[data-blunfile]"); if (!b) return;
   const d = b.dataset, k = d.blsc ?? d.bldel ?? d.blplay ?? d.blunfile, it = (CAT.sinrep || []).find(s => s.k === k); if (!it) return;
   const x = blSong(it);
@@ -2383,7 +2414,7 @@ async function rescue(x, blocked, code){
   if (scOf(x)){ flash("YouTube bloquea «" + x.t + "» aquí: suena desde SoundCloud."); load(cur, {auto: true}); return; }
   if (!AUTO.get(x.k)?.tries) flash("YouTube bloquea «" + x.t + "» en este sitio. Busco otra copia…");
   let id = null;
-  try { id = await autoNext(x); } catch (e) { log("no se pudo buscar otra copia: " + e.message); }
+  try { id = await autoNext(x, {alive: () => queue[cur] === x && mode === "yt"}); } catch (e) { log("no se pudo buscar otra copia: " + e.message); }
   if (queue[cur] !== x || mode !== "yt") return; // mientras buscaba, pasaste a otra canción
   if (id){ pendingFix = {k: x.k, id}; log("pruebo otra copia de «" + x.t + "»: " + id); start(id, 0); return; }
   noteSinrep(x, code);
@@ -2723,16 +2754,56 @@ function setClip(s, id){
 // de los detalles). Si una copia llega a sonar, adoptVideo la guarda para los dos como el video de la canción.
 // clave → {ids, q, tries, used, ref, t}. Se recuerda 7 días en este dispositivo (np-auto): si una canción ya gastó sus búsquedas
 // o sus 3 intentos, no se vuelve a buscar cada vez que abres la app (cada búsqueda cuesta 100 de cuota).
-const AUTO = autoLoad(store.get("np-auto"));
-const autoSave = () => store.set("np-auto", autoDump(AUTO));
+const AUTO = autoLoad(store.get("np-auto2")); // «2»: con la sonda, lo recordado con el método anterior (intentos gastados en copias bloqueadas) ya no vale
+const autoSave = () => store.set("np-auto2", autoDump(AUTO));
+/* Sonda: YouTube marca como «insertables» copias que luego bloquea aquí (error 150 por derechos de la canción). Un tercer
+   reproductor, escondido y sin sonido, solo CARGA cada copia candidata (no la reproduce): si YouTube la bloquea avisa en
+   ~0,2 s, y así no se gasta un intento ni se oye nada. probe(id) → true: se deja poner; false: bloqueada; null: no se supo. */
+let probeP = null, probeOk = false, probeWait = null, probeDirty = false, probeChain = Promise.resolve();
+const PROBED = new Set(); // copias que la sonda vio cargar bien en esta sesión
+const pause = ms => new Promise(r => setTimeout(r, ms));
+async function probeUp(){ // crea la sonda la primera vez y espera (hasta 8 s cada vez) a que esté lista
+  if (!(window.YT && YT.Player)) return false;
+  if (!probeP){
+    if (!$("yt3")) return false;
+    try {
+      probeP = new YT.Player("yt3", {width: 200, height: 120, playerVars: {playsinline: 1}, events: {
+        onReady(){ try { probeP.mute(); } catch {} probeOk = true; },
+        onStateChange(e){
+          if (e.data === YT.PlayerState.PLAYING){ try { probeP.pauseVideo(); } catch {} return; }
+          if (e.data !== YT.PlayerState.CUED || !probeWait) return;
+          let got = null; try { got = probeP.getVideoData()?.video_id; } catch {}
+          if (got === probeWait.id) probeWait.done(true); // «cargó» solo vale si es la copia que se preguntó (no un aviso tardío de la anterior)
+        },
+        onError(e){ probeWait?.done([100, 101, 150].includes(e.data) ? false : null); }
+      }});
+    } catch { probeP = null; return false; }
+  }
+  for (let n = 0; n < 40 && !probeOk; n++) await pause(200);
+  return probeOk;
+}
+function probe(id){
+  const run = async () => {
+    if (!(await probeUp())) return null;
+    if (probeDirty){ probeDirty = false; try { probeP.stopVideo(); } catch {} await pause(1500); } // la anterior no contestó: se deja pasar su aviso tardío
+    const v = await new Promise(res => {
+      const t = setTimeout(() => { probeWait = null; probeDirty = true; res(null); }, 5000);
+      probeWait = {id, done: v => { clearTimeout(t); probeWait = null; res(v); }};
+      try { probeP.cueVideoById(id); } catch { probeWait.done(null); }
+    });
+    if (v) PROBED.add(id);
+    return v;
+  };
+  return probeChain = probeChain.then(run, run);
+}
 let pendingFix = null;  // {k, id}: candidato que está cargando
 const AUTO_MAX = 3;
 async function autoSearch(x, q, a){
-  const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&videoSyndicated=true&maxResults=10&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
+  const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&videoSyndicated=true&maxResults=50&q=" + encodeURIComponent(q) + "&key=" + CFG.youtubeKey);
   const d = await r.json();
   if (!r.ok){ const why = d.error?.errors?.[0]?.reason || r.status; if (/quota/i.test(why)) a.q = 99; throw new Error(why); }
   const list = (d.items || []).filter(it => it.id?.videoId && !BAD.has(it.id.videoId) && !a.used.includes(it.id.videoId) && it.id.videoId !== x.y)
-    .map(it => ({t: decodeHtml(it.snippet.title), a: decodeHtml(it.snippet.channelTitle), y: it.id.videoId}));
+    .map(it => ({t: decodeHtml(it.snippet.title), a: decodeHtml(it.snippet.channelTitle), y: it.id.videoId})).slice(0, 49); // 50 resultados cuestan lo mismo que 10; los detalles admiten 50 ids (49 + el bloqueado)
   if (!list.length) return [];
   // Detalles (1 unidad): duración, si de verdad se deja insertar y, de paso, la duración del video bloqueado como referencia
   const ids = list.map(c => c.y).concat(a.ref === null && x.y ? [x.y] : []);
@@ -2748,15 +2819,19 @@ async function autoSearch(x, q, a){
   log("otra copia de «" + x.t + "» con «" + q + "»: " + ok.length + " de " + list.length + " sirven");
   return ok.map(c => c.y);
 }
-async function autoNext(x){
+async function autoNext(x, {maxQ = 99, alive = () => true} = {}){ // maxQ: tope de consultas; alive: ¿sigue haciendo falta? (pasaste a otra canción → se deja de buscar)
   let a = AUTO.get(x.k);
   if (!a) AUTO.set(x.k, a = {ids: [], q: 0, tries: 0, used: [], ref: null, t: Date.now()});
   if (a.tries >= AUTO_MAX || !CFG.youtubeKey){ log("«" + x.t + "»: ya se buscó otra copia hace poco; no gasto más cuota"); return null; }
   try {
     for (;;){
       const id = a.ids.find(id => id !== x.y && id !== yaOf(x) && !BAD.has(id) && !a.used.includes(id));
-      if (id){ a.tries++; a.used.push(id); return id; }
-      const qs = autoQueries(x); if (a.q >= qs.length) return null;
+      if (!alive()) return null;
+      if (id){
+        if ((await probe(id)) === false){ BAD.add(id); a.used.push(id); log("copia " + id + " también bloqueada aquí: descartada sin probarla"); continue; }
+        a.tries++; a.used.push(id); return id;
+      }
+      const qs = autoQueries(x); if (a.q >= Math.min(qs.length, maxQ)) return null;
       a.ids = a.ids.concat(await autoSearch(x, qs[a.q++], a));
     }
   } finally { autoSave(); }

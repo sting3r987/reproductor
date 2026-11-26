@@ -60,7 +60,15 @@ export const onlyMusic = list => list.map((x, i) => [musicRank(x), i, x]).filter
 export const AUTO_SKIP = /\b(cover|karaoke|en vivo|live|remix|instrumental|8d|slowed|sped up|reverb|nightcore|tutorial|reaccion|reaction|mashup|medley|bass boosted)\b/;
 export function autoQueries(x){
   const a1 = x.a.split(",")[0].trim(), base = norm(x.t).includes(norm(a1)) ? x.t : a1 + " " + x.t;
-  return [base, base + " audio", base + " letra"];
+  const out = [base, base + " audio", base + " letra"];
+  // Muchas subidas llevan el nombre de los otros artistas y no el del primero: se busca también el título sin paréntesis con
+  // los invitados («(feat. X & Y)» del título o, si no hay, los demás artistas). Sin invitados, el título sin paréntesis.
+  const plain = x.t.replace(/\([^)]*\)|\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
+  const feat = /[(\[](?:feat\.?|ft\.?|featuring|with)\s+([^)\]]*)[)\]]/i.exec(x.t)?.[1] ?? x.a.split(",").slice(1).join(" ");
+  const others = feat.replace(/[&,]/g, " ").replace(/\s+/g, " ").trim();
+  if (plain && others) out.splice(1, 0, plain + " " + others);
+  else if (plain && plain !== x.t.trim()) out.splice(1, 0, a1 + " " + plain);
+  return out;
 }
 export const isoSecs = v => { const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(v || "") || []; return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0); };
 // ¿El resultado `c` es la misma canción que `x`? Título que contenga el de la canción, sin versiones raras (cover, en vivo…)
@@ -140,7 +148,7 @@ export function autoLoad(raw, now = Date.now()){
 }
 export function autoDump(map, now = Date.now()){
   const o = {};
-  for (const [k, a] of map) if (now - (a.t || now) < AUTO_TTL) o[k] = {ids: a.ids.slice(0, 30), q: a.q, tries: a.tries, used: a.used.slice(-10), ref: a.ref, t: a.t || now};
+  for (const [k, a] of map) if (now - (a.t || now) < AUTO_TTL) o[k] = {ids: a.ids.slice(0, 60), q: a.q, tries: a.tries, used: a.used.slice(-60), ref: a.ref, t: a.t || now};
   return JSON.stringify(o);
 }
 

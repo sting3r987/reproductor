@@ -1976,7 +1976,7 @@ function load(i, opt = {}){
   } else {
     scStop(); mode = "yt"; au.pause(); $("art").hidden = true;
     keepAlive(); setMedia(x);
-    if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; if (!opt.auto && !ytApiAsked && !(window.YT && YT.Player)) setTimeout(ytNotReady, 0); } // el script de YouTube ya había fallado (al abrir la app no: queda lista)
+    if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; }
     if (!opt.auto) recordPlayed(x);
   }
   renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini(); jzLoaded(i, opt);
@@ -2497,13 +2497,13 @@ async function rescue(x, blocked, code){
   setTimeout(() => { if (queue[cur] === x) failNext(); }, 300);
 }
 if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = initYT;
-let ytApiAsked = false, ytApiFails = 0;
+let ytApiAsked = false, ytApiFails = 0, ytWaitAt = 0; // ytWaitAt: cuándo se avisó que YouTube no cargó (tocaste ▶)
 function loadYtApi(){
   if (ytApiAsked || (window.YT && YT.Player)) return; ytApiAsked = true;
   const el = document.createElement("script"); el.src = "https://www.youtube.com/iframe_api";
-  el.onerror = () => { // sin señal, red que lo cortó o bloqueador: si había una canción de YouTube esperando, se avisa
+  el.onerror = () => { // sin señal, red que lo cortó o bloqueador: si esperabas una canción de YouTube, se avisa otra vez
     ytApiAsked = false; el.remove(); log("no cargó la API de YouTube (¿sin conexión o bloqueador?)");
-    if (pendingId && mode === "yt") ytNotReady(false);
+    if (pendingId && mode === "yt" && Date.now() - ytWaitAt < 60000) ytNotReady(false); // tocaste ▶ hace poco y sigue esperando
     if (!offline() && ++ytApiFails <= 5) setTimeout(() => { if (!player && auth.currentUser) loadYtApi(); }, 20000); // sin señal reintenta el evento online
   };
   document.head.appendChild(el);
@@ -2512,9 +2512,9 @@ addEventListener("online", () => { if (!player && auth.currentUser) loadYtApi();
 // ▶ o una canción de YouTube sin que YouTube haya cargado: aviso, reintento y, si hay canciones con archivo en la cola, sigue con ellas
 function ytNotReady(retry = true){
   if (ready) return;
-  flash("YouTube no cargó (sin señal o bloqueador). Reintento…");
+  flash("YouTube no cargó (sin señal o bloqueador). Reintento…"); if (retry) ytWaitAt = Date.now();
   if (retry && auth.currentUser) loadYtApi();
-  if (mode === "yt" && queue.some(x => fileFor(x))){ pendingId = null; step(1, true); }
+  if (mode === "yt" && !(JZ && JZ.on) && queue.some(x => fileFor(x))){ pendingId = null; step(1, true); } // en Ver juntos manda la cola compartida
 }
 
 /* ---------- Playlists ---------- */

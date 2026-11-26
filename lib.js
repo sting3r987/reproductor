@@ -189,6 +189,11 @@ export function failDecision({fails, size, online, nextLocal}){
   return {stop: false, why: null};
 }
 
+/* ---------- Errores de YouTube ---------- */
+// ¿Es un bloqueo de verdad? Solo 100 (no disponible) y 101/150 (no se deja poner fuera de YouTube), y con conexión.
+// Otro código (2, 5… fallo del reproductor o de la red) o sin conexión es pasajero: no se busca copia ni va a Bloqueadas.
+export const ytBlocked = (code, online) => !!online && [100, 101, 150].includes(code);
+
 /* ---------- Buscar dentro de una playlist ---------- */
 // Canciones cuyo título o artista contienen q (q ya sin mayúsculas ni tildes, como lo da norm()); sin q devuelve todas
 export function plFilter(songs, q){

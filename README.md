@@ -57,6 +57,8 @@ YouTube pausa sus videos al bloquear la pantalla o cambiar de app. En la pestañ
 
 Si una canción no tiene otra versión guardada que sirva: 1) si tiene enlace de SoundCloud guardado, suena desde ahí (sin gastar cuota); 2) si no, se busca otra subida que sí se deje insertar (`videoEmbeddable` y `videoSyndicated`, título que contenga el de la canción y duración parecida) y se prueba al momento, hasta 3 copias; la que suene queda guardada como el video de la canción; 3) si nada sirve, sigue la próxima con un aviso y la canción queda en la pestaña **Bloqueadas**.
 
+Solo esos tres códigos, y con conexión, cuentan como bloqueo. Otro error de YouTube (2, 5…: fallo del reproductor o de la red) o un error sin señal es pasajero: no se busca copia, no se cambia el video para los dos ni va a Bloqueadas; prueba la otra versión guardada de la canción (una vez cada una) y, si no hay, sigue la próxima (sin señal, la próxima con archivo, o se para con «Sin conexión»). Si la búsqueda de otra copia falla por la red, tampoco va a Bloqueadas y esa búsqueda no cuenta.
+
 Cada búsqueda cuesta 100 unidades de cuota de la YouTube Data API (más 1 de los detalles). Lo buscado por cada canción se recuerda 7 días en el dispositivo: una canción que ya gastó sus 3 intentos no vuelve a buscar cada vez que se abre la app (máximo 303 unidades por canción por semana).
 
 ## Bloqueadas

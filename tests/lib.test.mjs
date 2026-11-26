@@ -226,3 +226,8 @@ test("queueNext con fijadas: varias «Reproducir después» suenan en el orden e
   // sin fijadas se comporta como siempre
   assert.deepEqual(L.queueNext([0, 1, 2, 3], 0, 3, new Set()).order, [0, 3, 1, 2]);
 });
+
+test("ytBlocked: solo 100/101/150 con conexión es bloqueo; 2, 5 o sin conexión es pasajero", () => {
+  for (const c of [100, 101, 150]){ assert.equal(L.ytBlocked(c, true), true, "código " + c); assert.equal(L.ytBlocked(c, false), false, "sin conexión " + c); }
+  for (const c of [2, 5, 0, undefined, null, "150"]) assert.equal(L.ytBlocked(c, true), false, "código " + c);
+});

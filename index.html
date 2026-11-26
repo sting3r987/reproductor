@@ -682,7 +682,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=8";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile, ytBlocked } from "./lib.js?v=9";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -1884,7 +1884,7 @@ function load(i, opt = {}){
   checkHeard(); listenAcc = 0; listenFrom = playing ? Date.now() : 0; heardDone = false; // la que se deja: ¿alcanzó a sonar? La nueva empieza en cero
   clearTimeout(lockResumeT); // otra canción: ya no se espera para retomar la anterior
   if (!opt.auto) autoTry = 0; // otra canción o retomar a mano: se olvida el intento de arrancar sola
-  cur = i; armed = !!opt.armed; resumePos = opt.pos || 0;
+  cur = i; armed = !!opt.armed; resumePos = opt.pos || 0; ytSoft = null;
   $("nt").textContent = x.t; $("na").textContent = x.a;
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;
   $("ph").hidden = true; $("sub").hidden = false; $("seekrow").hidden = false;
@@ -2378,12 +2378,25 @@ function initYT(){
     }});
   player = mk("yt", true); spare = mk("yt2", false);
 }
-// YouTube no pudo reproducir el video que suena (100/101/150: bloqueado o no disponible fuera de su sitio)
+// YouTube no pudo reproducir el video que suena. Solo 100/101/150 con conexión es un bloqueo (se busca otra copia y, si no
+// hay, va a Bloqueadas); otro código (2, 5…) o sin señal es pasajero: no se marca el video, prueba la otra versión guardada
+// (una vez cada una) o sigue la próxima, sin gastar cuota ni cambiar nada para los dos.
+let ytSoft = null; // {x, ids}: versiones que ya fallaron de forma pasajera en esta canción (para no ir y volver sin fin)
 function ytError(code){
-  const x = queue[cur], bad = loadedId; BAD.add(bad);
+  const x = queue[cur], bad = loadedId;
   log("YouTube no reproduce " + bad + " (error " + code + ")");
-  const blocked = [100, 101, 150].includes(code);
+  const blocked = ytBlocked(code, !offline());
   if (pendingFix && pendingFix.id === bad) pendingFix = null; // la copia que se estaba probando tampoco sirve
+  if (!blocked){
+    if (!ytSoft || ytSoft.x !== x) ytSoft = {x, ids: new Set()};
+    ytSoft.ids.add(bad);
+    const alt = !offline() && x && [x.y, yaOf(x)].find(id => id && !BAD.has(id) && !ytSoft.ids.has(id));
+    if (alt){ log("fallo pasajero: pruebo la otra versión"); start(alt, 0); return; }
+    if (x && !offline()) flash("YouTube no pudo poner «" + x.t + "» (error " + code + "): sigue la próxima.");
+    setTimeout(() => { if (queue[cur] === x && mode === "yt") failNext(); }, 800); // sin señal, failNext para con «Sin conexión» o sigue con un archivo
+    return;
+  }
+  BAD.add(bad);
   const alt = x && [x.y, yaOf(x)].find(id => id && id !== bad && !BAD.has(id)); // la otra versión de la misma canción
   if (x && bad === yaOf(x) && bad !== x.y && blocked) dropAudio(x); // versión de audio bloqueada: fuera para los dos
   if (alt){ flash("YouTube bloquea esa versión de «" + x.t + "»; suena la otra."); start(alt, 0); }
@@ -2397,7 +2410,13 @@ async function rescue(x, blocked, code){
   if (scOf(x)){ flash("YouTube bloquea «" + x.t + "» aquí: suena desde SoundCloud."); load(cur, {auto: true}); return; }
   if (!AUTO.get(x.k)?.tries) flash("YouTube bloquea «" + x.t + "» en este sitio. Busco otra copia…");
   let id = null;
-  try { id = await autoNext(x); } catch (e) { log("no se pudo buscar otra copia: " + e.message); }
+  try { id = await autoNext(x); } catch (e) {
+    log("no se pudo buscar otra copia: " + e.message);
+    if (!/quota/i.test(e.message)){ // red o fallo de la búsqueda: no se anota en Bloqueadas (se vuelve a intentar otro día)
+      if (queue[cur] === x && mode === "yt") setTimeout(() => { if (queue[cur] === x) failNext(); }, 300);
+      return;
+    }
+  }
   if (queue[cur] !== x || mode !== "yt") return; // mientras buscaba, pasaste a otra canción
   if (id){ pendingFix = {k: x.k, id}; log("pruebo otra copia de «" + x.t + "»: " + id); start(id, 0); return; }
   noteSinrep(x, code);
@@ -2771,7 +2790,9 @@ async function autoNext(x){
       const id = a.ids.find(id => id !== x.y && id !== yaOf(x) && !BAD.has(id) && !a.used.includes(id));
       if (id){ a.tries++; a.used.push(id); return id; }
       const qs = autoQueries(x); if (a.q >= qs.length) return null;
-      a.ids = a.ids.concat(await autoSearch(x, qs[a.q++], a));
+      const qi = a.q++;
+      try { a.ids = a.ids.concat(await autoSearch(x, qs[qi], a)); }
+      catch (e) { if (e instanceof TypeError && a.q === qi + 1) a.q = qi; throw e; } // sin red (fetch falló): esa búsqueda no cuenta
     }
   } finally { autoSave(); }
 }

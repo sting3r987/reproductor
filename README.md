@@ -86,23 +86,23 @@ Suena con el reproductor oficial de SoundCloud (Widget API). Buscar en SoundClou
 
 Comparte un enlace (`?juntos=<id>`); lo que suena en un teléfono suena en el otro al mismo tiempo. Viajan hasta 300 canciones de la cola (las que siguen, en el orden en que van a sonar). Las sesiones vencidas de cada cuenta se borran solas una vez al día.
 
-## Repetir canciÃ³n
+## Repetir canción
 
-BotÃ³n âŸ² con un 1 en la fila de abajo del reproductor (junto a Volumen): al terminar la canciÃ³n vuelve a empezar la misma, en YouTube, archivo o SoundCloud. Se recuerda en el aparato (`np-repeat`). Apagado, la cola ya da la vuelta sola al llegar al final. Con repetir encendido no hay fundido cruzado con la siguiente. No cuenta escuchas de mÃ¡s (no recarga la canciÃ³n). En Â«Ver juntosÂ» estÃ¡ apagado (no debe repetir en un solo telÃ©fono).
+Botón ⟲ con un 1 en la fila de abajo del reproductor (junto a Volumen): al terminar la canción vuelve a empezar la misma, en YouTube, archivo o SoundCloud. Se recuerda en el aparato (`np-repeat`). Apagado, la cola ya da la vuelta sola al llegar al final. Con repetir encendido no hay fundido cruzado con la siguiente. No cuenta escuchas de más (no recarga la canción). En «Ver juntos» está apagado (no debe repetir en un solo teléfono).
 
-## Reproducir despuÃ©s
+## Reproducir después
 
-En â‹¯ de cualquier canciÃ³n (pestaÃ±a Todas): **â–¶ Reproducir despuÃ©s** la pone justo detrÃ¡s de la que suena, estÃ© o no en la cola (si no estaba, se agrega al final y se sube). Aviso Â«Suena despuÃ©s: Â«tÃ­tuloÂ»Â». Sin nada sonando, la reproduce. No cambia con Â«No repetir lo ya escuchadoÂ» (`fixNext` respeta la que se puso a mano). En Â«Ver juntosÂ» no se cambia la cola. La inserciÃ³n es `queueNext` en `lib.js`.
+En ⋯ de cualquier canción (pestaña Todas): **▶ Reproducir después** la pone justo detrás de la que suena, esté o no en la cola (si no estaba, se agrega al final y se sube). Aviso «Suena después: «título»». Sin nada sonando, la reproduce. No cambia con «No repetir lo ya escuchado» (`fixNext` respeta la que se puso a mano). En «Ver juntos» no se cambia la cola. La inserción es `queueNext` en `lib.js`.
 
 ## Dormir (temporizador)
 
-En el menÃº de la cuenta (el avatar) â€º **Dormir**: 15, 30, 60 min, Â«Al terminar esta canciÃ³nÂ» y Â«ApagarÂ». Guarda la hora de fin y la mira cada 2 s y al terminar cada canciÃ³n (no usa un `setTimeout` largo, que se frena con la pantalla bloqueada). Al vencer baja el volumen (~2,5 s) y pausa, sin reintentos que la reanuden, y avisa Â«Temporizador: pausadoÂ». Con Â«Al terminar esta canciÃ³nÂ» no hay fundido cruzado y la siguiente queda cargada sin sonar. Mientras estÃ¡ activo el avatar muestra los minutos que faltan (ðŸ’¤ si es por canciÃ³n). Es por aparato: no se usa en «Ver juntos» (los botones quedan desactivados y un temporizador activo se apaga). La decisiÃ³n es `sleepDue` en `lib.js`.
+En el menú de la cuenta (el avatar) › **Dormir**: 15, 30, 60 min, «Al terminar esta canción» y «Apagar». Guarda la hora de fin y la mira cada 2 s y al terminar cada canción (no usa un `setTimeout` largo, que se frena con la pantalla bloqueada). Al vencer baja el volumen (~2,5 s) y pausa, sin reintentos que la reanuden, y avisa «Temporizador: pausado». Con «Al terminar esta canción» no hay fundido cruzado y la siguiente queda cargada sin sonar. Mientras está activo el avatar muestra los minutos que faltan (💤 si es por canción). Es por aparato: no se usa en «Ver juntos» (los botones quedan desactivados y un temporizador activo se apaga). La decisión es `sleepDue` en `lib.js`.
 
 ## Favoritos
 
-En â‹¯ de cada canciÃ³n (pestaÃ±a Todas): **â™¡ Agregar a Favoritos** / **â™¥ Quitar de Favoritos**. Favoritos es una playlist normal llamada Â«FavoritosÂ»: se crea sola la primera vez (si ya hay una con ese nombre, sin importar mayÃºsculas ni tildes, usa esa), asÃ­ que se ordena, se le quita, se usa en Ver juntos y va en las copias como cualquier otra. No cambia el esquema de Firestore ni las reglas.
+En ⋯ de cada canción (pestaña Todas): **♡ Agregar a Favoritos** / **♥ Quitar de Favoritos**. Favoritos es una playlist normal llamada «Favoritos»: se crea sola la primera vez (si ya hay una con ese nombre, sin importar mayúsculas ni tildes, usa esa), así que se ordena, se le quita, se usa en Ver juntos y va en las copias como cualquier otra. No cambia el esquema de Firestore ni las reglas.
 
-Pendiente: Â«lo mÃ¡s escuchadoÂ» (contar escuchas) cambiarÃ­a el esquema del historial y no se hizo; tampoco hay corazÃ³n en la fila de la canciÃ³n que suena ni â‹¯ en las filas de una playlist abierta.
+Pendiente: «lo más escuchado» (contar escuchas) cambiaría el esquema del historial y no se hizo; tampoco hay corazón en la fila de la canción que suena ni ⋯ en las filas de una playlist abierta.
 
 ## Atajos de teclado (computadora)
 

@@ -1976,7 +1976,7 @@ function load(i, opt = {}){
   } else {
     scStop(); mode = "yt"; au.pause(); $("art").hidden = true;
     keepAlive(); setMedia(x);
-    if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; }
+    if (ready) start(vid(x), resumePos); else { pendingId = vid(x); pendingPos = resumePos; if (!opt.auto && !ytApiAsked && !(window.YT && YT.Player)) setTimeout(ytNotReady, 0); } // el script de YouTube ya había fallado (al abrir la app no: queda lista)
     if (!opt.auto) recordPlayed(x);
   }
   renderList(); saveResume(resumePos); renderNext(); paintSeek(); paintMini(); jzLoaded(i, opt);
@@ -2131,7 +2131,7 @@ function start(id, pos){
 // Reanuda el video tras una pausa (botón, pantalla de bloqueo, intercomunicador o audífonos). En segundo plano YouTube a veces
 // ignora la primera orden: se insiste cada segundo hasta 30 s, mientras nadie vuelva a pausar (pausar limpia `kick`).
 function resumeYt(why){
-  if (!ready || mode !== "yt"){ log("no puedo reanudar (" + why + "): " + (mode !== "yt" ? "modo " + mode : "YouTube no está listo")); return; }
+  if (!ready || mode !== "yt"){ log("no puedo reanudar (" + why + "): " + (mode !== "yt" ? "modo " + mode : "YouTube no está listo")); if (mode === "yt") ytNotReady(); return; }
   const t0 = Date.now();
   keepAlive(); clearInterval(kick);
   try { player.playVideo(); } catch {}
@@ -2160,15 +2160,15 @@ function failNext(){
   log("paro: " + (dec.why === "offline" ? "sin conexión" : n + " fallos seguidos"));
   flash(dec.why === "offline" ? "Sin conexión." : "No pude reproducir las últimas " + n + " canciones.", {keep: true});
 }
-function step(d){
+function step(d, onlyFile){ // onlyFile: YouTube no está (no cargó): ir a la próxima con archivo
   if (!queue.length) return playFrom(0, current, listLabel());
   // Con la pantalla bloqueada YouTube no arranca, y sin conexión no carga: si hay canciones con archivo, salta a la próxima que tenga.
-  const skipYt = ytSkip({hidden: document.hidden, online: !offline(), anyFile: queue.some(x => fileFor(x))});
+  const anyFile = queue.some(x => fileFor(x)), skipYt = (onlyFile && anyFile) || ytSkip({hidden: document.hidden, online: !offline(), anyFile});
   for (let n = 0; n < orderIdx.length; n++){
     at = (at + d + orderIdx.length) % orderIdx.length;
     if (!skipYt || fileFor(queue[orderIdx[at]])) break;
   }
-  if (skipYt) log((offline() ? "sin conexión" : "pantalla bloqueada") + ": sigue con la próxima canción con archivo");
+  if (skipYt) log((onlyFile ? "YouTube no cargó" : offline() ? "sin conexión" : "pantalla bloqueada") + ": sigue con la próxima canción con archivo");
   load(orderIdx[at]);
 }
 // Si el navegador pausa el video justo al bloquear la pantalla o cambiar de app, intenta seguir (funciona si el navegador lo permite).
@@ -2294,7 +2294,7 @@ $("play").onclick = () => {
   if (armed) return load(cur, {pos: resumePos}); // retoma la canción que quedó cargada al abrir la app
   if (mode === "file"){ if (au.paused) au.play(); else au.pause(); return; }
   if (mode === "sc"){ if (playing) scW?.pause(); else scW?.play(); return; }
-  if (!ready) return;
+  if (!ready) return ytNotReady();
   if (playing){ started = true; clearInterval(kick); player.pauseVideo(); } else resumeYt("botón");
 };
 /* ---------- Dormir: temporizador (por aparato, no se sincroniza en Ver juntos) ---------- */
@@ -2424,7 +2424,7 @@ function initYT(){
   const mk = (el, main) => new YT.Player(el, { width: "100%", height: "100%", playerVars: { playsinline: 1, rel: 0 },
     events: {
       onReady(e){
-        if (main){ ready = true; if (pendingId){ start(pendingId, pendingPos); pendingId = null; pendingPos = 0; } }
+        if (main){ ready = true; if (/^YouTube no cargó/.test($("msg").textContent)) flash(""); if (pendingId){ start(pendingId, pendingPos); pendingId = null; pendingPos = 0; } }
         else { spareReady = true; precue(); }
       },
       onStateChange(e){
@@ -2497,14 +2497,25 @@ async function rescue(x, blocked, code){
   setTimeout(() => { if (queue[cur] === x) failNext(); }, 300);
 }
 if (window.YT && YT.Player) initYT(); else window.onYouTubeIframeAPIReady = initYT;
-let ytApiAsked = false;
+let ytApiAsked = false, ytApiFails = 0;
 function loadYtApi(){
   if (ytApiAsked || (window.YT && YT.Player)) return; ytApiAsked = true;
   const el = document.createElement("script"); el.src = "https://www.youtube.com/iframe_api";
-  el.onerror = () => { ytApiAsked = false; log("no cargó la API de YouTube (¿sin conexión?)"); };
+  el.onerror = () => { // sin señal, red que lo cortó o bloqueador: si había una canción de YouTube esperando, se avisa
+    ytApiAsked = false; el.remove(); log("no cargó la API de YouTube (¿sin conexión o bloqueador?)");
+    if (pendingId && mode === "yt") ytNotReady(false);
+    if (!offline() && ++ytApiFails <= 5) setTimeout(() => { if (!player && auth.currentUser) loadYtApi(); }, 20000); // sin señal reintenta el evento online
+  };
   document.head.appendChild(el);
 }
 addEventListener("online", () => { if (!player && auth.currentUser) loadYtApi(); });
+// ▶ o una canción de YouTube sin que YouTube haya cargado: aviso, reintento y, si hay canciones con archivo en la cola, sigue con ellas
+function ytNotReady(retry = true){
+  if (ready) return;
+  flash("YouTube no cargó (sin señal o bloqueador). Reintento…");
+  if (retry && auth.currentUser) loadYtApi();
+  if (mode === "yt" && queue.some(x => fileFor(x))){ pendingId = null; step(1, true); }
+}
 
 /* ---------- Playlists ---------- */
 const EYE_OFF = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.1M6.1 6.1C3.9 7.6 2.5 9.8 2 12c1 2.5 5 7 10 7 1.8 0 3.4-.5 4.8-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';

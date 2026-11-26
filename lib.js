@@ -121,6 +121,31 @@ export function addIfMissing(list, it){
   list.push({...it}); return true;
 }
 
+/* ---------- Cambios como operaciones (datos, no funciones) ----------
+   Cada cambio de una lista se describe como una operación que se puede guardar (JSON) y volver a aplicar más tarde
+   sobre lo último del servidor: así, lo hecho sin conexión no sube la lista entera de este aparato (que pisaría lo que
+   el otro agregó o quitó entre tanto). `f` = qué lista ("songs" de una playlist; "all", "rep" o "sinrep" del catálogo).
+   Todas van por clave de canción y aplicarlas dos veces da lo mismo que una. Devuelven true si cambió algo. */
+export function applyOp(lists, op){
+  const L = op && lists[op.f]; if (!Array.isArray(L)) return false;
+  switch (op.o){
+    case "toggle": return plToggle(L, op.it, op.add);
+    case "add": return plAdd(L, op.items || []) > 0;
+    case "remove": return plRemove(L, op.keys || []) > 0;
+    case "restore": return plRestore(L, op.items || []) > 0;
+    case "move": return plMove(L, op.k, op.to);
+    case "set": return setWhere(L, op.k, op.v || {});
+    case "addIfMissing": return addIfMissing(L, op.it);
+    case "blkAdd": return blkAdd(L, op.it);
+    case "blkDrop": return blkDrop(L, op.k);
+  }
+  return false;
+}
+// Aplica todas (en orden); true si alguna cambió algo
+export function applyOps(lists, ops){ let ch = false; for (const op of ops) if (applyOp(lists, op)) ch = true; return ch; }
+// Listas que tocan las operaciones (las que hay que leer del servidor)
+export const opFields = ops => [...new Set(ops.map(o => o.f))];
+
 /* ---------- Copias de seguridad ---------- */
 // Fecha local AAAA-MM-DD (id de la copia del día)
 export const dayId = (d = new Date()) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");

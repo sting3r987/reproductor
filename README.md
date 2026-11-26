@@ -24,12 +24,17 @@ En Android (Chrome o Brave): menú ⋮ → **Instalar app** o **Agregar a pantal
 ## Sin conexión
 
 - La app abre sin señal con lo último que vio (la guarda `sw.js`; los datos, la caché de Firestore).
-- Lo que cambies sin señal queda en cola, aunque cierres la app, y se sube solo al volver. Abajo aparece un aviso mientras no hay conexión.
+- Lo que cambies sin señal se ve al momento y queda en cola, aunque cierres la app, y se sube solo al volver. Abajo aparece un aviso mientras no hay conexión (o mientras quede algo en cola con señal mala).
+- Agregar, quitar, mover y renombrar canciones, Deshacer, versiones, SoundCloud y Bloqueadas no suben la lista entera de este aparato: se guardan como operaciones (`np-pend:<cuenta>` en el aparato) y al volver la señal se aplican en orden sobre lo último del servidor (ver «Guardado sin pisarse»). Crear, renombrar, ocultar, ordenar y borrar playlists van en la cola de Firestore como siempre (cambian solo esos campos), y se suben antes que las operaciones.
 - Sin señal solo suenan los **archivos de audio** guardados en el teléfono (YouTube necesita internet).
 
 ## Guardado sin pisarse
 
 Cada cambio (agregar, quitar, mover, renombrar, cambiar video) se vuelve a aplicar sobre lo último que hay en el servidor (transacción de Firestore). Si los dos editan casi a la vez, quedan los dos cambios.
+
+Sin señal, o si la transacción no pudo correr (señal mala: `unavailable`, `aborted`…), el cambio no se sube como la lista completa de este aparato (eso pisaba lo que el otro agregó o quitó entre tanto): se guarda como operación (`applyOp` en `lib.js`: agregar, quitar, restaurar, mover, poner o quitar campos, siempre por clave de canción) y, al volver la señal, se aplica en orden con la misma transacción. Si el otro agregó canciones mientras tanto, quedan las dos; si quitó la misma, no revive; una operación sobre una canción que ya no está se ignora. Mientras una lista tenga algo en cola, sus cambios nuevos van detrás para no cambiar el orden.
+
+No van como operaciones (reemplazan todo, necesitan conexión): **Restaurar** una copia y `?importar-audio`.
 
 ## Copias de seguridad
 

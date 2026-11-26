@@ -681,8 +681,8 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile, ytBlocked } from "./lib.js?v=9";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove, waitForPendingWrites } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile, ytBlocked, applyOps, opFields } from "./lib.js?v=9";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -765,6 +765,7 @@ $("logout").onclick = () => signOut(auth);
 onAuthStateChanged(auth, u => {
   unsub.forEach(f => f()); unsub = [];
   $("gate").hidden = !!u; $("app").hidden = !u;
+  pendLoad(u?.uid); paintNet(); // cambios hechos sin conexión que siguen en cola en este aparato
   if (!u){ mis = []; loaded = catLoaded = catServer = plServer = false; bkDone = accessDone = false; heardRef = null; jzStop(true); return; }
   loadYtApi(); // la API de YouTube (~1 MB) se carga recién al entrar
   jzAuth(u); if (!JZ_ID) setTimeout(() => { if (auth.currentUser?.uid === u.uid && !jzGuest) jzClean(u); }, EMU ? 1500 : 15000);
@@ -779,16 +780,18 @@ onAuthStateChanged(auth, u => {
   };
   unsub.push(heardSync(u)); // lo ya escuchado (Sin repetir), por cuenta
   unsub.push(onSnapshot(doc(db, "catalog", "main"), s => {
-    catLoaded = true; if (!s.metadata.fromCache){ catServer = true; setTimeout(() => autoBackup(u), 4000); accessSync(u); }
+    catLoaded = true; if (!s.metadata.fromCache){ catServer = true; setTimeout(() => autoBackup(u), 4000); accessSync(u); pendFlush(); }
     const v = s.exists() ? s.data() : null;
     CAT = v ? {all: v.all || [], pls: v.pls || [], rep: v.rep || [], sinrep: v.sinrep || []} : {all: [], pls: [], rep: [], sinrep: []}; // rep: canciones reproducidas que no estaban en el catálogo ni en una playlist; sinrep: las que no hubo forma de poner (Bloqueadas)
+    pendOverlay("catalog", CAT); // lo cambiado aquí sin conexión se sigue viendo
     rebuildYA();
     fillSrc(); refresh(); rematch(); tryResume();
   }, denied));
   unsub.push(onSnapshot(plCol, s => {
-    loaded = true; if (!s.metadata.fromCache){ plServer = true; setTimeout(() => autoBackup(u), 4000); }
+    loaded = true; if (!s.metadata.fromCache){ plServer = true; setTimeout(() => autoBackup(u), 4000); pendFlush(); }
     mis = s.docs.map(d => { const v = d.data(); return {id: d.id, name: v.name || "Sin nombre", orden: v.orden ?? 0, oculta: !!v.oculta, songs: Array.isArray(v.songs) ? v.songs.slice() : []}; })
       .sort((a, b) => a.orden - b.orden);
+    for (const p of mis) pendOverlay(p.id, p);
     rebuildYA(); refresh(); tryResume();
   }, denied));
 });
@@ -796,32 +799,80 @@ const chains = {};
 function write(id, fn){
   chains[id] = (chains[id] || Promise.resolve()).then(fn).catch(e => { log("no se guardó (" + id + "): " + (e.code || e.message)); flash(e.code === "permission-denied" ? "Tu cuenta no puede editar estas playlists." : "No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez.", {keep: true}); });
 }
-/* Guardado sin pisarse: cada cambio se vuelve a aplicar sobre lo último que hay en el servidor (transacción), así que si
-   los dos editan casi a la vez se conservan ambos cambios. `mutate` recibe las listas del servidor y las cambia por clave
-   de canción; si devuelve false (o 0) no había nada que cambiar. Sin conexión las transacciones no corren: se guarda lo
-   que hay en este dispositivo (Firestore lo deja en cola, aunque se cierre la app, y lo sube al volver la señal). */
+/* Guardado sin pisarse: cada cambio es una lista de operaciones (applyOps en lib.js: agregar, quitar, mover, poner campos…,
+   siempre por clave de canción) que se aplica en una transacción sobre lo último que hay en el servidor, así que si los dos
+   editan casi a la vez se conservan ambos cambios. Sin conexión (o si la transacción no pudo: unavailable, aborted…) no se
+   sube la lista entera de este aparato, que pisaría lo que el otro agregó o quitó entre tanto: las operaciones quedan en
+   cola en el aparato (localStorage np-pend:<uid>, sobrevive a cerrar la app), se ven al momento aquí (se vuelven a aplicar
+   sobre cada foto de la nube) y, al volver la señal, se aplican en orden con la misma transacción. Mientras una lista tenga
+   algo en cola, sus cambios nuevos van detrás (para no cambiar el orden). */
 const offline = () => navigator.onLine === false;
-function txEdit(chain, ref, fields, mutate, local){
-  const queueLocal = () => { updateDoc(ref, local()).catch(e => { log("no se guardó (" + chain + "): " + (e.code || e.message)); if (e.code === "permission-denied") flash("Tu cuenta no puede editar estas playlists.", {keep: true}); }); };
+let PEND = [], pendKey = null, pendBusy = false, pendT = 0; // PEND: [{c: cadena ("catalog" o id de playlist), ops}]
+function pendLoad(uid){
+  pendKey = uid ? "np-pend:" + uid : null; let v = null;
+  try { v = JSON.parse((pendKey && store.get(pendKey)) || "[]"); } catch {}
+  PEND = Array.isArray(v) ? v.filter(e => e && e.c && Array.isArray(e.ops)) : [];
+}
+const pendSave = () => { if (pendKey) store.set(pendKey, JSON.stringify(PEND)); };
+addEventListener("storage", e => { if (pendKey && e.key === pendKey) pendLoad(auth.currentUser?.uid); }); // otra pestaña cambió la cola
+const pendOf = c => PEND.filter(e => e.c === c);
+const pendRef = c => c === "catalog" ? catRef() : doc(plCol, c);
+// Lo que sigue en cola se vuelve a aplicar sobre la foto que llegó (por clave: si ya estaba aplicado, no cambia nada)
+const pendOverlay = (c, lists) => { for (const e of pendOf(c)) applyOps(lists, e.ops); };
+async function txRun(ref, ops){
+  await runTransaction(db, async t => {
+    const s = await t.get(ref); if (!s.exists()) return; // la playlist ya no está: el cambio se descarta
+    const d = s.data(), out = {};
+    for (const f of opFields(ops)) out[f] = Array.isArray(d[f]) ? d[f].map(x => ({...x})) : [];
+    if (!applyOps(out, ops)) return;
+    t.update(ref, out);
+  });
+}
+function txEdit(chain, ops){
+  ops = JSON.parse(JSON.stringify(ops, (k, v) => v === undefined ? null : v)); // copia que se puede guardar (undefined = quitar = null)
   write(chain, async () => {
-    if (offline()) return queueLocal(); // no se espera la respuesta: así no se traba la cola de cambios
-    try {
-      await runTransaction(db, async t => {
-        const s = await t.get(ref); if (!s.exists()) return;
-        const d = s.data(), out = {};
-        for (const f of fields) out[f] = Array.isArray(d[f]) ? d[f].map(x => ({...x})) : [];
-        if (!mutate(out)) return;
-        t.update(ref, out);
-      });
-    } catch (e) {
+    if (offline() || pendOf(chain).length) return pendAdd(chain, ops); // no se espera la red: así no se traba la cola de cambios
+    try { await txRun(pendRef(chain), ops); }
+    catch (e) {
       if (e.code === "permission-denied") throw e;
-      log("transacción no pudo (" + (e.code || e.message) + "): guardo lo de aquí"); queueLocal();
+      log("transacción no pudo (" + (e.code || e.message) + "): queda en cola"); pendAdd(chain, ops, true);
     }
   });
 }
+function pendAdd(c, ops, failed){
+  PEND.push({c, ops}); pendSave(); paintNet();
+  if (!offline()) pendLater(failed ? 15000 : 0);
+}
+const pendLater = ms => { clearTimeout(pendT); pendT = setTimeout(pendFlush, ms); };
+const PEND_DROP = new Set(["permission-denied", "invalid-argument", "out-of-range", "unimplemented"]); // no se arreglan solos: se descartan
+// Al volver la señal: primero lo que Firestore ya tenía en cola (playlists nuevas, borradas, renombradas), luego las operaciones, en orden
+async function pendFlush(){
+  clearTimeout(pendT);
+  if (pendBusy || offline() || !PEND.length || !auth.currentUser) return;
+  pendBusy = true; paintNet();
+  try {
+    try { await waitForPendingWrites(db); } catch {}
+    await Promise.all([...new Set(PEND.map(e => e.c))].map(c => new Promise(ok => write(c, () => pendRun(c).finally(ok)))));
+  } finally { pendBusy = false; }
+  if (PEND.length && !offline()) pendLater(15000);
+  paintNet();
+}
+async function pendRun(c){
+  for (let e; (e = PEND.find(x => x.c === c)); ){
+    try { await txRun(pendRef(c), e.ops); }
+    catch (err) {
+      if (err.code && !PEND_DROP.has(err.code)){ log("cola: sigue pendiente (" + c + "): " + err.code); return; }
+      log("cola: descarto un cambio (" + c + "): " + (err.code || err.message));
+      if (err.code === "permission-denied") flash("Tu cuenta no puede editar estas playlists.", {keep: true});
+    }
+    const i = PEND.indexOf(e); if (i >= 0) PEND.splice(i, 1);
+    pendSave();
+  }
+}
+addEventListener("online", () => pendFlush());
 const catRef = () => doc(db, "catalog", "main");
-const catEdit = (fields, mutate) => txEdit("catalog", catRef(), fields, mutate, () => Object.fromEntries(fields.map(f => [f, (CAT[f] || []).map(it => ({...it}))])));
-const plEdit = (p, mutate) => txEdit(p.id, doc(plCol, p.id), ["songs"], d => mutate(d.songs), () => ({songs: p.songs.map(s => ({...s}))}));
+const catEdit = (...ops) => txEdit("catalog", ops); // cada operación dice su lista (f: "all", "rep" o "sinrep")
+const plEdit = (p, ...ops) => txEdit(p.id, ops.map(o => ({f: "songs", ...o})));
 let undoT = 0;
 // Los avisos se borran solos a los ~7 s (más si son largos); se quedan los de trabajo en curso («…») y el de cuota/espacio.
 // Un aviso nuevo cancela el temporizador del anterior.
@@ -846,7 +897,7 @@ function removeUndo(p, list){
   flashUndo(t + " de “" + p.name + "”.", () => {
     const q = mis.find(m => m.id === p.id); // el snapshot de la nube rearma `mis` con objetos nuevos: se busca por id
     if (!q) return;
-    if (plRestore(q.songs, items)) plEdit(q, songs => plRestore(songs, items));
+    if (plRestore(q.songs, items)) plEdit(q, {o: "restore", items});
     refresh();
   });
   return n;
@@ -881,7 +932,7 @@ function newPl(name){
 function toggleSong(p, x){
   const it = song(x), add = !p.songs.some(s => s.k === it.k);
   plToggle(p.songs, it, add);
-  plEdit(p, songs => plToggle(songs, it, add));
+  plEdit(p, {o: "toggle", it, add});
 }
 // Favoritos es una playlist normal llamada «Favoritos» (se crea sola la primera vez; si ya hay una con ese nombre, esa)
 const favPl = () => mis.find(p => norm(p.name.trim()) === "favoritos");
@@ -895,19 +946,19 @@ function toggleFav(x){
 }
 function removeMany(p, list){ // quita de la playlist las canciones de `list`; devuelve cuántas salieron
   const out = new Set(list.map(x => x.k)), n = plRemove(p.songs, out);
-  if (n) plEdit(p, songs => plRemove(songs, out));
+  if (n) plEdit(p, {o: "remove", keys: [...out]});
   return n;
 }
 function addMany(p, list){ // agrega a la playlist las canciones de `list` que aún no estén; devuelve cuántas entraron
   const items = list.map(song), n = plAdd(p.songs, items);
-  if (n) plEdit(p, songs => plAdd(songs, items));
+  if (n) plEdit(p, {o: "add", items});
   return n;
 }
 function patch(p, f){ Object.assign(p, f); write(p.id, () => offline() ? void updateDoc(doc(plCol, p.id), f).catch(() => {}) : updateDoc(doc(plCol, p.id), f)); }
 function moveSongTo(p, from, to){ // mueve la canción `from` al puesto `to` dentro de la playlist
   if (!p || from === to || from < 0 || to < 0 || from >= p.songs.length || to >= p.songs.length) return;
   const k = p.songs[from].k; plMove(p.songs, k, to);
-  plEdit(p, songs => plMove(songs, k, to));
+  plEdit(p, {o: "move", k, to});
 }
 // Mueve la playlist del puesto `from` al `to` (puestos de la lista visible). `orden` es un número: se cambia solo el de la
 // movida (punto medio entre sus vecinas) y, si ya no cabe ninguno entre medias, se renumeran todas.
@@ -1120,14 +1171,14 @@ $("list").addEventListener("submit", e => { // guardar título y artista editado
 // La canción deja de estar marcada como dudosa (el video sí es el correcto)
 function markOk(x){
   setWhere(CAT.all, x.k, {e: null}); delete x.e;
-  catEdit(["all"], d => setWhere(d.all, x.k, {e: null}));
+  catEdit({o: "set", f: "all", k: x.k, v: {e: null}});
   flash("«" + x.t + "» ya no está marcada como dudosa."); refresh();
 }
 // Cambia título y artista en el catálogo, en las playlists donde esté y en la cola (la clave no cambia)
 function renameSong(x, t, a){
-  if (setWhere(CAT.all, x.k, {t, a})) catEdit(["all"], d => setWhere(d.all, x.k, {t, a}));
+  if (setWhere(CAT.all, x.k, {t, a})) catEdit({o: "set", f: "all", k: x.k, v: {t, a}});
   x.t = t; x.a = a;
-  for (const p of mis) if (setWhere(p.songs, x.k, {t, a})) plEdit(p, songs => setWhere(songs, x.k, {t, a}));
+  for (const p of mis) if (setWhere(p.songs, x.k, {t, a})) plEdit(p, {o: "set", k: x.k, v: {t, a}});
   queue.forEach(s => { if (s.k === x.k){ s.t = t; s.a = a; } });
   if (queue[cur]?.k === x.k){ $("nt").textContent = t; $("na").textContent = a; }
   flash("Guardado: «" + t + "» · " + a + ". Se cambió para los dos.");
@@ -1346,12 +1397,12 @@ function noteSinrep(x, code){
   if (!CAT.sinrep) CAT.sinrep = [];
   if (!blkAdd(CAT.sinrep, it)) return;
   log("«" + x.t + "» queda en Bloqueadas (" + (code ?? "?") + ")");
-  catEdit(["sinrep"], d => blkAdd(d.sinrep, it));
+  catEdit({o: "blkAdd", f: "sinrep", it});
   refresh();
 }
 function dropSinrep(k){
   if (!(CAT.sinrep || []).some(it => it.k === k)) return;
-  blkDrop(CAT.sinrep, k); catEdit(["sinrep"], d => blkDrop(d.sinrep, k));
+  blkDrop(CAT.sinrep, k); catEdit({o: "blkDrop", f: "sinrep", k});
 }
 // ⋯ › Poner archivo (cualquier canción): abre el selector de archivos del aparato
 function pickFile(x){ fileTarget = x; const i = $("songfile"); i.value = ""; i.click(); }
@@ -1877,7 +1928,7 @@ function recordPlayed(x){
   if (CAT.all.some(c => c.k === k) || (CAT.rep || []).some(c => c.k === k) || mis.some(p => p.songs.some(s => s.k === k))) return;
   if (!CAT.rep) CAT.rep = [];
   const it = song(x); CAT.rep.push({...it});
-  catEdit(["rep"], d => addIfMissing(d.rep, it));
+  catEdit({o: "addIfMissing", f: "rep", it});
 }
 function load(i, opt = {}){
   const x = queue[i]; if (!x) return;
@@ -2725,14 +2776,14 @@ function saveYa(s, id){ saveAlt(s, "ya", id, YA); }
 function saveSc(s, url){ saveAlt(s, "sc", url, SCM); }
 function saveAlt(s, f, id, map){
   const fv = {[f]: id || null};
-  if (CAT.all.some(it => it.k === s.k)){ setWhere(CAT.all, s.k, fv); catEdit(["all"], d => setWhere(d.all, s.k, fv)); }
+  if (CAT.all.some(it => it.k === s.k)){ setWhere(CAT.all, s.k, fv); catEdit({o: "set", f: "all", k: s.k, v: fv}); }
   else {
     if (!CAT.rep) CAT.rep = [];
     const inPl = mis.some(p => p.songs.some(it => it.k === s.k));
     const add = !CAT.rep.some(it => it.k === s.k) && !inPl && id ? {...song(s), ...fv} : null; // no estaba guardada en ningún lado
     if (add) CAT.rep.push({...add});
-    if (add || setWhere(CAT.rep, s.k, fv)) catEdit(["rep"], d => (add && addIfMissing(d.rep, add)) | setWhere(d.rep, s.k, fv));
-    for (const p of mis) if (p.songs.some(it => it.k === s.k && (id || it[f]))){ setWhere(p.songs, s.k, fv); plEdit(p, songs => setWhere(songs, s.k, fv)); }
+    if (add || setWhere(CAT.rep, s.k, fv)) catEdit(...(add ? [{o: "addIfMissing", f: "rep", it: add}] : []), {o: "set", f: "rep", k: s.k, v: fv});
+    for (const p of mis) if (p.songs.some(it => it.k === s.k && (id || it[f]))){ setWhere(p.songs, s.k, fv); plEdit(p, {o: "set", k: s.k, v: fv}); }
   }
   if (id) map.set(s.k, id); else map.delete(s.k);
   if (f === "sc" && id) dropSinrep(s.k); // con enlace de SoundCloud ya suena: sale de «Bloqueadas»
@@ -2744,10 +2795,10 @@ function setClip(s, id){
   s.y = id; dropSinrep(s.k); // otro video: sale de «Bloqueadas» (si tampoco sirve, vuelve a entrar)
   const c = CAT.all.find(it => it.k === s.k);
   delete s.bl;
-  if (c){ const fv = {y: id, e: null, bl: null, ...(c.ya && BAD.has(c.ya) ? {ya: null} : {})}; setWhere(CAT.all, s.k, fv); catEdit(["all"], d => setWhere(d.all, s.k, fv)); }
-  else if (setWhere(CAT.rep || [], s.k, {y: id})) catEdit(["rep"], d => setWhere(d.rep, s.k, {y: id})); // agregada desde YouTube: también en rep
+  if (c){ const fv = {y: id, e: null, bl: null, ...(c.ya && BAD.has(c.ya) ? {ya: null} : {})}; setWhere(CAT.all, s.k, fv); catEdit({o: "set", f: "all", k: s.k, v: fv}); }
+  else if (setWhere(CAT.rep || [], s.k, {y: id})) catEdit({o: "set", f: "rep", k: s.k, v: {y: id}}); // agregada desde YouTube: también en rep
   if (BAD.has(yaOf(s))){ YA.delete(s.k); if (s.ya) delete s.ya; }
-  for (const p of mis) if (setWhere(p.songs, s.k, {y: id})) plEdit(p, songs => setWhere(songs, s.k, {y: id}));
+  for (const p of mis) if (setWhere(p.songs, s.k, {y: id})) plEdit(p, {o: "set", k: s.k, v: {y: id}});
   queue.forEach(it => { if (it.k === s.k) it.y = id; });
 }
 // Búsqueda automática: cuando YouTube bloquea las versiones que tiene una canción, se busca otra subida que sí se deje
@@ -2799,7 +2850,7 @@ async function autoNext(x){
 // Marca la canción como bloqueada en el catálogo (para los dos); se quita sola cuando suena otra versión o se corrige
 function markBlocked(x){
   x.bl = 1; const c = CAT.all.find(it => it.k === x.k); if (!c || c.bl) return;
-  c.bl = 1; catEdit(["all"], d => setWhere(d.all, x.k, {bl: 1}));
+  c.bl = 1; catEdit({o: "set", f: "all", k: x.k, v: {bl: 1}});
   renderList();
 }
 function adoptVideo(s, id){
@@ -3279,7 +3330,10 @@ setTab("all");
 loadFiles();
 if (EMU) window.__npt = {get uid(){ return auth.currentUser?.uid; }, get loaded(){ return loaded && catLoaded; }, get mis(){ return mis; }, get CAT(){ return CAT; }, toggleSong, addMany, removeMany, removeUndo, moveSongTo, renameSong, markOk, saveSc, noteSinrep, attachFile, detachFile, playFrom, get mode(){ return mode; }, au, ytErr: code => { const x = queue[cur]; loadedId = vid(x); ytError(code); }, autoBackup: () => { bkDone = false; return autoBackup(auth.currentUser); }, chains};
 /* ---------- Sin conexión ---------- */
-function paintNet(){ $("net").hidden = !offline(); $("net").textContent = "Sin conexión · tus cambios se suben solos al volver la señal"; }
+function paintNet(){ // sin conexión, o con cambios en cola que aún no subieron (señal mala)
+  const n = PEND.length; $("net").hidden = !offline() && !n;
+  $("net").textContent = offline() ? "Sin conexión · tus cambios se suben solos al volver la señal" : pendBusy ? "Subiendo cambios pendientes…" : "Cambio pendiente · se guardará al volver la señal";
+}
 addEventListener("offline", () => { paintNet(); log("sin conexión"); });
 addEventListener("online", () => { paintNet(); log("volvió la conexión"); flash("Volvió la conexión."); });
 paintNet();

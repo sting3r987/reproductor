@@ -228,6 +228,31 @@ try {
     await until("cambio subido al volver la señal", async () => (await get("playlists/p1")).songs.some(s => s.k === S(5).k), 30000);
     await ctx.close();
   });
+
+  await step("sin conexión no se pisa: uno agrega sin señal, el otro agrega con señal, quedan las dos", async () => {
+    await put("playlists/p2", {name: "Juntas", orden: 2, oculta: false, songs: [S(1)]});
+    const ctx = await browser.newContext();
+    const { page } = await openAs("a@test.com", "", ctx);
+    await ready(page);
+    await page.waitForFunction(() => window.__npt.mis.some(p => p.id === "p2"), null, {timeout: 10000});
+    await B.page.waitForFunction(() => window.__npt.mis.some(p => p.id === "p2"), null, {timeout: 10000});
+    const add = (pg, k) => pg.evaluate(k => { const n = window.__npt; n.toggleSong(n.mis.find(p => p.id === "p2"), n.CAT.all.find(s => s.k === k)); }, k);
+    await ctx.setOffline(true);
+    await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+    await add(page, S(2).k);
+    await settle(page);
+    assert.ok(await page.evaluate(k => window.__npt.mis.find(p => p.id === "p2").songs.some(s => s.k === k), S(2).k), "sin señal se ve al momento");
+    await add(B.page, S(3).k);
+    await until("lo de B llegó al servidor", async () => (await get("playlists/p2")).songs.some(s => s.k === S(3).k));
+    assert.ok(!(await get("playlists/p2")).songs.some(s => s.k === S(2).k), "lo de A todavía no subió");
+    await ctx.setOffline(false);
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    const want = [S(1).k, S(3).k, S(2).k];
+    await until("quedan las dos en el servidor", async () => JSON.stringify((await get("playlists/p2")).songs.map(s => s.k)) === JSON.stringify(want), 30000);
+    await page.waitForFunction(w => JSON.stringify(window.__npt.mis.find(p => p.id === "p2").songs.map(s => s.k)) === JSON.stringify(w), want, {timeout: 15000});
+    assert.equal(await page.evaluate(() => localStorage.getItem("np-pend:" + window.__npt.uid)), "[]", "la cola quedó vacía");
+    await ctx.close();
+  });
   /* ---------- Bloqueadas: canciones que no hubo forma de poner, con archivo propio en el aparato ---------- */
   const k2 = S(2).k;
   const sinrep = async () => (await get("catalog/main"))?.sinrep || [];

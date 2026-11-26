@@ -231,3 +231,41 @@ test("ytBlocked: solo 100/101/150 con conexión es bloqueo; 2, 5 o sin conexión
   for (const c of [100, 101, 150]){ assert.equal(L.ytBlocked(c, true), true, "código " + c); assert.equal(L.ytBlocked(c, false), false, "sin conexión " + c); }
   for (const c of [2, 5, 0, undefined, null, "150"]) assert.equal(L.ytBlocked(c, true), false, "código " + c);
 });
+
+test("operaciones: lo hecho sin conexión se vuelve a aplicar sobre lo último del servidor sin pisar", () => {
+  const S = n => ({t: "T" + n, a: "A" + n, k: "k" + n, y: null});
+  const ks = l => l.map(s => s.k);
+  const viaje = ops => JSON.parse(JSON.stringify(ops)); // se guardan en el aparato y vuelven al recargar
+  // el otro agregó mientras tanto: quedan las dos
+  let srv = {songs: [S(1), S(3)]};
+  assert.equal(L.applyOps(srv, viaje([{f: "songs", o: "toggle", it: S(5), add: true}])), true);
+  assert.deepEqual(ks(srv.songs), ["k1", "k3", "k5"]);
+  srv = {songs: [S(1), S(3)]};
+  L.applyOps(srv, viaje([{f: "songs", o: "add", items: [S(5), S(1)]}]));
+  assert.deepEqual(ks(srv.songs), ["k1", "k3", "k5"]);
+  // el otro quitó la misma: no revive (ni quitándola ni con toggle add=false)
+  srv = {songs: [S(1)]};
+  assert.equal(L.applyOps(srv, viaje([{f: "songs", o: "remove", keys: ["k2"]}, {f: "songs", o: "toggle", it: S(2), add: false}])), false);
+  assert.deepEqual(ks(srv.songs), ["k1"]);
+  // operación sobre una canción que ya no está: se ignora
+  srv = {songs: [S(1), S(2)]};
+  assert.equal(L.applyOps(srv, viaje([{f: "songs", o: "move", k: "k9", to: 0}, {f: "songs", o: "set", k: "k9", v: {t: "x"}}])), false);
+  assert.deepEqual(srv.songs, [S(1), S(2)]);
+  // en orden: agregar y luego mover; aplicar dos veces da lo mismo
+  srv = {songs: [S(1), S(2)]};
+  const ops = viaje([{f: "songs", o: "toggle", it: S(3), add: true}, {f: "songs", o: "move", k: "k3", to: 0}]);
+  L.applyOps(srv, ops); L.applyOps(srv, ops);
+  assert.deepEqual(ks(srv.songs), ["k3", "k1", "k2"]);
+  // restaurar (Deshacer) y poner/quitar campos (null quita)
+  srv = {songs: [S(1), S(3)]};
+  L.applyOps(srv, viaje([{f: "songs", o: "restore", items: [{it: S(2), i: 1}]}, {f: "songs", o: "set", k: "k1", v: {sc: "u", y: null}}]));
+  assert.deepEqual(ks(srv.songs), ["k1", "k2", "k3"]); assert.equal(srv.songs[0].sc, "u"); assert.ok(!("y" in srv.songs[0]));
+  // catálogo: varias listas en una sola operación compuesta
+  const cat = {all: [S(1)], rep: [], sinrep: [{k: "k1", c: 150}]};
+  assert.deepEqual(L.opFields([{f: "rep"}, {f: "all"}, {f: "rep"}]), ["rep", "all"]);
+  assert.equal(L.applyOps(cat, viaje([{f: "rep", o: "addIfMissing", it: S(7)}, {f: "rep", o: "set", k: "k7", v: {sc: "u"}}, {f: "sinrep", o: "blkDrop", k: "k1"}, {f: "sinrep", o: "blkAdd", it: {k: "k2", c: 101}}])), true);
+  assert.deepEqual(cat.rep, [{...S(7), sc: "u"}]); assert.deepEqual(ks(cat.sinrep), ["k2"]);
+  // lista que no existe u operación desconocida: nada
+  assert.equal(L.applyOp({songs: []}, {f: "otra", o: "add", items: [S(1)]}), false);
+  assert.equal(L.applyOp({songs: []}, {f: "songs", o: "rara"}), false);
+});

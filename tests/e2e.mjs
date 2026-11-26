@@ -142,6 +142,18 @@ try {
     assert.deepEqual((await get("playlists/p1")).songs.map(s => s.k), want);
   });
 
+  await step("Deshacer al quitar: sigue funcionando después de que la nube rearma las playlists", async () => {
+    const before = (await get("playlists/p1")).songs.map(s => s.k), k = before[1];
+    await A.page.evaluate(k => { const n = window.__npt, p = n.mis[0]; window.__p0 = p; n.removeUndo(p, [p.songs.find(s => s.k === k)]); }, k);
+    await settle(A.page);
+    await A.page.waitForFunction(() => window.__npt.mis[0] !== window.__p0, null, {timeout: 10000}); // llegó el snapshot: `mis` tiene objetos nuevos
+    assert.ok(!(await get("playlists/p1")).songs.some(s => s.k === k), "se quitó en la nube");
+    assert.ok(await A.page.evaluate(() => { const r = document.querySelector("#msg").getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; }), "el aviso está a la vista");
+    await A.page.evaluate(() => [...document.querySelectorAll("#msg button")].find(b => b.textContent === "Deshacer").click());
+    await settle(A.page);
+    assert.deepEqual((await get("playlists/p1")).songs.map(s => s.k), before, "volvió a su puesto");
+  });
+
   await step("copia automática del día en la nube", async () => {
     const c = await until("copia de hoy", () => get("copias/" + today));
     assert.equal(c.catalog.all.length, 5);

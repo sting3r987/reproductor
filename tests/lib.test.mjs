@@ -207,3 +207,22 @@ test("temporizador: sleepSet, sleepDue y sleepLeft", () => {
   assert.equal(L.sleepLeft({song: true}, t), 0);
   assert.equal(L.sleepLeft(null, t), 0);
 });
+
+test("queueNext con fijadas: varias «Reproducir después» suenan en el orden en que se pidieron", () => {
+  const o = [0, 1, 2, 3, 4, 5], pin = new Set();
+  let r = L.queueNext(o, 0, 3, pin); pin.add(3);
+  r = L.queueNext(r.order, r.at, 5, pin); pin.add(5);
+  assert.deepEqual(r.order, [0, 3, 5, 1, 2, 4]);
+  assert.equal(r.at, 0);
+  // volver a pedir la primera la deja detrás de la segunda; las no fijadas no cuentan
+  const r2 = L.queueNext(r.order, r.at, 3, pin);
+  assert.deepEqual(r2.order, [0, 5, 3, 1, 2, 4]);
+  // si la actual avanzó (ya sonó 3), la nueva va detrás de las fijadas que quedan
+  const r3 = L.queueNext([0, 3, 5, 1, 2, 4], 1, 2, new Set([5]));
+  assert.deepEqual(r3.order, [0, 3, 5, 2, 1, 4]);
+  // pedir la que ya es la siguiente (y es la última fijada): no cambia
+  const r4 = L.queueNext([0, 3, 5, 1], 0, 5, new Set([3, 5]));
+  assert.equal(r4.moved, false); assert.deepEqual(r4.order, [0, 3, 5, 1]);
+  // sin fijadas se comporta como siempre
+  assert.deepEqual(L.queueNext([0, 1, 2, 3], 0, 3, new Set()).order, [0, 3, 1, 2]);
+});

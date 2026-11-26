@@ -499,8 +499,11 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 /* Celular: la cabecera no es fija (en ningún momento); al bajar queda la franja pequeña del reproductor */
 @media (max-width:640px){
   header.top{position:static} /* el reproductor no queda fijo: al bajar se va con la página y aparece la franja pequeña (.mini) */
-  body.srch #msg{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:8px;padding:4px 12px;font-size:12.5px}
-  body.srch #msg::before{display:inline-block;margin-right:8px;vertical-align:middle}
+  /* el aviso (con «Deshacer») flota abajo: la cabecera no es fija y arriba no se vería; queda sobre la barra de selección */
+  #msg{position:fixed;z-index:30;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));margin:0;width:fit-content;max-width:calc(100% - 32px);border-radius:16px;box-shadow:var(--shadow)}
+  #msg[hidden]{display:none}
+  #msg .btn{flex:none}
+  body.selecting #msg{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 }
 /* Celular: franja pequeña arriba cuando el reproductor quedó fuera de la vista; al tocarla se vuelve al reproductor */
 .mini{position:fixed;z-index:20;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:calc(6px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 6px max(12px,env(safe-area-inset-left,0px));background:var(--surface);border-bottom:1px solid var(--line);box-shadow:var(--shadow);cursor:pointer;animation:minidown .18s ease-out}
@@ -679,7 +682,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=7";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=8";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -772,7 +775,7 @@ onAuthStateChanged(auth, u => {
   const denied = e => {
     if (e.code === "permission-denied" && JZ_ID){ jzGuestMode(u); return; }
     if (e.code === "permission-denied"){ $("gate").hidden = false; $("app").hidden = true; $("gate-msg").textContent = "La cuenta " + u.email + " no tiene acceso a estas playlists. Entra con otra cuenta."; $("login").textContent = "Entrar con otra cuenta"; signOut(auth); }
-    else flash("No se pudieron cargar los datos (" + e.code + "). Revisa tu conexión.");
+    else flash("No se pudieron cargar los datos (" + e.code + "). Revisa tu conexión.", {keep: true});
   };
   unsub.push(heardSync(u)); // lo ya escuchado (Sin repetir), por cuenta
   unsub.push(onSnapshot(doc(db, "catalog", "main"), s => {
@@ -791,7 +794,7 @@ onAuthStateChanged(auth, u => {
 });
 const chains = {};
 function write(id, fn){
-  chains[id] = (chains[id] || Promise.resolve()).then(fn).catch(e => { log("no se guardó (" + id + "): " + (e.code || e.message)); flash(e.code === "permission-denied" ? "Tu cuenta no puede editar estas playlists." : "No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez."); });
+  chains[id] = (chains[id] || Promise.resolve()).then(fn).catch(e => { log("no se guardó (" + id + "): " + (e.code || e.message)); flash(e.code === "permission-denied" ? "Tu cuenta no puede editar estas playlists." : "No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez.", {keep: true}); });
 }
 /* Guardado sin pisarse: cada cambio se vuelve a aplicar sobre lo último que hay en el servidor (transacción), así que si
    los dos editan casi a la vez se conservan ambos cambios. `mutate` recibe las listas del servidor y las cambia por clave
@@ -799,7 +802,7 @@ function write(id, fn){
    que hay en este dispositivo (Firestore lo deja en cola, aunque se cierre la app, y lo sube al volver la señal). */
 const offline = () => navigator.onLine === false;
 function txEdit(chain, ref, fields, mutate, local){
-  const queueLocal = () => { updateDoc(ref, local()).catch(e => { log("no se guardó (" + chain + "): " + (e.code || e.message)); if (e.code === "permission-denied") flash("Tu cuenta no puede editar estas playlists."); }); };
+  const queueLocal = () => { updateDoc(ref, local()).catch(e => { log("no se guardó (" + chain + "): " + (e.code || e.message)); if (e.code === "permission-denied") flash("Tu cuenta no puede editar estas playlists.", {keep: true}); }); };
   write(chain, async () => {
     if (offline()) return queueLocal(); // no se espera la respuesta: así no se traba la cola de cambios
     try {
@@ -823,9 +826,9 @@ let undoT = 0;
 // Los avisos se borran solos a los ~7 s (más si son largos); se quedan los de trabajo en curso («…») y el de cuota/espacio.
 // Un aviso nuevo cancela el temporizador del anterior.
 const flashKeep = t => /…$|Se acabaron las búsquedas|No hay espacio/.test(t);
-function flash(t){
+function flash(t, opt){ // opt.keep: el aviso se queda hasta el siguiente (errores que no deben perderse)
   clearTimeout(undoT); undoT = 0; $("msg").hidden = !t; $("msg").textContent = t || "";
-  if (t && !flashKeep(t)) undoT = setTimeout(() => flash(""), Math.max(7000, t.length * 60));
+  if (t && !(opt && opt.keep) && !flashKeep(t)) undoT = setTimeout(() => flash(""), Math.max(7000, t.length * 60));
 }
 // Aviso con botón «Deshacer» (7 s): fn vuelve a poner lo que se quitó
 function flashUndo(t, fn){
@@ -841,8 +844,9 @@ function removeUndo(p, list){
   const n = removeMany(p, list); if (!n) return 0;
   const t = n === 1 ? "Quitaste «" + items[0].it.t + "»" : "Quitaste " + n + " canciones";
   flashUndo(t + " de “" + p.name + "”.", () => {
-    if (!mis.includes(p)) return;
-    if (plRestore(p.songs, items)) plEdit(p, songs => plRestore(songs, items));
+    const q = mis.find(m => m.id === p.id); // el snapshot de la nube rearma `mis` con objetos nuevos: se busca por id
+    if (!q) return;
+    if (plRestore(q.songs, items)) plEdit(q, songs => plRestore(songs, items));
     refresh();
   });
   return n;
@@ -1688,7 +1692,7 @@ function scReady(tok){
 function scFail(x, why){
   log("SoundCloud falló: " + why);
   flash((x ? "«" + x.t + "»: " : "") + "SoundCloud no la pudo poner (" + why + "). Sigue la próxima.");
-  setTimeout(() => { if (queue[cur] === x) step(1); }, 1200);
+  setTimeout(() => { if (queue[cur] === x) failNext(); }, 1200);
 }
 function setMedia(x){
   if (!("mediaSession" in navigator)) return;
@@ -1713,8 +1717,8 @@ function setMedia(x){
       lockPauseAt = Date.now(); btWatch();
     });
     try { ms.setActionHandler("stop", () => log("lock: stop (no hago nada)")); } catch {} // solo para ver en el registro qué manda el casco
-    ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); step(1); });
-    ms.setActionHandler("previoustrack", () => { log("lock: anterior"); step(-1); });
+    ms.setActionHandler("nexttrack", () => { log("lock: siguiente"); failRun = 0; step(1); });
+    ms.setActionHandler("previoustrack", () => { log("lock: anterior"); failRun = 0; step(-1); });
     // Solo "seekto" (barra de avance). Con seekforward/seekbackward el iPhone cambiaría ⏮ ⏭ por saltos de 10 s.
     try { ms.setActionHandler("seekto", fileFor(x) ? e => { au.currentTime = Math.max(0, Math.min(au.duration || 0, e.seekTime)); updatePos(); } : e => { if (mode === "sc"){ scSeek(e.seekTime); setTimeout(updatePos, 300); } else if (ready){ player.seekTo(e.seekTime, true); setTimeout(updatePos, 300); } }); } catch {}
   } catch (e) { log("mediaSession: " + e.message); }
@@ -1731,7 +1735,7 @@ function playFrom(i, list, label, src, exact){ // exact: empieza en i aunque est
     const fresh = queue.map((_, n) => n).filter(n => !lastPlayed(queue[n]));
     qi = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)] : oldestOf(queue.map((_, n) => n));
   }
-  orderIdx = order(qi); at = 0; pinNext = -1;
+  orderIdx = order(qi); at = 0; pinned.clear(); failRun = 0; // elegir a mano reinicia el tope de fallos
   load(orderIdx[0]);
 }
 function order(from){ // orden de reproducción a partir de la canción `from` (índices de queue); en aleatorio baraja todo sin repetir
@@ -1811,7 +1815,7 @@ function resetHeard(){
   paintHeard(); rearm();
 }
 // «Reproducir después»: la canción (esté o no en la cola) suena justo después de la actual. Sin nada sonando, se reproduce.
-var pinNext = -1; // índice en queue de la que puso «Reproducir después» (fixNext no la cambia)
+var pinned = new Set(); // índices en queue de las que puso «Reproducir después» y aún no suenan (fixNext no las cambia)
 function playAfter(x){
   if (!hasSrc(x)) return flash("«" + x.t + "» no tiene video ni archivo para sonar.");
   if (JZ && JZ.on) return flash("En «Ver juntos» no se cambia la cola.");
@@ -1819,10 +1823,10 @@ function playAfter(x){
   let idx = queue.findIndex(q => q.k === x.k);
   if (idx < 0){ queue.push(x); idx = queue.length - 1; }
   if (idx === orderIdx[at]) return flash("«" + x.t + "» ya suena.");
-  const r = queueNext(orderIdx, at, idx); orderIdx = r.order; at = r.at; pinNext = idx;
+  const r = queueNext(orderIdx, at, idx, pinned); orderIdx = r.order; at = r.at; pinned.add(idx);
   cued = null; precue(); renderNext(); flash("Suena después: «" + x.t + "»");
 }
-function rearm(){ pinNext = -1; if (cur >= 0 && queue.length){ orderIdx = order(cur); at = 0; cued = null; precue(); renderNext(); } } // rearma lo que sigue a partir de la actual
+function rearm(){ pinned.clear(); if (cur >= 0 && queue.length){ orderIdx = order(cur); at = 0; cued = null; precue(); renderNext(); } } // rearma lo que sigue a partir de la actual
 // Cuánto sonó de verdad la canción actual (se suma solo mientras suena)
 var listenAcc = 0, listenFrom = 0, heardDone = false;
 const listened = () => (listenAcc + (listenFrom ? Date.now() - listenFrom : 0)) / 1000;
@@ -1839,7 +1843,7 @@ function paintHeard(){
 // Deja como siguiente la primera de la cola que no sonó en 2 horas; si todas sonaron, la que sonó hace más tiempo.
 function fixNext(){
   const L = orderIdx.length; if (L < 2) return;
-  if (pinNext >= 0 && orderIdx[(at + 1) % L] === pinNext) return; // la puso «Reproducir después»: no se cambia por otra
+  if (pinned.has(orderIdx[(at + 1) % L])) return; // la puso «Reproducir después»: no se cambia por otra
   let best = -1, bestT = Infinity;
   for (let k = 1; k < L; k++){
     const p = (at + k) % L, t = lastPlayed(queue[orderIdx[p]]);
@@ -1886,7 +1890,7 @@ function load(i, opt = {}){
   $("ph").hidden = true; $("sub").hidden = false; $("seekrow").hidden = false;
   log((armed ? "retomo " : "canción ") + (i + 1) + ": " + x.t + (resumePos ? " desde " + resumePos + " s" : ""));
   if (!armed && !opt.auto) markPlayed(x);
-  if (i === pinNext) pinNext = -1;
+  pinned.delete(i);
   fixNext();
   const f = fileFor(x);
   if (armed){
@@ -2013,7 +2017,7 @@ function precue(){
 }
 // ¿Se puede encadenar con fundido cruzado? (no en iPhone: allí el volumen del video no se puede bajar; no en segundo plano)
 function canXfade(){
-  if ((JZ && JZ.on) || repeatOn() || (sleep && sleep.song) || mode !== "yt" || IOS || document.hidden || !FADE || !spareReady || xfade || !cued || queue.length < 2) return false;
+  if ((JZ && JZ.on) || repeatOn() || (sleep && sleep.song) || mode !== "yt" || IOS || document.hidden || !FADE || !spareReady || xfade || !cued || queue.length < 2 || orderIdx.length < 2) return false;
   const nx = queue[orderIdx[(at + 1) % orderIdx.length]];
   return !!nx && !fileFor(nx) && vid(nx) === cued;
 }
@@ -2081,7 +2085,7 @@ function failNext(){
   if (!dec.stop) return step(1);
   const n = failRun; failRun = 0; clearInterval(kick); au.pause(); try { player?.pauseVideo(); } catch {} try { scW?.pause(); } catch {}
   log("paro: " + (dec.why === "offline" ? "sin conexión" : n + " fallos seguidos"));
-  flash(dec.why === "offline" ? "Sin conexión." : "No pude reproducir las últimas " + n + " canciones.");
+  flash(dec.why === "offline" ? "Sin conexión." : "No pude reproducir las últimas " + n + " canciones.", {keep: true});
 }
 function step(d){
   if (!queue.length) return playFrom(0, current, listLabel());
@@ -2209,8 +2213,8 @@ silent.addEventListener("pause", () => {
 silent.addEventListener("play", () => { if (sysPause && Date.now() - keepAt > 1500 && !(BTD && btSeen === false)) btResume("sistema"); });
 navigator.mediaDevices?.addEventListener?.("devicechange", () => { log("cambió el dispositivo de audio"); if (BTD) btCheck("aviso"); if (!playing) btResume("bluetooth", true); });
 if (location.search.includes("debug")) window.__np = {silent, btState: () => ({BT, sysPause, playing, mode})};
-$("next").onclick = () => step(1);
-$("prev").onclick = () => step(-1);
+$("next").onclick = () => { failRun = 0; step(1); };
+$("prev").onclick = () => { failRun = 0; step(-1); };
 $("play").onclick = () => {
   sysPause = 0; lockRelease(); autoTry = 0;
   if (cur < 0) return step(1);
@@ -2233,12 +2237,14 @@ function sleepPaint(){
 }
 function sleepTick(songEnded){ // true si venció (y ya pausó)
   if (!sleep) return false;
+  if (JZ && JZ.on){ sleep = null; sleepPaint(); return false; } // en Ver juntos Dormir no se usa (pausar publicaría a todos)
   if (!sleepDue(sleep, Date.now(), songEnded)){ sleepPaint(); return false; }
   sleepFire(songEnded); return true;
 }
 function sleepFire(atEnd){
   sleep = null; sleepPaint();
-  if (!playing && !atEnd) return; // ya estaba en pausa: no hay nada que parar
+  clearInterval(kick); // aunque salga: un reintento de start() no debe arrancar la canción después
+  if (!playing && started && !atEnd) return; // ya estaba en pausa de verdad (a mano): nada que parar. Si estaba cargando (started = false), sí se pausa
   log("temporizador: pausa"); sleepPausedAt = Date.now(); clearInterval(kick); // sin reintento: que no reanude solo
   const stop = () => { clearInterval(kick); if (mode === "file") au.pause(); else if (mode === "sc") scW?.pause(); else { started = true; try { player?.pauseVideo(); } catch {} } };
   if (atEnd){ if (orderIdx.length > 1){ at = (at + 1) % orderIdx.length; load(orderIdx[at], {armed: true}); } } // la siguiente queda cargada, sin sonar
@@ -2259,6 +2265,7 @@ const repeatOn = () => repeatOne && !(JZ && JZ.on);
 function paintRepeat(){
   const b = $("rep"), jz = !!(JZ && JZ.on);
   b.disabled = jz; b.setAttribute("aria-pressed", String(repeatOn()));
+  for (const x of $("sl-seg").querySelectorAll("button[data-sl]")){ x.disabled = jz; x.title = jz ? "Dormir: no se usa en Ver juntos" : ""; }
   b.title = jz ? "Repetir canción: no se usa en Ver juntos" : repeatOne ? "Repetir canción: encendido (toca para apagar)" : "Repetir canción: apagado";
 }
 $("rep").onclick = () => {
@@ -2278,6 +2285,7 @@ function replayCur(){
 function endTrack(){
   if (sleepTick(true)) return;
   if (repeatOn() && cur >= 0 && !armed && queue[cur]) return replayCur();
+  if (orderIdx.length === 1 && cur >= 0 && queue[cur]){ load(cur, {armed: true}); return; } // una sola canción y sin Repetir: se queda cargada, sin sonar (no sin fin)
   step(1);
 }
 $("shuf").onclick = () => {
@@ -2315,10 +2323,16 @@ document.addEventListener("keydown", e => {
   if (!$("sheet").hidden || !$("jzsheet").hidden || !$("tmenu").hidden || e.target.closest?.("[role=dialog]")) return; // con un menú o una hoja abierta las teclas son de ellos
   if (e.key === " " && e.target.tagName !== "BUTTON"){ e.preventDefault(); $("play").click(); }
   if (e.defaultPrevented || e.target.isContentEditable) return;
-  if (e.key === "ArrowRight" && !e.shiftKey) step(1); if (e.key === "ArrowLeft" && !e.shiftKey) step(-1);
+  const tl = e.target.closest?.("[role=tablist]");
+  if (tl && !e.shiftKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")){ // con el foco en las pestañas, ← → mueven entre ellas (no saltan de canción)
+    const tabs = [...tl.querySelectorAll("[role=tab]")], i = tabs.indexOf(e.target.closest("[role=tab]"));
+    if (i >= 0){ e.preventDefault(); tabs[(i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length].focus(); }
+    return;
+  }
+  if (e.key === "ArrowRight" && !e.shiftKey){ failRun = 0; step(1); } if (e.key === "ArrowLeft" && !e.shiftKey){ failRun = 0; step(-1); }
   const k = e.key.toLowerCase();
   if (k === "m" && !e.shiftKey){ $("mute").click(); flash(muted ? "Silenciado." : "Sonido activado."); }
-  else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && queue.length && !e.target.closest?.(".grip")){ // sin canción cargada las flechas siguen desplazando la página
+  else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && e.shiftKey && queue.length && !e.target.closest?.(".grip")){ // el volumen es Mayús+↑/↓; ↑/↓ solos siguen desplazando la página
     e.preventDefault(); level = Math.min(100, Math.max(0, level + (e.key === "ArrowUp" ? 5 : -5))); muted = false;
     store.set("np-vol", level); setVol(vol); paintVol(); flash("Volumen " + level + " %.");
   }
@@ -2329,7 +2343,7 @@ document.addEventListener("keydown", e => {
   }
   else if (e.key === "/"){ e.preventDefault(); $("q").focus(); }
   else if (k === "r" && !e.shiftKey){ if (!$("rep").disabled) $("rep").click(); }
-  else if (e.key === "?") flash("Atajos: espacio = reproducir/pausar · ← → = anterior/siguiente · m = silenciar · ↑ ↓ = volumen · j l o Mayús+← → = ∓10 s · / = buscar · r = repetir · ? = esta ayuda");
+  else if (e.key === "?") flash("Atajos: espacio = reproducir/pausar · ← → = anterior/siguiente · m = silenciar · Mayús+↑ ↓ = volumen · j l o Mayús+← → = ∓10 s · / = buscar · r = repetir · ? = esta ayuda");
 });
 // El módulo corre después de cargar Firebase; la API de YouTube puede haber cargado antes y ya no llamará al callback.
 function initYT(){
@@ -3242,7 +3256,7 @@ $("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set
 $("sf").addEventListener("submit", e => { e.preventDefault(); if (qOwner){ if (matchMedia("(max-width:640px)").matches) $("q").blur(); return; } if (tab === "all"){ if (matchMedia("(max-width:640px)").matches) $("q").blur(); ytSearch($("q").value); } });
 setTab("all");
 loadFiles();
-if (EMU) window.__npt = {get uid(){ return auth.currentUser?.uid; }, get loaded(){ return loaded && catLoaded; }, get mis(){ return mis; }, get CAT(){ return CAT; }, toggleSong, addMany, removeMany, moveSongTo, renameSong, markOk, saveSc, noteSinrep, attachFile, detachFile, playFrom, get mode(){ return mode; }, au, ytErr: code => { const x = queue[cur]; loadedId = vid(x); ytError(code); }, autoBackup: () => { bkDone = false; return autoBackup(auth.currentUser); }, chains};
+if (EMU) window.__npt = {get uid(){ return auth.currentUser?.uid; }, get loaded(){ return loaded && catLoaded; }, get mis(){ return mis; }, get CAT(){ return CAT; }, toggleSong, addMany, removeMany, removeUndo, moveSongTo, renameSong, markOk, saveSc, noteSinrep, attachFile, detachFile, playFrom, get mode(){ return mode; }, au, ytErr: code => { const x = queue[cur]; loadedId = vid(x); ytError(code); }, autoBackup: () => { bkDone = false; return autoBackup(auth.currentUser); }, chains};
 /* ---------- Sin conexión ---------- */
 function paintNet(){ $("net").hidden = !offline(); $("net").textContent = "Sin conexión · tus cambios se suben solos al volver la señal"; }
 addEventListener("offline", () => { paintNet(); log("sin conexión"); });

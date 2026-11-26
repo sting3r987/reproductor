@@ -198,14 +198,24 @@ export function plFilter(songs, q){
 /* ---------- Reproducir después ---------- */
 // Cola = `order` (índices de canciones) y `at` (posición de la que suena). Deja `idx` justo después de la actual:
 // si ya estaba en la cola la mueve (ajustando `at` si salía de antes), si no la inserta. Devuelve {order, at, moved}; no cambia lo que recibe.
-export function queueNext(order, at, idx){
+// `pinned` (opcional, Set de índices): las que ya pidió «Reproducir después» y siguen sin sonar. La nueva va detrás de las
+// fijadas que están seguidas tras la actual, así varias peticiones suenan en el orden en que se pidieron (A y luego B: A, B).
+export function queueNext(order, at, idx, pinned){
   const o = order.slice(); let a = at;
   const p = o.indexOf(idx);
   if (p === a) return {order: o, at: a, moved: false}; // es la que suena
-  if (p === a + 1) return {order: o, at: a, moved: false}; // ya es la siguiente
+  if (!pinned || !pinned.size){
+    if (p === a + 1) return {order: o, at: a, moved: false}; // ya es la siguiente
+    if (p >= 0){ o.splice(p, 1); if (p < a) a--; }
+    o.splice(a + 1, 0, idx);
+    return {order: o, at: a, moved: true};
+  }
   if (p >= 0){ o.splice(p, 1); if (p < a) a--; }
-  o.splice(a + 1, 0, idx);
-  return {order: o, at: a, moved: true};
+  let pos = a + 1;
+  while (pos < o.length && pinned.has(o[pos])) pos++;
+  o.splice(pos, 0, idx);
+  const same = o.length === order.length && o.every((v, n) => v === order[n]);
+  return {order: o, at: a, moved: !same};
 }
 
 /* ---------- Dormir (temporizador) ---------- */

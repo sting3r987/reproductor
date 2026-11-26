@@ -87,7 +87,7 @@ En â‹¯ de cualquier canciÃ³n (pestaÃ±a Todas): **â–¶ Reproducir desp
 
 ## Dormir (temporizador)
 
-En el menÃº de la cuenta (el avatar) â€º **Dormir**: 15, 30, 60 min, Â«Al terminar esta canciÃ³nÂ» y Â«ApagarÂ». Guarda la hora de fin y la mira cada 2 s y al terminar cada canciÃ³n (no usa un `setTimeout` largo, que se frena con la pantalla bloqueada). Al vencer baja el volumen (~2,5 s) y pausa, sin reintentos que la reanuden, y avisa Â«Temporizador: pausadoÂ». Con Â«Al terminar esta canciÃ³nÂ» no hay fundido cruzado y la siguiente queda cargada sin sonar. Mientras estÃ¡ activo el avatar muestra los minutos que faltan (ðŸ’¤ si es por canciÃ³n). Es por aparato: no se sincroniza en Â«Ver juntosÂ». La decisiÃ³n es `sleepDue` en `lib.js`.
+En el menÃº de la cuenta (el avatar) â€º **Dormir**: 15, 30, 60 min, Â«Al terminar esta canciÃ³nÂ» y Â«ApagarÂ». Guarda la hora de fin y la mira cada 2 s y al terminar cada canciÃ³n (no usa un `setTimeout` largo, que se frena con la pantalla bloqueada). Al vencer baja el volumen (~2,5 s) y pausa, sin reintentos que la reanuden, y avisa Â«Temporizador: pausadoÂ». Con Â«Al terminar esta canciÃ³nÂ» no hay fundido cruzado y la siguiente queda cargada sin sonar. Mientras estÃ¡ activo el avatar muestra los minutos que faltan (ðŸ’¤ si es por canciÃ³n). Es por aparato: no se usa en «Ver juntos» (los botones quedan desactivados y un temporizador activo se apaga). La decisiÃ³n es `sleepDue` en `lib.js`.
 
 ## Favoritos
 
@@ -104,7 +104,7 @@ No actúan con el cursor en un campo de texto, ni con una hoja o diálogo abiert
 | Espacio | Reproducir / pausar |
 | ← / → | Anterior / siguiente |
 | m | Silenciar / quitar silencio |
-| ↑ / ↓ | Volumen ±5 (solo con una canción cargada; si no, la página se desplaza) |
+| Mayús+↑ / Mayús+↓ | Volumen ±5 (solo con una canción cargada). ↑ / ↓ solos desplazan la página; con el foco en las pestañas, ← / → cambian de pestaña en vez de saltar de canción |
 | j / l, o Mayús+← / Mayús+→ | Retroceder / adelantar 10 s |
 | / | Ir al buscador |
 | r | Repetir canción |

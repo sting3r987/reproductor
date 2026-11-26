@@ -269,3 +269,13 @@ test("operaciones: lo hecho sin conexión se vuelve a aplicar sobre lo último d
   assert.equal(L.applyOp({songs: []}, {f: "otra", o: "add", items: [S(1)]}), false);
   assert.equal(L.applyOp({songs: []}, {f: "songs", o: "rara"}), false);
 });
+
+test("ytSkip: con la pantalla bloqueada o sin conexión salta a la próxima con archivo (si hay alguna)", () => {
+  assert.equal(L.ytSkip({hidden: false, online: true, anyFile: true}), false);
+  assert.equal(L.ytSkip({hidden: true, online: true, anyFile: true}), true);
+  assert.equal(L.ytSkip({hidden: false, online: false, anyFile: true}), true);
+  assert.equal(L.ytSkip({hidden: true, online: false, anyFile: false}), false, "sin archivos no hay a dónde saltar");
+  // sin red y la siguiente con archivo: failNext sigue; sin archivo: para
+  assert.deepEqual(L.failDecision({fails: 1, size: 5, online: false, nextLocal: true}), {stop: false, why: null});
+  assert.deepEqual(L.failDecision({fails: 1, size: 5, online: false, nextLocal: false}), {stop: true, why: "offline"});
+});

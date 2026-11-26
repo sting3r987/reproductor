@@ -219,6 +219,9 @@ export function failDecision({fails, size, online, nextLocal}){
 // Otro código (2, 5… fallo del reproductor o de la red) o sin conexión es pasajero: no se busca copia ni va a Bloqueadas.
 export const ytBlocked = (code, online) => !!online && [100, 101, 150].includes(code);
 
+// ¿Saltar las de YouTube e ir a la próxima con archivo? Con la pantalla bloqueada (YouTube no arranca) o sin conexión, si hay alguna con archivo
+export const ytSkip = ({hidden, online, anyFile}) => !!anyFile && (!!hidden || !online);
+
 /* ---------- Buscar dentro de una playlist ---------- */
 // Canciones cuyo título o artista contienen q (q ya sin mayúsculas ni tildes, como lo da norm()); sin q devuelve todas
 export function plFilter(songs, q){

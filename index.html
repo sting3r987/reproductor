@@ -682,7 +682,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove, waitForPendingWrites } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile, ytBlocked, applyOps, opFields } from "./lib.js?v=9";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile, ytBlocked, applyOps, opFields, ytSkip } from "./lib.js?v=9";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -2097,6 +2097,7 @@ function fadeOld(p){
   }, 50);
 }
 function start(id, pos){
+  const x0 = queue[cur]; // la canción que se carga (si cambias de canción, el reintento ya no es de ella)
   loadedId = id; started = false; clearInterval(kick); clearInterval(fadeTimer); fading = false;
   if (pos){ setVol(0); player.loadVideoById({videoId: id, startSeconds: pos}); }
   else if (spareReady && cued === id){ // la siguiente ya estaba preparada: se intercambian los reproductores
@@ -2111,7 +2112,14 @@ function start(id, pos){
   // En segundo plano YouTube a veces carga la canción pero no la arranca: insiste hasta que suene (solo mientras no haya empezado).
   let tries = 0, lastT = -1, adv = 0;
   kick = setInterval(() => {
-    if (started || ++tries > 30){ if (!started) log("no arrancó tras 30 s"); return clearInterval(kick); }
+    if (started || ++tries > 30){
+      clearInterval(kick); if (started) return;
+      log("no arrancó tras 30 s");
+      // Sin señal (o a la vista y aun así no arranca): sigue la próxima, o la próxima con archivo, o para con «Sin conexión».
+      // No al abrir la app (autoTry: la deja lista para un toque) ni en segundo plano con señal (ahí YouTube a veces solo espera).
+      if (!autoTry && queue[cur] === x0 && mode === "yt" && (offline() || !document.hidden)) failNext();
+      return;
+    }
     // A veces YouTube no avisa que empezó (pasa con el reproductor de reserva): si el tiempo avanza dos veces seguidas, ya suena
     let ct = 0; try { ct = player.getCurrentTime() || 0; } catch {}
     adv = lastT >= 0 && ct > lastT + 0.3 ? adv + 1 : 0; lastT = ct;
@@ -2146,7 +2154,7 @@ function failNext(){
   if (JZ && JZ.on) return step(1);
   failRun++;
   const nx = queue[orderIdx[(at + 1) % Math.max(1, orderIdx.length)]];
-  const dec = failDecision({fails: failRun, size: queue.length, online: !offline(), nextLocal: !!(nx && fileFor(nx))});
+  const dec = failDecision({fails: failRun, size: queue.length, online: !offline(), nextLocal: !!(nx && fileFor(nx)) || (offline() && queue.some(x => fileFor(x)))}); // sin señal, step salta a la próxima con archivo
   if (!dec.stop) return step(1);
   const n = failRun; failRun = 0; clearInterval(kick); au.pause(); try { player?.pauseVideo(); } catch {} try { scW?.pause(); } catch {}
   log("paro: " + (dec.why === "offline" ? "sin conexión" : n + " fallos seguidos"));
@@ -2154,13 +2162,13 @@ function failNext(){
 }
 function step(d){
   if (!queue.length) return playFrom(0, current, listLabel());
-  // Con la pantalla bloqueada YouTube no arranca: si hay canciones con archivo, salta a la próxima que tenga.
-  const skipYt = document.hidden && queue.some(x => fileFor(x));
+  // Con la pantalla bloqueada YouTube no arranca, y sin conexión no carga: si hay canciones con archivo, salta a la próxima que tenga.
+  const skipYt = ytSkip({hidden: document.hidden, online: !offline(), anyFile: queue.some(x => fileFor(x))});
   for (let n = 0; n < orderIdx.length; n++){
     at = (at + d + orderIdx.length) % orderIdx.length;
     if (!skipYt || fileFor(queue[orderIdx[at]])) break;
   }
-  if (skipYt) log("pantalla bloqueada: sigue con la próxima canción con archivo");
+  if (skipYt) log((offline() ? "sin conexión" : "pantalla bloqueada") + ": sigue con la próxima canción con archivo");
   load(orderIdx[at]);
 }
 // Si el navegador pausa el video justo al bloquear la pantalla o cambiar de app, intenta seguir (funciona si el navegador lo permite).

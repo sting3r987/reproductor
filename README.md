@@ -26,7 +26,7 @@ En Android (Chrome o Brave): menú ⋮ → **Instalar app** o **Agregar a pantal
 - La app abre sin señal con lo último que vio (la guarda `sw.js`; los datos, la caché de Firestore).
 - Lo que cambies sin señal se ve al momento y queda en cola, aunque cierres la app, y se sube solo al volver. Abajo aparece un aviso mientras no hay conexión (o mientras quede algo en cola con señal mala).
 - Agregar, quitar, mover y renombrar canciones, Deshacer, versiones, SoundCloud y Bloqueadas no suben la lista entera de este aparato: se guardan como operaciones (`np-pend:<cuenta>` en el aparato) y al volver la señal se aplican en orden sobre lo último del servidor (ver «Guardado sin pisarse»). Crear, renombrar, ocultar, ordenar y borrar playlists van en la cola de Firestore como siempre (cambian solo esos campos), y se suben antes que las operaciones.
-- Sin señal solo suenan los **archivos de audio** guardados en el teléfono (YouTube necesita internet).
+- Sin señal solo suenan los **archivos de audio** guardados en el teléfono (YouTube necesita internet): al pasar de canción salta a la próxima que tenga archivo (como con la pantalla bloqueada). Si una de YouTube no arranca en 30 s, sigue la próxima con archivo o se para con el aviso «Sin conexión» (con señal pasa lo mismo si está a la vista; al abrir la app queda lista para un toque).
 
 ## Guardado sin pisarse
 

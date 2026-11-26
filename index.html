@@ -973,7 +973,21 @@ function movePlTo(from, to){
   if ((prev && o - prev.orden < 1) || (next && next.orden - o < 1)) mis.forEach((q, j) => { if (q.orden !== j * 1000) patch(q, {orden: j * 1000}); });
   else patch(p, {orden: o});
 }
-function removePl(p){ mis.splice(mis.indexOf(p), 1); write(p.id, () => offline() ? void deleteDoc(doc(plCol, p.id)).catch(() => {}) : deleteDoc(doc(plCol, p.id))); }
+// Borra la playlist; devuelve una copia para Deshacer (misma id: «Reanudar» y «Ver juntos» siguen sirviendo)
+function removePl(p){
+  const copy = {id: p.id, name: p.name, orden: p.orden, oculta: !!p.oculta, songs: p.songs.map(s => ({...s}))};
+  mis.splice(mis.indexOf(p), 1); write(p.id, () => offline() ? void deleteDoc(doc(plCol, p.id)).catch(() => {}) : deleteDoc(doc(plCol, p.id)));
+  return copy;
+}
+// Deshacer el borrado: la vuelve a crear con la misma id y contenido, en la misma cola que el borrado (sin conexión llega después)
+function unremovePl(copy, reopen){
+  if (mis.some(m => m.id === copy.id)) return;
+  const body = {name: copy.name, orden: copy.orden, oculta: copy.oculta, songs: copy.songs.map(s => ({...s}))}, ref = doc(plCol, copy.id);
+  mis.push({id: copy.id, ...body, songs: copy.songs.map(s => ({...s}))}); mis.sort((a, b) => a.orden - b.orden);
+  write(copy.id, () => offline() ? void setDoc(ref, body).catch(() => {}) : setDoc(ref, body));
+  if (reopen) openId = copy.id;
+  refresh();
+}
 
 /* ---------- Importar (primera vez) ---------- */
 function renderImport(){
@@ -2558,7 +2572,10 @@ $("pls").addEventListener("click", e => {
   if (act === "view"){ plView = b.dataset.v; store.set("np-view", plView); menuOpen = null; return refresh(); }
   if (act === "showhidden"){ showHidden = !showHidden; menuOpen = null; return refresh(); }
   if (act === "delc" || act === "del"){
-    if (confirmDel === p.id){ removePl(p); confirmDel = null; menuOpen = null; if (act === "del") openId = null; flash("Borraste la playlist “" + p.name + "”."); }
+    if (confirmDel === p.id){
+      const wasOpen = openId === p.id || act === "del", copy = removePl(p); confirmDel = null; menuOpen = null; if (act === "del") openId = null;
+      flashUndo("Borraste la playlist “" + p.name + "”.", () => unremovePl(copy, wasOpen));
+    }
     else confirmDel = p.id;
     return refresh();
   }
@@ -3328,7 +3345,7 @@ $("sort").addEventListener("change", () => { sortBy = $("sort").value; store.set
 $("sf").addEventListener("submit", e => { e.preventDefault(); if (qOwner){ if (matchMedia("(max-width:640px)").matches) $("q").blur(); return; } if (tab === "all"){ if (matchMedia("(max-width:640px)").matches) $("q").blur(); ytSearch($("q").value); } });
 setTab("all");
 loadFiles();
-if (EMU) window.__npt = {get uid(){ return auth.currentUser?.uid; }, get loaded(){ return loaded && catLoaded; }, get mis(){ return mis; }, get CAT(){ return CAT; }, toggleSong, addMany, removeMany, removeUndo, moveSongTo, renameSong, markOk, saveSc, noteSinrep, attachFile, detachFile, playFrom, get mode(){ return mode; }, au, ytErr: code => { const x = queue[cur]; loadedId = vid(x); ytError(code); }, autoBackup: () => { bkDone = false; return autoBackup(auth.currentUser); }, chains};
+if (EMU) window.__npt = {get uid(){ return auth.currentUser?.uid; }, get loaded(){ return loaded && catLoaded; }, get mis(){ return mis; }, get CAT(){ return CAT; }, toggleSong, addMany, removeMany, removeUndo, removePl, unremovePl, moveSongTo, renameSong, markOk, saveSc, noteSinrep, attachFile, detachFile, playFrom, get mode(){ return mode; }, au, ytErr: code => { const x = queue[cur]; loadedId = vid(x); ytError(code); }, autoBackup: () => { bkDone = false; return autoBackup(auth.currentUser); }, chains};
 /* ---------- Sin conexión ---------- */
 function paintNet(){ // sin conexión, o con cambios en cola que aún no subieron (señal mala)
   const n = PEND.length; $("net").hidden = !offline() && !n;

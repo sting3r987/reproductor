@@ -253,6 +253,23 @@ try {
     assert.equal(await page.evaluate(() => localStorage.getItem("np-pend:" + window.__npt.uid)), "[]", "la cola quedó vacía");
     await ctx.close();
   });
+
+  await step("borrar una playlist se puede deshacer (misma id y canciones)", async () => {
+    const { page } = B;
+    await put("playlists/p3", {name: "Borrable", orden: 3, oculta: false, songs: [S(1), S(2)]});
+    await page.waitForFunction(() => window.__npt.mis.some(p => p.id === "p3"), null, {timeout: 10000});
+    await page.click("#tab-pls");
+    await page.click('#pls [data-act="menu"][data-id="p3"]');
+    await page.click('#pls [data-act="delc"][data-id="p3"]'); // primer toque: pide confirmar
+    await page.click('#pls [data-act="delc"][data-id="p3"]');
+    await until("borrada en la nube", async () => (await get("playlists/p3")) === null);
+    await page.evaluate(() => [...document.querySelectorAll("#msg button")].find(b => b.textContent === "Deshacer").click());
+    await until("vuelve con la misma id", async () => !!(await get("playlists/p3")));
+    const d = await get("playlists/p3");
+    assert.equal(d.name, "Borrable"); assert.equal(d.orden, 3);
+    assert.deepEqual(d.songs.map(s => s.k), [S(1).k, S(2).k]);
+    await page.click("#tab-all");
+  });
   /* ---------- Bloqueadas: canciones que no hubo forma de poner, con archivo propio en el aparato ---------- */
   const k2 = S(2).k;
   const sinrep = async () => (await get("catalog/main"))?.sinrep || [];

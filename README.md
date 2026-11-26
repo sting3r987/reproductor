@@ -40,6 +40,7 @@ No van como operaciones (reemplazan todo, necesitan conexión): **Restaurar** un
 
 - **Automática**: una vez al día, la primera vez que alguno abre la app con conexión, se guarda una copia del catálogo y las playlists en `copias/<fecha>`, más el historial de escuchadas de cada cuenta. Quedan las últimas 14.
 - **Restaurar**: menú de la cuenta → **Restaurar…** (o abrir con `?restaurar`). Antes de restaurar se guarda cómo estaba todo en `copias/antes-de-restaurar`. Las playlists creadas después de la copia se conservan.
+- **Deshacer**: al borrar una playlist (o quitar canciones) el aviso trae **Deshacer** unos 7 s; la vuelve a crear con la misma id, nombre, orden y canciones (sin conexión también: va en la misma cola que el borrado) y, si estaba abierta, la vuelve a abrir.
 - **Manual**: menú de la cuenta → **Descargar copia** (archivo .json con catálogo, playlists e historial). Se carga con `?restaurar`.
 
 ## Acceso

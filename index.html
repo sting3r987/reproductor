@@ -421,6 +421,8 @@ body.dragging .row:hover,body.dragging .pb-row:hover{background:transparent}
 .gate p{margin:0;color:var(--ink-2);max-width:42ch;font-size:16px}
 .gate .btn{font-size:15px;padding:11px 22px;margin-top:6px}
 .gate .fine{font-size:12.5px;color:var(--ink-3)}
+#gate-msg{white-space:pre-line;overflow-wrap:anywhere}
+#gate-app{display:flex;flex-direction:column;gap:6px;align-items:center;overflow-wrap:anywhere}
 /* Hoja para agregar a playlist */
 .sheet-bg{position:fixed;inset:0;background:var(--shade);z-index:20;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .sheet{background:var(--bg);width:100%;max-width:520px;border-radius:22px 22px 0 0;padding:14px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:12px;max-height:84vh;overflow:auto;box-shadow:0 -10px 40px rgba(0,0,0,.3);animation:up .22s ease-out}
@@ -680,7 +682,7 @@ body.jz-lock #play,body.jz-lock #prev,body.jz-lock #next,body.jz-lock #seek,body
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, signOut, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, query, where, runTransaction, serverTimestamp, deleteField, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile } from "./lib.js?v=8";
+import { norm, esc, ytKind, clean, guess, scParse, scKey, artistKey, titleKey, fmt, parseId, searchVariants, musicRank, onlyMusic, autoQueries, isoSecs, autoMatch, setWhere, plToggle, plAdd, plRemove, plRestore, failDecision, plFilter, queueNext, sleepSet, sleepDue, sleepLeft, plMove, addIfMissing, dayId, oldCopies, autoLoad, autoDump, blkAdd, blkDrop, blkWhy, blkSearch, isAudioFile, envClass, loginHelp } from "./lib.js?v=9";
 
 const CFG = window.APP_CONFIG || {};
 const IDEAS = ["Para el carro", "Reggaetón de la vieja escuela", "Salsa brava", "Merengue para bailar", "Despecho", "Rock en español", "Rock clásico en inglés", "Llano adentro", "Vallenato parrandero", "Baladas para cantar", "Rumba de viernes", "Para entrenar", "Domingo tranquilo", "Rap con mensaje", "Playa y sol", "Para dormir", "Nuestras canciones"];
@@ -747,18 +749,46 @@ const plCol = collection(db, "playlists");
 let unsub = [];
 // Un segundo toque mientras la ventana de Google sigue abierta cancela la primera (auth/cancelled-popup-request): se ignora.
 let logging = false;
+const ENV = envClass(navigator.userAgent, navigator.platform, navigator.maxTouchPoints, !!navigator.standalone || matchMedia("(display-mode: standalone)").matches);
+// En iPhone la ventana de Google a veces no responde nunca (app en la pantalla de inicio, navegador dentro de otra app):
+// la promesa no termina y el botón quedaba deshabilitado para siempre. Un perro guardián lo libera y explica qué hacer.
+let loginTry = 0, loginDog = 0, loginBack = 0;
+function loginEnd(){ clearTimeout(loginDog); clearTimeout(loginBack); logging = false; $("login").disabled = false; }
+function loginStuck(n){
+  if (n !== loginTry || !logging || auth.currentUser) return;
+  loginEnd(); $("gate-msg").textContent = loginHelp("sin respuesta", ENV);
+}
 $("login").onclick = () => {
   if (logging) return; logging = true; $("login").disabled = true;
+  const n = ++loginTry;
   $("gate-msg").textContent = "Se abrió la ventana de Google: elige tu cuenta ahí.";
-  signInWithPopup(auth, new GoogleAuthProvider()).catch(e => {
-    const c = e.code || e.message;
-    $("gate-msg").textContent = c === "auth/popup-blocked"
-      ? "El navegador bloqueó la ventana de Google. En Brave: Ajustes → Shields y privacidad → desactiva «Bloquear ventanas emergentes» (o abre la página en Safari) y vuelve a intentar."
-      : c === "auth/popup-closed-by-user" || c === "auth/cancelled-popup-request"
-      ? "Se cerró la ventana de Google antes de terminar. Toca el botón una sola vez y completa el inicio de sesión en la ventana que se abre."
-      : "No se pudo entrar (" + c + "). Intenta de nuevo.";
-  }).finally(() => { logging = false; $("login").disabled = false; });
+  loginDog = setTimeout(() => loginStuck(n), 20000);
+  signInWithPopup(auth, new GoogleAuthProvider()).then(() => { if (n === loginTry) loginEnd(); }, e => {
+    if (n !== loginTry || auth.currentUser) return; // llegó tarde: ya hay otro intento o ya entró
+    loginEnd(); $("gate-msg").textContent = loginHelp(e.code || e.message, ENV);
+  });
 };
+// Al volver de la ventana de Google sin haber entrado, no se espera a los 20 s completos
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden || !logging) return;
+  const n = loginTry; clearTimeout(loginBack); loginBack = setTimeout(() => loginStuck(n), 8000);
+});
+// Dentro de WhatsApp, Instagram, Facebook… Google no deja entrar bien: se avisa antes y se ofrece copiar el enlace
+if (ENV.app){
+  const box = document.createElement("div"); box.id = "gate-app";
+  box.innerHTML = '<p><strong>Estás dentro de otra app.</strong> Para entrar, copia el enlace y ábrelo en ' + (ENV.ios ? "Safari" : "tu navegador") + '.</p><button class="btn" type="button" id="copylink">Copiar enlace</button>';
+  $("gate-msg").before(box);
+  $("copylink").onclick = async e => {
+    const jz = new URLSearchParams(location.search).get("juntos"), url = location.origin + location.pathname + (jz ? "?juntos=" + encodeURIComponent(jz) : "");
+    let ok = false;
+    try { await navigator.clipboard.writeText(url); ok = true; }
+    catch {
+      const t = document.createElement("textarea"); t.value = url; document.body.appendChild(t); t.select();
+      try { ok = document.execCommand("copy"); } catch {} t.remove();
+    }
+    e.target.textContent = ok ? "Enlace copiado" : url;
+  };
+}
 $("logout").onclick = () => signOut(auth);
 onAuthStateChanged(auth, u => {
   unsub.forEach(f => f()); unsub = [];
@@ -1481,9 +1511,12 @@ const silent = (() => {
 })();
 let stoppedAt = 0;
 let lockHeld = 0, lockHeldT = 0, lockResumeT = 0;
+// bgPause: cuándo pausó YouTube por salir de la app (0 = no hay). Solo esas pausas se reanudan solas al volver.
+let bgPause = 0, bgCur = -1, bgId = null, userPauseAt = 0;
+function userPause(){ bgPause = 0; userPauseAt = Date.now(); }
 function lockRelease(){ lockHeld = 0; clearTimeout(lockHeldT); clearTimeout(lockResumeT); }
 function setPlaying(on){
-  if (on){ lockRelease(); failRun = 0; }
+  if (on){ lockRelease(); failRun = 0; if (!document.hidden) bgPause = 0; } // oculta se conserva: YouTube puede volver a pausar
   if (playing && !on) stoppedAt = Date.now();
   if (on && !listenFrom) listenFrom = Date.now(); else if (!on && listenFrom){ listenAcc += Date.now() - listenFrom; listenFrom = 0; } // tiempo escuchado (Sin repetir)
   if (playing && !on && BTD) setTimeout(() => { if (!playing && Date.now() - btT0 > 2000) btWatch(); }, 50); // se pausó: a vigilar el Bluetooth (si la pausa no lo puso ya a vigilar)
@@ -1735,6 +1768,7 @@ function setMedia(x){
         return;
       }
       log("lock: pausa");
+      userPause();
       lockRelease();
       const hold = mode === "yt" && !armed; // con archivos de audio la pestaña no tiene cómo mantenerse viva: pausa normal
       if (hold) lockHeld = Date.now();
@@ -1911,7 +1945,7 @@ function load(i, opt = {}){
   checkHeard(); listenAcc = 0; listenFrom = playing ? Date.now() : 0; heardDone = false; // la que se deja: ¿alcanzó a sonar? La nueva empieza en cero
   clearTimeout(lockResumeT); // otra canción: ya no se espera para retomar la anterior
   if (!opt.auto) autoTry = 0; // otra canción o retomar a mano: se olvida el intento de arrancar sola
-  cur = i; armed = !!opt.armed; resumePos = opt.pos || 0;
+  cur = i; armed = !!opt.armed; resumePos = opt.pos || 0; bgPause = 0;
   $("nt").textContent = x.t; $("na").textContent = x.a;
   $("pos").textContent = queueLabel + " · " + (i + 1) + " de " + queue.length;
   $("ph").hidden = true; $("sub").hidden = false; $("seekrow").hidden = false;
@@ -2134,6 +2168,13 @@ document.addEventListener("visibilitychange", () => {
     else { cued = null; precue(); } // la que suena termina; la siguiente ya se prepara con video
   }
   if (document.hidden && playing) keepAlive(); // asegura el audio de fondo (y con él la notificación con controles) al salir de la app
+  if (!document.hidden && bgPause){ // la pausó YouTube al salir de la app: se sigue al volver
+    const mins = (Date.now() - bgPause) / 60000, same = cur === bgCur && loadedId === bgId;
+    const jzOff = !!(JZ && JZ.on && JZ.st && !JZ.st.playing);
+    bgPause = 0;
+    if (!playing && !sysPause && same && !armed && mode === "yt" && mins < 10 && !jzOff){ log("al volver a la app: reanudo"); resumeYt("al volver a la app"); }
+    else if (!playing) log("al volver a la app: no reanudo (" + (sysPause ? "se perdió el audio" : mins >= 10 ? "pasaron más de 10 min" : "cambió lo que sonaba") + ")");
+  }
 });
 /* ---------- Carro y Bluetooth (como Spotify): al apagar el carro o desconectar los audífonos, Android pausa el audio de la
    página («audio becoming noisy»); entonces se pausa también la canción. Al volver a conectar, el carro manda «play» a la
@@ -2219,7 +2260,7 @@ function btWatch(){
 if (BTD) btWatch(); // desde que se abre la app: si llega el Bluetooth del carro, que suene
 function btPause(why){
   if (!BT || sysPause) return;
-  sysPause = Date.now(); log("audio desconectado (" + why + "): pausa");
+  bgPause = 0; sysPause = Date.now(); log("pausa por pérdida del audio de fondo o desconexión (" + why + ")");
   if (mode === "file") au.pause(); else if (mode === "sc") scW?.pause(); else { started = true; clearInterval(kick); try { player?.pauseVideo(); } catch {} }
   saveResume(curPos()); btWatch();
 }
@@ -2243,7 +2284,7 @@ if (location.search.includes("debug")) window.__np = {silent, btState: () => ({B
 $("next").onclick = () => step(1);
 $("prev").onclick = () => step(-1);
 $("play").onclick = () => {
-  sysPause = 0; lockRelease(); autoTry = 0;
+  sysPause = 0; lockRelease(); autoTry = 0; bgPause = 0; if (playing) userPause();
   if (cur < 0) return step(1);
   if (armed) return load(cur, {pos: resumePos}); // retoma la canción que quedó cargada al abrir la app
   if (mode === "file"){ if (au.paused) au.play(); else au.pause(); return; }
@@ -2270,7 +2311,7 @@ function sleepTick(songEnded){ // true si venció (y ya pausó)
 function sleepFire(atEnd){
   sleep = null; sleepPaint();
   if (!playing && !atEnd) return; // ya estaba en pausa: no hay nada que parar
-  log("temporizador: pausa"); sleepPausedAt = Date.now(); clearInterval(kick); // sin reintento: que no reanude solo
+  log("temporizador: pausa"); userPause(); sleepPausedAt = Date.now(); clearInterval(kick); // sin reintento: que no reanude solo
   const stop = () => { clearInterval(kick); if (mode === "file") au.pause(); else if (mode === "sc") scW?.pause(); else { started = true; try { player?.pauseVideo(); } catch {} } };
   if (atEnd){ if (orderIdx.length > 1){ at = (at + 1) % orderIdx.length; load(orderIdx[at], {armed: true}); } } // la siguiente queda cargada, sin sonar
   else { fadeTo(0, 2500); if (document.hidden) stop(); else setTimeout(stop, 2600); }
@@ -2320,7 +2361,7 @@ const MODES = ["video", "audio", "auto"], MODE_KEY = {video: "0", audio: "1", au
 const MODE_TXT = {
   video: "Video: suena el clip de cada canción.",
   audio: "Solo audio: suena la versión de audio cuando la canción la tiene (🎧 en la lista).",
-  auto: "Automático: con la pantalla bloqueada o en otra app suena la versión de audio; al volver, la canción termina y las siguientes salen con video."
+  auto: "Automático: con la pantalla bloqueada o en otra app, la canción que suena sigue como está y las siguientes salen con la versión de audio; al volver salen con video."
 };
 function setAudioMode(m){
   audioMode = m; const b = $("aud");
@@ -2332,7 +2373,8 @@ setAudioMode(audioMode);
 // Si lo que suena tiene otra versión para el modo actual, cambia sin perder el punto
 function applyMode(why){
   const x = queue[cur];
-  if (x && mode === "yt" && ready && !armed && playing && !fileFor(x) && vid(x) !== loadedId){ log(why + ": cambio a la versión " + (wantAudio() ? "de audio" : "con video")); start(vid(x), curPos()); }
+  if (document.hidden) log(why + ": no cambio el video que suena; la versión de audio queda para la siguiente");
+  else if (x && mode === "yt" && ready && !armed && playing && !fileFor(x) && vid(x) !== loadedId){ log(why + ": cambio a la versión " + (wantAudio() ? "de audio" : "con video")); start(vid(x), curPos()); }
   cued = null; precue();
 }
 $("aud").onclick = () => {
@@ -2385,7 +2427,10 @@ function initYT(){
         jzYtState(e.data);
         if (e.data === YT.PlayerState.ENDED && !jzHoldEnd()) endTrack();
         if (e.data === YT.PlayerState.CUED && !started && !armed) player.playVideo(); // cargó pero no arrancó (pasa en segundo plano)
-        if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000 && Date.now() - sleepPausedAt > 6000) setTimeout(() => { if (document.hidden && !playing) player.playVideo(); }, 400);
+        if (e.data === YT.PlayerState.PAUSED && wasPlaying && document.hidden && Date.now() - hiddenAt < 3000 && Date.now() - sleepPausedAt > 6000 && Date.now() - userPauseAt > 6000 && !sysPause && !(JZ && JZ.on && JZ.st && !JZ.st.playing)){
+          bgPause = Date.now(); bgCur = cur; bgId = loadedId; log("YouTube pausó al salir de la app: insisto");
+          setTimeout(() => { if (document.hidden && !playing && bgPause && !sysPause) resumeYt("pausa al salir de la app"); }, 400);
+        }
       },
       onError(e){
         if (e.target !== player){ cued = null; return; } // la preparada falló: se cargará de la forma normal
@@ -3084,6 +3129,7 @@ function jzApply(st, force){
       if (st.playing && !playing) resumeYt("ver juntos");
       if (!st.playing && playing){ started = true; clearInterval(kick); player.pauseVideo(); }
     }
+    if (!st.playing){ userPause(); clearInterval(kick); }
   } finally { JZ.applying = false; }
   jzPaint();
 }

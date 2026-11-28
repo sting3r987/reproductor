@@ -230,3 +230,32 @@ export function sleepDue(s, now, songEnded = false){
 }
 // Minutos que faltan, redondeados hacia arriba (0 si no hay hora)
 export const sleepLeft = (s, now) => s && s.until != null ? Math.max(0, Math.ceil((s.until - now) / 60000)) : 0;
+
+/* ---------- Entrar con Google: entorno y ayuda ---------- */
+const IN_APP = [[/FBAN|FBAV|FB_IAB|FBIOS/, "Facebook o Messenger"], [/Instagram/, "Instagram"], [/WhatsApp/, "WhatsApp"], [/\bLine\//, "Line"], [/\bGSA\//, "la app de Google"],
+  [/MicroMessenger/, "WeChat"], [/Snapchat/, "Snapchat"], [/musical_ly|BytedanceWebview|TikTok/i, "TikTok"], [/Twitter/, "Twitter"], [/LinkedInApp/, "LinkedIn"], [/Pinterest\//, "Pinterest"], [/Telegram/, "Telegram"]];
+export function envClass(ua, platform, maxTouchPoints, standalone){
+  ua = String(ua || "");
+  const ios = /iP(hone|ad|od)/.test(ua) || (platform === "MacIntel" && maxTouchPoints > 1), alone = !!standalone;
+  let appName = "";
+  if (!alone){
+    appName = (IN_APP.find(([re]) => re.test(ua)) || [])[1] || "";
+    if (!appName && ios && /AppleWebKit/.test(ua) && !/Safari\//.test(ua)) appName = "otra app";
+  }
+  const browser = /CriOS|Chrome\//.test(ua) ? "chrome" : /FxiOS|Firefox\//.test(ua) ? "firefox" : /EdgiOS|Edg(A)?\//.test(ua) ? "edge" : /OPiOS|OPT\//.test(ua) ? "opera" : /Safari\//.test(ua) ? "safari" : "otro";
+  const device = ios ? (/iPad/.test(ua) || platform === "MacIntel" ? "iPad" : "iPhone") : /Android/.test(ua) ? "Android" : "computadora";
+  const label = device + " · " + (alone ? "app instalada" : appName ? "dentro de " + appName : browser);
+  return {ios, standalone: alone, app: !!appName, appName, browser, label};
+}
+export function loginHelp(code, env){
+  const head = code === "auth/popup-blocked" ? "El navegador bloqueó la ventana de Google."
+    : code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request" ? "La ventana de Google se cerró antes de terminar. Toca el botón una sola vez."
+    : code === "sin respuesta" ? "La ventana de Google no respondió." : "No se pudo entrar.";
+  const steps = env.ios ? [
+    env.standalone ? "Entraste desde el icono de la pantalla de inicio: prueba abriendo el enlace en Safari." : "Abre el enlace en Safari (no desde WhatsApp ni otra app).",
+    "No uses navegación privada.",
+    "En Ajustes › Safari desactiva «Bloquear pop-ups». Si sigue igual, desactiva un momento «Evitar rastreo entre sitios».",
+    "Vuelve a tocar «Entrar con Google»."
+  ] : ["Permite las ventanas emergentes de esta página (en Brave: Ajustes › Shields y privacidad).", "Vuelve a tocar «Entrar con Google»."];
+  return head + "\n" + steps.map((s, i) => (i + 1) + ". " + s).join("\n") + "\nSi no entra, manda captura de esto: " + code + " · " + env.label;
+}

@@ -212,3 +212,25 @@ test("temporizador: sleepSet, sleepDue y sleepLeft", () => {
   assert.equal(L.sleepLeft({song: true}, t), 0);
   assert.equal(L.sleepLeft(null, t), 0);
 });
+
+test("envClass distingue Safari y navegadores de iPhone de los que van dentro de otra app", () => {
+  const base = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) ";
+  for (const [tail, browser] of [["Version/18.0 Mobile/15E148 Safari/604.1", "safari"], ["CriOS/130.0 Mobile/15E148 Safari/604.1", "chrome"], ["FxiOS/130.0 Mobile/15E148 Safari/605.1.15", "firefox"], ["EdgiOS/130.0 Mobile/15E148 Safari/605.1.15", "edge"]]){
+    const e = L.envClass(base + tail, "iPhone", 5, false);
+    assert.equal(e.ios, true); assert.equal(e.app, false, tail); assert.equal(e.browser, browser);
+  }
+  for (const tail of ["Mobile/15E148", "Mobile/15E148 [FBAN/FBIOS;FBAV/450.0]", "Mobile/15E148 Instagram 300.0", "Mobile/15E148 Safari Line/13.0", "GSA/300.0 Mobile/15E148 Safari/604.1"])
+    assert.equal(L.envClass(base + tail, "iPhone", 5, false).app, true, tail);
+  const alone = L.envClass(base + "Mobile/15E148", "iPhone", 5, true);
+  assert.equal(alone.app, false, "la app instalada no es «dentro de otra app»"); assert.equal(alone.standalone, true);
+  assert.equal(L.envClass("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36", "Linux armv8l", 5, false).ios, false);
+  assert.equal(L.envClass("Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15", "MacIntel", 0, false).ios, false);
+  assert.equal(L.envClass("Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15", "MacIntel", 5, false).ios, true);
+  assert.equal(L.envClass(undefined).app, false);
+});
+test("loginHelp da pasos de iPhone, el código y el entorno", () => {
+  const ios = L.loginHelp("sin respuesta", {ios: true, standalone: true, label: "iPhone · app instalada"});
+  assert.match(ios, /icono de la pantalla de inicio/); assert.match(ios, /sin respuesta · iPhone · app instalada$/);
+  const and = L.loginHelp("auth/popup-blocked", {ios: false, standalone: false, label: "Android · chrome"});
+  assert.match(and, /bloqueó la ventana/); assert.doesNotMatch(and, /Safari/);
+});

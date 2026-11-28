@@ -116,6 +116,14 @@ No actúan con el cursor en un campo de texto, ni con una hoja o diálogo abiert
 | r | Repetir canción |
 | ? | Mostrar esta lista en un aviso |
 
+## Modo Automático y salir de la app
+
+Si YouTube pausa justo al cambiar de app, el reproductor insiste unos 30 s; si no lo logra, sigue solo al volver (hasta 10 min después). No reanuda lo que pausaste tú, el temporizador, la otra persona en «Ver juntos» ni una pausa por perder el audio. En modo Automático no se cambia de video con la app oculta: la versión de audio empieza en la canción siguiente. YouTube puede seguir sin dejar sonar en segundo plano; para eso están los archivos de la pestaña **Archivos**.
+
+## Entrar desde iPhone
+
+Se entra mejor desde Safari. Si el enlace se abre dentro de otra app, la pantalla de entrada ofrece **Copiar enlace**. Si la ventana de Google no responde, el botón se libera solo y muestra los pasos, con un código y el entorno para mandar captura. (No se usa `signInWithRedirect`: la página está en github.io y Safari bloquea ese flujo entre dominios.)
+
 ## Opciones en la dirección
 
 | Agregar a la dirección | Para qué |
